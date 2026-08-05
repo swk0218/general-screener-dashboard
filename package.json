@@ -9,7 +9,7 @@
     "check": "npm run test && npm run verify:payload && npm run build",
     "encrypt:payload": "node scripts/encrypt-payload.mjs",
     "preview": "vite preview",
-    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs",
+    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs",
     "verify:payload": "node scripts/verify-encrypted-payload.mjs"
   },
   "dependencies": {
