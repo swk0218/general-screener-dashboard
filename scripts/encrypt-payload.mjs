@@ -4,6 +4,7 @@ import { assertDashboardPayload } from "../src/data/contract.js";
 
 const USAGE =
   "Usage: node scripts/encrypt-payload.mjs --input <payload.json> --output <payload.enc.json>";
+const MINIMUM_PASSPHRASE_LENGTH = 10;
 
 function parseArguments(argv) {
   const options = {};
@@ -50,8 +51,13 @@ async function main() {
   }
 
   const passphrase = process.env.DASHBOARD_PASSPHRASE;
-  if (typeof passphrase !== "string" || passphrase.trim().length < 24) {
-    throw new Error("DASHBOARD_PASSPHRASE must contain at least 24 characters.");
+  if (
+    typeof passphrase !== "string"
+    || passphrase.trim().length < MINIMUM_PASSPHRASE_LENGTH
+  ) {
+    throw new Error(
+      `DASHBOARD_PASSPHRASE must contain at least ${MINIMUM_PASSPHRASE_LENGTH} characters.`,
+    );
   }
 
   const source = await readFile(options.input, "utf8");
