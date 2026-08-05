@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+!.env.example
+*.log
+qa-*.png
+fixtures/
+public/data/*.plain.json
+public/data/*.tmp
+public/data/*.bak
+AGENTS.md
+design-qa.md
