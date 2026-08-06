@@ -2074,3 +2074,123 @@ input:focus-visible,
     border-bottom: 0;
   }
 }
+
+/* Annotated UX pass: one content grid, quieter chrome, explicit semantic labels. */
+:root {
+  --content-gutter: 28px;
+}
+
+.unlock-symbol {
+  border-color: color-mix(in srgb, var(--gs-green) 55%, var(--gs-divider));
+  color: var(--gs-green);
+}
+
+.unlock-panel .eyeline {
+  color: var(--gs-green);
+}
+
+.unlock-form {
+  margin-top: 28px;
+}
+
+.unlock-form button {
+  background: var(--gs-green) !important;
+  color: #07120a !important;
+}
+
+.mobile-row-hint {
+  display: none;
+}
+
+.secondary-view,
+.overview-v2,
+.screener-mode-bar,
+.run-header,
+.table-panel {
+  padding-right: var(--content-gutter);
+  padding-left: var(--content-gutter);
+}
+
+.since-visit-time {
+  justify-content: flex-end !important;
+}
+
+.since-visit-time time {
+  color: var(--gs-dim);
+  font: 500 10px/1.3 var(--gs-mono);
+  letter-spacing: .05em;
+}
+
+.metric-as-of {
+  display: block;
+  margin-top: 5px;
+  color: var(--gs-dim);
+  font: 500 10px/1.3 var(--gs-mono);
+  white-space: nowrap;
+}
+
+.performance-result-copy h3.is-positive,
+.backcast-outcome.is-positive,
+.performance-result-copy strong > span.is-positive,
+.backcast-comparison-line strong > span.is-positive {
+  color: var(--gs-green) !important;
+}
+
+.performance-result-copy strong > span.is-negative,
+.backcast-comparison-line strong > span.is-negative {
+  color: var(--gs-negative) !important;
+}
+
+.performance-result-copy strong > span.is-neutral,
+.backcast-comparison-line strong > span.is-neutral {
+  color: var(--gs-muted) !important;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --content-gutter: 20px;
+  }
+
+  .topbar {
+    padding-right: var(--content-gutter);
+    padding-left: var(--content-gutter);
+  }
+
+  .table-heading {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .row-hint {
+    display: block;
+    font-size: 10px;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+
+  .desktop-row-hint {
+    display: none;
+  }
+
+  .mobile-row-hint {
+    display: inline;
+  }
+
+  .screener-mode-bar {
+    gap: 8px;
+  }
+
+  .run-tape {
+    display: none;
+  }
+
+  .recommendation-mobile-list button {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .mini-strategy-card li > button {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+}

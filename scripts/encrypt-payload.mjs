@@ -4,7 +4,7 @@ import { assertDashboardPayload } from "../src/data/contract.js";
 
 const USAGE =
   "Usage: node scripts/encrypt-payload.mjs --input <payload.json> --output <payload.enc.json>";
-const MINIMUM_PASSPHRASE_LENGTH = 10;
+const MINIMUM_PASSPHRASE_LENGTH = 8;
 
 function parseArguments(argv) {
   const options = {};
