@@ -9,7 +9,6 @@ import {
   BookOpen,
   ChevronRight,
   Clock3,
-  FileText,
   Grid2X2,
   History,
   LayoutDashboard,
@@ -23,23 +22,57 @@ import {
 } from "lucide-react";
 import { decryptEnvelope } from "./crypto/envelope.js";
 import { assertDashboardPayload } from "./data/contract.js";
+import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
 import {
   getPerformanceState,
-  getPreviousRecommendation,
+  createDashboardIndex,
+  getIndexedRecommendation,
+  getIndexedRunChanges,
+  getIndexedRunRecommendations,
   getRecommendationDetail,
-  getRunRecommendations,
+  getSymbolTimeline,
   getVerifiedAggregate,
   parseHashRoute,
   resolveSelectedRun,
+  searchHistoryRuns,
   serializeHashRoute,
   sortRunsNewestFirst,
-  summarizeRunChanges,
 } from "./data/dashboard-model.js";
 
 const STRATEGIES = Object.freeze({
   MLG: { label: "중대형 성장주", pickLabel: "10 PICKS", version: "MLG v1" },
   TENX: { label: "텐베거 유망주", pickLabel: "5 PICKS", version: "TENX" },
 });
+
+const HORIZONS = Object.freeze(["5D", "10D", "20D"]);
+const LAST_SEEN_STORAGE_KEY = "general-screener:last-seen-runs:v1";
+
+const RISK_LABELS = Object.freeze({
+  "ENTRY TIMING WARNING": "진입 시점",
+  "RSI WARNING STATUS": "RSI 경고",
+  "EVENT RISK STATUS": "이벤트 근거",
+  "DATA STATUS": "데이터 상태",
+  NOTE: "참고",
+});
+
+const RISK_VALUES = Object.freeze({
+  clear: "경고 없음",
+  available: "확인 가능",
+  unavailable: "미수록",
+  unknown: "확인 불가",
+  true: "해당",
+  false: "해당 없음",
+  fundamental: "펀더멘털",
+  data_quality: "데이터 품질",
+  growth: "성장 지속성",
+  business: "사업 모델",
+  valuation: "밸류에이션",
+  accounting: "회계",
+  cyclicality: "경기 순환",
+});
+
+const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
+const CONFIDENCE_LABELS = Object.freeze({ high: "높음", medium: "보통", low: "낮음", partial: "일부 근거" });
 
 const NAV_ITEMS = Object.freeze([
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
@@ -66,26 +99,6 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
-});
-
-const DRIVER_GROUPS = Object.freeze({
-  MLG: [
-    ["growth", "성장"],
-    ["valuation", "밸류에이션"],
-    ["financial", "재무 건전성"],
-    ["ai_sec", "AI · SEC 근거"],
-  ],
-  TENX: [
-    ["growth", "성장"],
-    ["durability", "성장 지속성"],
-    ["per_share", "주당 가치"],
-    ["gross_margin", "매출총이익률"],
-    ["funding", "자금 조달"],
-    ["monetization", "수익화"],
-    ["demand", "수요"],
-    ["ai", "AI 근거"],
-    ["tenbagger_path", "텐베거 경로"],
-  ],
 });
 
 function formatKst(value) {
@@ -123,38 +136,68 @@ function formatPercent(value) {
   return `${formatNumber(Number(value) * 100)}%`;
 }
 
+function hasValue(value) {
+  return value !== null && value !== undefined && value !== "" && value !== "unknown";
+}
+
+function formatSigned(value, digits = 2) {
+  if (!Number.isFinite(Number(value))) return "—";
+  const number = Number(value);
+  return `${number > 0 ? "+" : ""}${number.toFixed(digits)}`;
+}
+
+function humanizeRiskLabel(value) {
+  const normalized = String(value || "NOTE").toUpperCase();
+  return RISK_LABELS[normalized] || normalized.replaceAll("_", " ");
+}
+
+function humanizeRiskValue(value) {
+  const normalized = String(value || "").trim();
+  return RISK_VALUES[normalized.toLowerCase()] || normalized;
+}
+
+function humanizeConfidence(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return CONFIDENCE_LABELS[normalized] || value;
+}
+
+function getBackcastCell(backcast, strategy, horizon) {
+  const normalized = String(horizon).toLowerCase();
+  const horizonStatus = (backcast?.horizon_statuses || []).find(
+    (item) => item.strategy === strategy && String(item.horizon).toLowerCase() === normalized,
+  );
+  const aggregate = (backcast?.aggregates || []).find(
+    (item) => item.strategy === strategy
+      && String(item.horizon).toLowerCase() === normalized
+      && item.status === "RECONSTRUCTED",
+  );
+  const runSeries = (backcast?.run_series || [])
+    .filter((item) => item.strategy === strategy
+      && String(item.horizon).toLowerCase() === normalized
+      && item.status === "RECONSTRUCTED")
+    .sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
+  const signals = (backcast?.signals || []).filter(
+    (item) => item.strategy === strategy
+      && String(item.horizon).toLowerCase() === normalized
+      && item.status === "RECONSTRUCTED",
+  );
+  return { horizonStatus, aggregate, runSeries, signals };
+}
+
+function loadLastSeenRuns() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LAST_SEEN_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function verdictClass(verdict) {
   const normalized = String(verdict || "").toUpperCase();
   if (normalized.includes("관찰") || normalized === "WATCH") return "is-cyan";
   if (normalized === "FAIL") return "is-negative";
   return "is-amber";
-}
-
-function groupDrivers(strategy, drivers) {
-  const groups = DRIVER_GROUPS[strategy] || [];
-  const assigned = new Set();
-  const result = groups.map(([key, label]) => {
-    const aliases = key === "ai_sec" ? ["ai", "sec", "filing"]
-      : key === "financial" ? ["financial", "cash", "debt", "quality", "margin"]
-      : key === "valuation" ? ["valuation", "value", "pe", "peg", "multiple"]
-      : key === "gross_margin" ? ["gross_margin", "grossmargin"]
-      : key === "per_share" ? ["per_share", "pershare"]
-      : key === "tenbagger_path" ? ["tenbagger", "path"]
-      : [key];
-    const items = drivers.filter((item, index) => {
-      if (assigned.has(index)) return false;
-      const code = String(item.code || "").toLowerCase();
-      const matches = aliases.some((alias) => code.includes(alias));
-      if (matches) assigned.add(index);
-      return matches;
-    });
-    return { key, label, items };
-  });
-  const ungrouped = drivers.filter((_, index) => !assigned.has(index));
-  const populated = result.filter((group) => group.items.length);
-  return ungrouped.length
-    ? [...populated, { key: "other", label: "기타 확인 지표", items: ungrouped }]
-    : populated;
 }
 
 function useHashRoute() {
@@ -331,7 +374,7 @@ function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, evide
       </button>
       <div className="sync-status">
         <span className="sync-label">LAST SYNC</span>
-        <time>{formatKst(generatedAt)}</time>
+        <time dateTime={generatedAt || undefined}>{formatKst(generatedAt)}</time>
         <span className={`status-dot is-${evidence.level.toLowerCase()}`} aria-label={evidence.label} />
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
@@ -394,28 +437,7 @@ function MobileNav({ activeView, strategy, onNavigate }) {
   );
 }
 
-function MetadataStrip({ strategy, totalCount, benchmark, evidence, contractVersion }) {
-  const items = [
-    ["공식 추천", String(totalCount)],
-    ["엔진", STRATEGIES[strategy].version],
-    ["성과 근거", evidence.label],
-    ["기준", benchmark || "QQQ"],
-    ["실행", "OFFICIAL"],
-    ["계약", contractVersion],
-  ];
-  return (
-    <dl className="metadata-strip">
-      {items.map(([label, value], index) => (
-        <div key={label} className={index === 2 ? `is-evidence is-${evidence.level.toLowerCase()}` : ""}>
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function RecommendationTable({ recommendations, selectedSymbol, onPreview, onOpenDetail }) {
+function RecommendationTable({ recommendations, selectedSymbol, transitions, onPreview, onOpenDetail }) {
   return (
     <div className="recommendation-table-wrap">
       <table className="recommendation-table">
@@ -427,10 +449,14 @@ function RecommendationTable({ recommendations, selectedSymbol, onPreview, onOpe
             <th scope="col">VERDICT</th>
             <th scope="col" className="number-cell">SCORE</th>
             <th scope="col" className="number-cell">PRICE</th>
+            <th scope="col" className="number-cell delta-column">Δ PREV</th>
+            <th scope="col"><span className="sr-only">상세</span></th>
           </tr>
         </thead>
         <tbody>
-          {recommendations.map((item) => (
+          {recommendations.map((item) => {
+            const transition = transitions?.get(item.symbol);
+            return (
             <tr
               key={`${item.run_id}:${item.signal_id || item.symbol}`}
               className={item.symbol === selectedSymbol ? "is-selected" : ""}
@@ -456,12 +482,22 @@ function RecommendationTable({ recommendations, selectedSymbol, onPreview, onOpe
               <td className={`verdict-cell ${verdictClass(item.verdict)}`}>{item.verdict || "—"}</td>
               <td className="number-cell score-cell">{formatNumber(item.score)}</td>
               <td className="number-cell muted-number">{formatPrice(item.screening_price)}</td>
+              <td className={`number-cell delta-column ${Number(transition?.scoreDelta) >= 0 ? "is-positive" : "is-negative"}`}>
+                {transition?.status === "NEW" ? "NEW" : transition?.status === "RE-ENTRY" ? "RE-ENTRY" : formatSigned(transition?.scoreDelta)}
+              </td>
+              <td className="row-action-cell">
+                <button type="button" onClick={() => onOpenDetail(item.symbol)} aria-label={`${item.symbol} 전체 상세 보기`}>
+                  <ChevronRight size={17} aria-hidden="true" />
+                </button>
+              </td>
             </tr>
-          ))}
+          );})}
         </tbody>
       </table>
       <ol className="recommendation-mobile-list" aria-label="공식 추천 목록">
-        {recommendations.map((item) => (
+        {recommendations.map((item) => {
+          const transition = transitions?.get(item.symbol);
+          return (
           <li key={`mobile:${item.run_id}:${item.signal_id || item.symbol}`}>
             <button type="button" onClick={() => onOpenDetail(item.symbol)}>
               <span className="mobile-rank">{String(item.recommendation_rank).padStart(2, "0")}</span>
@@ -471,12 +507,12 @@ function RecommendationTable({ recommendations, selectedSymbol, onPreview, onOpe
               </span>
               <span className="mobile-numbers">
                 <strong>{formatNumber(item.score)}</strong>
-                <span>{formatPrice(item.screening_price)}</span>
+                <span>{transition?.status === "NEW" ? "NEW" : transition?.status === "RE-ENTRY" ? "RE-ENTRY" : formatSigned(transition?.scoreDelta)}</span>
               </span>
               <ChevronRight size={22} strokeWidth={1.7} aria-hidden="true" />
             </button>
           </li>
-        ))}
+        );})}
       </ol>
       {recommendations.length === 0 ? (
         <div className="empty-list">현재 실행에서 검색 조건과 일치하는 종목이 없습니다.</div>
@@ -485,52 +521,110 @@ function RecommendationTable({ recommendations, selectedSymbol, onPreview, onOpe
   );
 }
 
-function DetailItems({ title, items, emptyText, limit = null }) {
-  const visibleItems = limit ? items.slice(0, limit) : items;
+function FactTape({ items, className = "" }) {
+  const visible = items.filter((item) => hasValue(item.value));
+  if (!visible.length) return null;
   return (
-    <section className="detail-rich-section">
-      <h3>{title}</h3>
-      {visibleItems.length ? (
-        <div className="detail-evidence">
-          {visibleItems.map((item, index) => (
-            <div key={`${item.label}:${item.value}:${index}`}>
-              {index === 0 ? <ShieldCheck size={20} aria-hidden="true" /> : <FileText size={20} aria-hidden="true" />}
-              <span>
-                <small>{item.label}</small>
-                {item.value}
-                {item.basis ? <em>{item.basis}</em> : null}
-              </span>
-            </div>
-          ))}
-          {limit && items.length > limit ? (
-            <p className="detail-more-count">외 {items.length - limit}개 항목은 전체 상세에서 확인</p>
-          ) : null}
+    <dl className={`fact-tape ${className}`}>
+      {visible.map((item) => (
+        <div key={`${item.label}:${item.value}`}>
+          <dt>{item.label}</dt>
+          <dd className={item.tone ? `is-${item.tone}` : ""} title={String(item.value)}>{item.value}</dd>
         </div>
-      ) : <p className="detail-empty-copy">{emptyText}</p>}
-    </section>
+      ))}
+    </dl>
   );
 }
 
-function DetailPanel({ recommendation, strategy, run, previousContext, onClose, onOpenFull, compact = false, full = false }) {
+function EvidenceList({ items, limit = null }) {
+  const visible = (limit ? items.slice(0, limit) : items).filter((item) => hasValue(item.value));
+  if (!visible.length) return null;
+  return (
+    <ul className="evidence-list">
+      {visible.map((item, index) => (
+        <li key={`${item.label}:${item.value}:${index}`}>
+          <strong>{item.label}</strong>
+          <span>{item.value}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RiskList({ risks, limit = null }) {
+  const visible = (limit ? risks.slice(0, limit) : risks).filter((item) => hasValue(item.value));
+  if (!visible.length) return null;
+  return (
+    <ul className="risk-list">
+      {visible.map((item, index) => (
+        <li key={`${item.label}:${item.value}:${index}`}>
+          <strong>{humanizeRiskLabel(item.label)}</strong>
+          <span>{humanizeRiskValue(item.value)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SymbolTimelineTable({ timeline, limit = 10 }) {
+  const entries = (timeline?.entries || []).slice(0, limit);
+  if (!entries.length) return null;
+  return (
+    <div className="symbol-timeline-wrap">
+      <table className="symbol-timeline-table">
+        <thead>
+          <tr><th>DATE</th><th>STATE</th><th>GAP</th><th>RANK</th><th>SCORE</th><th>Δ SCORE</th><th>STREAK</th></tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr key={`${entry.runId}:${entry.status}`}>
+              <td>{formatDate(entry.reportDate || entry.reportCreatedAt)}</td>
+              <td className={`timeline-state is-${entry.status.toLowerCase()}`}>{entry.status}</td>
+              <td>{entry.missingRunCount ? `${entry.missingRunCount} RUNS` : "—"}</td>
+              <td>{entry.currentRank ?? "—"}</td>
+              <td>{formatNumber(entry.currentScore)}</td>
+              <td>{entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
+              <td>{entry.status === "EXIT" ? "종료" : `${entry.streak}회`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenFull, compact = false, full = false }) {
   if (!recommendation) {
     return <aside className="detail-panel empty-detail">종목을 선택하면 상세 근거가 표시됩니다.</aside>;
   }
   const detail = getRecommendationDetail(recommendation);
-  const driverGroups = groupDrivers(strategy || recommendation.strategy, detail.drivers);
-  const previous = previousContext?.recommendation || null;
-  const rankDelta = previous
-    ? Number(previous.recommendation_rank) - Number(recommendation.recommendation_rank)
-    : null;
-  const scoreDelta = previous && Number.isFinite(Number(previous.score)) && Number.isFinite(Number(recommendation.score))
-    ? Number(recommendation.score) - Number(previous.score)
-    : null;
+  const latestTimeline = timeline?.entries?.find((entry) => entry.recommendation) || null;
+  const factItems = [
+    { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
+    { label: "HEAT", value: HEAT_LABELS[detail.timing?.heat] || detail.timing?.heat, tone: detail.timing?.heat === "high" ? "amber" : null },
+    { label: "WARNING", value: detail.timing?.warning, tone: detail.timing?.warning ? "negative" : null },
+    { label: "PRICE AS OF", value: detail.timing?.price_as_of },
+    { label: "SECTOR", value: recommendation.sector },
+    { label: "INDUSTRY", value: recommendation.industry },
+    { label: "CONFIDENCE", value: humanizeConfidence(recommendation.confidence) },
+    { label: "APPEARANCE", value: timeline?.selectedRunCount ? `${timeline.selectedRunCount} / ${timeline.totalRunCount} RUNS` : null },
+    { label: "CURRENT STREAK", value: timeline?.currentStreak ? `${timeline.currentStreak}회` : null },
+    { label: "PREVIOUS RANK", value: latestTimeline?.previousRank },
+  ];
+  const knownFacts = [
+    { label: "공식 순위", value: String(recommendation.recommendation_rank).padStart(2, "0") },
+    { label: "전략 점수", value: formatNumber(recommendation.score) },
+    { label: "스크리닝 가격", value: formatPrice(recommendation.screening_price) },
+    { label: "후보 상태", value: recommendation.candidate_state || recommendation.verdict },
+    ...detail.metrics,
+  ];
 
   if (full) {
     return (
-      <article className="detail-dossier" aria-label={`${recommendation.symbol} 전체 상세`}>
+      <article className="detail-dossier dossier-v2" aria-label={`${recommendation.symbol} 전체 상세`}>
         <header className="dossier-hero">
           <div>
-            <p>{STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
+            <p>{strategy || recommendation.strategy} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
             <h1>{recommendation.symbol}</h1>
             <span>{recommendation.company_name || "회사명 미수록"}</span>
           </div>
@@ -542,86 +636,52 @@ function DetailPanel({ recommendation, strategy, run, previousContext, onClose, 
             <div><dt>DATE</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
         </header>
-
-        <section className="dossier-section dossier-thesis">
-          <p className="dossier-index">01</p>
-          <div>
-            <h2>왜 뽑혔나</h2>
-            <p>{detail.summary}</p>
-            {detail.catalyst ? <blockquote><strong>CATALYST</strong>{detail.catalyst}</blockquote> : null}
-            {!detail.hasRichDetail ? <small>엔진 상세 미제공 · legacy fallback</small> : null}
+        <FactTape items={factItems} />
+        {detail.hasRichDetail ? (
+          <div className="detail-source-note">
+            <strong>{detail.detailProvenance ? "RECONSTRUCTED SNAPSHOT" : "STRUCTURED SNAPSHOT"}</strong>
+            <p>{detail.detailProvenance
+              ? "복구한 compact audit 원본값을 공개용 규칙으로 구조화했습니다. Telegram 원문을 복제한 것은 아닙니다."
+              : "실행 당시 원본 수치를 공개용 규칙으로 구조화한 설명입니다. Telegram 문구를 그대로 복제한 것은 아닙니다."}</p>
           </div>
-        </section>
-
-        <section className="dossier-section">
-          <p className="dossier-index">02</p>
-          <div>
-            <h2>무엇을 확인해야 하나</h2>
-            <DetailItems title="핵심 확인 항목" items={detail.drivers} emptyText="엔진이 추가 확인 항목을 제공하지 않았습니다." limit={3} />
+        ) : (
+          <div className="archive-notice">
+            <strong>ARCHIVED SIGNAL</strong>
+            <p>이 실행은 순위·점수·가격·위험 플래그만 보관된 과거 신호입니다. 없는 설명을 생성하지 않고 확인 가능한 사실과 전체 등장 이력을 표시합니다.</p>
           </div>
-        </section>
+        )}
 
-        <section className="dossier-section dossier-risk">
-          <p className="dossier-index">03</p>
-          <div>
-            <h2>언제 투자 논리가 무효화되나</h2>
-            <DetailItems title="공개 위험 조건" items={detail.risks} emptyText="공개 위험 조건이 제공되지 않았습니다." />
-          </div>
-        </section>
+        <div className="dossier-grid">
+          <section className="dossier-block">
+            <h2>선정 요약</h2>
+            <p>{detail.hasRichDetail ? detail.summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
+            {detail.catalyst ? <EvidenceList items={[{ label: "CATALYST", value: detail.catalyst }]} /> : null}
+          </section>
 
-        <section className="dossier-section dossier-driver-groups">
-          <p className="dossier-index">04</p>
-          <div>
-            <h2>{strategy || recommendation.strategy} 평가 근거</h2>
-            {driverGroups.length ? <div className="driver-band-list">
-              {driverGroups.map((group) => (
-                <section key={group.key} className="driver-band">
-                  <h3>{group.label}</h3>
-                  {group.items.map((item, index) => (
-                    <div key={`${item.label}:${index}`}>
-                      <strong>{item.label}</strong>
-                      <span>{item.value}</span>
-                      <small>{item.basis}</small>
-                    </div>
-                  ))}
-                </section>
-              ))}
-            </div> : <p className="detail-empty-copy">전략별 평가 근거가 제공되지 않았습니다.</p>}
-          </div>
-        </section>
+          <section className="dossier-block">
+            <h2>확인할 지표</h2>
+            <EvidenceList items={detail.drivers.length ? detail.drivers : knownFacts} />
+          </section>
 
-        <section className="dossier-section dossier-score">
-          <p className="dossier-index">05</p>
-          <div>
-            <h2>비가산 평가 차원</h2>
-            <p>아래 차원은 설명용 분해이며 화면에서 재합산하거나 재순위화하지 않습니다.</p>
-            {detail.scoreBreakdown ? (
-              <div className="score-dimension-list">
-                {detail.scoreBreakdown.dimensions.map((item) => (
-                  <div key={item.code}>
-                    <span>{item.label}</span>
-                    <strong>{formatCompactNumber(item.value)}</strong>
-                    <small>{formatCompactNumber(item.scale_min)}–{formatCompactNumber(item.scale_max)}</small>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="detail-empty-copy">score dimension이 제공되지 않았습니다.</p>}
-          </div>
-        </section>
+          {detail.risks.length ? (
+            <section className="dossier-block">
+              <h2>위험 · 무효화</h2>
+              <RiskList risks={detail.risks} />
+            </section>
+          ) : null}
 
-        <section className="dossier-section dossier-change">
-          <p className="dossier-index">06</p>
-          <div>
-            <h2>이전 동일 종목 실행 대비</h2>
-            {previous ? (
-              <dl>
-                <div><dt>RANK</dt><dd>{previous.recommendation_rank} → {recommendation.recommendation_rank} {rankDelta ? `(${rankDelta > 0 ? "↑" : "↓"}${Math.abs(rankDelta)})` : "(—)"}</dd></div>
-                <div><dt>SCORE</dt><dd>{formatNumber(previous.score)} → {formatNumber(recommendation.score)} {scoreDelta === null ? "" : `(${scoreDelta >= 0 ? "+" : ""}${scoreDelta.toFixed(2)})`}</dd></div>
-                <div><dt>PREVIOUS RUN</dt><dd>{previousContext.run.run_id}</dd></div>
-              </dl>
-            ) : <p className="detail-empty-copy">이전 실행에서 동일 종목 기록이 없습니다.</p>}
-          </div>
-        </section>
+          {detail.scoreBreakdown?.dimensions?.length ? (
+            <section className="dossier-block">
+              <h2>점수 구성</h2>
+              <EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
+            </section>
+          ) : null}
+
+          <section className="dossier-block is-wide">
+            <h2>종목 이력 <span className="section-inline-note">{timeline?.selectedRunCount || 0}회 선정 · 최장 {timeline?.maxStreak || 0}회 연속</span></h2>
+            <SymbolTimelineTable timeline={timeline} />
+          </section>
+        </div>
 
         <details className="provenance-details">
           <summary>근거 출처와 실행 계보</summary>
@@ -637,7 +697,7 @@ function DetailPanel({ recommendation, strategy, run, previousContext, onClose, 
   }
 
   return (
-    <aside className={`detail-panel ${compact ? "is-compact" : ""}`} aria-label={`${recommendation.symbol} 미리보기`} aria-live="polite">
+    <aside className={`detail-panel ${compact ? "is-compact" : ""}`} aria-label={`${recommendation.symbol} 미리보기`}>
       {onClose ? (
         <button type="button" className="detail-close" onClick={onClose} aria-label="상세 닫기" autoFocus><X size={20} /></button>
       ) : null}
@@ -650,21 +710,16 @@ function DetailPanel({ recommendation, strategy, run, previousContext, onClose, 
         <div><dt>SCORE</dt><dd>{formatNumber(recommendation.score)}</dd></div>
         <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{recommendation.verdict || "—"}</dd></div>
         <div><dt>PRICE</dt><dd>{formatPrice(recommendation.screening_price)}</dd></div>
-        <div><dt>SECTOR</dt><dd>{recommendation.sector || "—"}</dd></div>
-        <div><dt>CONFIDENCE</dt><dd>{recommendation.confidence || "—"}</dd></div>
+        {recommendation.sector ? <div><dt>SECTOR</dt><dd>{recommendation.sector}</dd></div> : null}
+        {recommendation.confidence ? <div><dt>CONFIDENCE</dt><dd>{humanizeConfidence(recommendation.confidence)}</dd></div> : null}
       </dl>
       <section className="detail-summary">
         <h3>SUMMARY</h3>
-        <p>{detail.summary}</p>
-        {!detail.hasRichDetail ? <small>LEGACY DETAIL FALLBACK</small> : null}
+        <p>{detail.hasRichDetail ? detail.summary : `${formatDate(run?.report_date || run?.report_created_at)} 공식 실행 ${recommendation.recommendation_rank}위 · ${timeline?.selectedRunCount || 1}회 선정 기록`}</p>
       </section>
-      <DetailItems
-        title="TOP DRIVERS"
-        items={detail.catalyst ? [{ label: "CATALYST", value: detail.catalyst }, ...detail.drivers] : detail.drivers}
-        emptyText="추가 선정 근거가 제공되지 않았습니다."
-        limit={2}
-      />
-      <DetailItems title="PUBLIC RISK" items={detail.risks} emptyText="공개 위험 조건이 제공되지 않았습니다." limit={1} />
+      <FactTape items={factItems.slice(0, 6)} />
+      {!detail.hasRichDetail ? <div className="archive-notice"><strong>ARCHIVE</strong><p>과거 상세 설명은 미수록입니다. 보관된 수치와 위험 신호만 표시합니다.</p></div> : null}
+      <RiskList risks={detail.risks} limit={3} />
       {onOpenFull ? (
         <button type="button" className="detail-open-full" onClick={onOpenFull}>
           전체 상세 보기 <ChevronRight size={17} aria-hidden="true" />
@@ -674,177 +729,172 @@ function DetailPanel({ recommendation, strategy, run, previousContext, onClose, 
   );
 }
 
-function PerformancePanel({ strategy, performance, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
-  const evidence = getPerformanceState(performance, evidenceStatus);
-  const horizons = useMemo(() => ["5D", "10D", "20D"], []);
-  const aggregateByHorizon = useMemo(() => new Map(
-    horizons
-      .map((item) => [item, getVerifiedAggregate(performance, strategy, item)])
-      .filter(([, aggregate]) => Boolean(aggregate)),
-  ), [horizons, performance, strategy]);
-  const availableRanges = useMemo(
-    () => horizons.filter((item) => aggregateByHorizon.has(item)),
-    [aggregateByHorizon, horizons],
-  );
-
-  useEffect(() => {
-    if (evidence.level !== "HOLD" && !aggregateByHorizon.has(range) && availableRanges.length) {
-      setRange(availableRanges[0]);
-    }
-  }, [aggregateByHorizon, availableRanges, evidence.level, range, setRange]);
-
-  const aggregate = aggregateByHorizon.get(range);
-  const canPublish = evidence.level !== "HOLD" && Boolean(aggregate);
-  const selectedHorizonStatus = evidence.horizonStatuses.find(
+function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
+  const officialEvidence = getPerformanceState(performance, evidenceStatus);
+  const verifiedAggregate = getVerifiedAggregate(performance, strategy, range);
+  const reconstructed = getBackcastCell(backcast, strategy, range);
+  const aggregate = verifiedAggregate || reconstructed.aggregate;
+  const source = verifiedAggregate ? "VERIFIED" : reconstructed.aggregate ? "RECONSTRUCTED" : null;
+  const selectedOfficialStatus = officialEvidence.horizonStatuses.find(
     (item) => item.strategy === strategy && String(item.horizon).toUpperCase() === range,
   );
-  const runSeries = canPublish ? (performance?.run_series || []).filter(
-    (item) => item.strategy === strategy
-      && String(item.horizon).toUpperCase() === range
-      && item.status === "VERIFIED",
-  ) : [];
-  const signals = canPublish ? (performance?.signals || []).filter(
-    (item) => item.strategy === strategy
-      && String(item.horizon).toUpperCase() === range
-      && item.status === "VERIFIED",
-  ) : [];
-  const maxSeriesMagnitude = Math.max(
-    0.0001,
-    ...runSeries.map((item) => Math.abs(Number(item.excess_return))),
+  const runSeries = source === "VERIFIED"
+    ? (performance?.run_series || []).filter((item) => (
+      item.strategy === strategy && String(item.horizon).toUpperCase() === range && item.status === "VERIFIED"
+    )).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)))
+    : reconstructed.runSeries;
+  const signals = source === "VERIFIED"
+    ? (performance?.signals || []).filter((item) => (
+      item.strategy === strategy && String(item.horizon).toUpperCase() === range && item.status === "VERIFIED"
+    ))
+    : reconstructed.signals;
+  const selectedStatus = source === "VERIFIED" ? selectedOfficialStatus : reconstructed.horizonStatus;
+  const backcastAvailable = (backcast?.aggregates || []).some(
+    (item) => item.strategy === strategy && item.status === "RECONSTRUCTED",
   );
+  const readiness = HORIZONS.map((horizon) => ({
+    horizon,
+    verified: getVerifiedAggregate(performance, strategy, horizon),
+    reconstructed: getBackcastCell(backcast, strategy, horizon),
+  }));
+  const expectedSignals = strategy === "MLG" ? 10 : 5;
 
-  const readiness = horizons.map((horizon) => {
-    const status = evidence.horizonStatuses.find(
-      (item) => item.strategy === strategy && String(item.horizon).toUpperCase() === horizon,
-    );
-    return { horizon, status, aggregate: aggregateByHorizon.get(horizon) };
-  });
+  function handleTabKey(event, item) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const index = HORIZONS.indexOf(item);
+    const next = event.key === "Home" ? HORIZONS[0]
+      : event.key === "End" ? HORIZONS.at(-1)
+        : HORIZONS[(index + (event.key === "ArrowRight" ? 1 : -1) + HORIZONS.length) % HORIZONS.length];
+    setRange(next);
+    requestAnimationFrame(() => document.getElementById(`performance-tab-${strategy}-${next}`)?.focus());
+  }
 
   return (
-    <section className="performance-panel" aria-labelledby="performance-title">
+    <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
       <div className="section-heading-row">
-        <h2 id="performance-title">BENCHMARK PERFORMANCE</h2>
-        {canPublish ? (
-          <div className="legend" aria-label="성과 비교 범례">
-            <span><i className="legend-line is-amber" />{strategy}</span>
-            <span><i className="legend-line is-cyan" />{benchmark}</span>
-          </div>
-        ) : null}
-      </div>
-      <div className={`evidence-panel is-${evidence.level.toLowerCase()}`} role="status">
-        <EvidenceBadge evidence={evidence} />
-        <p>{evidence.description}</p>
-        <details>
-          <summary>검증 방법과 상태 코드</summary>
-          <code>{evidence.reason}{evidence.evaluatedAt ? ` · ${formatKst(evidence.evaluatedAt)}` : ""}</code>
-        </details>
+        <h2 id="performance-title">{strategy} / {benchmark} PERFORMANCE</h2>
+        <span className="performance-tier">OFFICIAL ≠ RECONSTRUCTED</span>
       </div>
 
-      <div className="readiness-grid" aria-label={`${strategy} 기간별 검증 준비 상태`}>
-        {readiness.map(({ horizon, status, aggregate: horizonAggregate }) => (
-          <section className={`readiness-card is-${String(status?.status || "hold").toLowerCase()}`} key={horizon}>
-            <div><strong>{horizon}</strong><span>{status?.status === "VERIFIED" ? "검증 완료" : "검증 대기"}</span></div>
-            {evidence.level !== "HOLD" && horizonAggregate ? (
-              <p>{strategy} {formatPercent(horizonAggregate.equal_weight_return)} · 초과 {formatPercent(horizonAggregate.equal_weight_excess_return)}</p>
-            ) : (
-              <p>관측 이력과 무결성 검증이 완료될 때 공개합니다.</p>
-            )}
-          </section>
-        ))}
+      <div className="performance-evidence-split" role="status">
+        <section className="is-official">
+          <strong>공식 검증 · {officialEvidence.level}</strong>
+          <p>{officialEvidence.description} · {officialEvidence.reason}</p>
+        </section>
+        <section className="is-backcast">
+          <strong>역산 참고치 · {backcastAvailable ? "AVAILABLE" : "PENDING"}</strong>
+          <p>{backcastAvailable ? "저장소 아카이브 시각에 묶인 과거 재구성입니다. 공식 검증값으로 승격하지 않습니다." : "완전한 실행 단위 가격 쌍이 준비되면 별도 참고치로 표시합니다."}</p>
+        </section>
       </div>
 
-      {evidence.level === "HOLD" ? (
-        <div className="performance-empty">
-          <p>검증 완료 전까지 성과 수치와 차트를 공개하지 않습니다.</p>
-          <small>추천 목록은 공식 실행 결과이며, 성과 근거의 공개 준비 상태와 별개입니다.</small>
+      <div className="readiness-grid" aria-label={`${strategy} 기간별 성과 상태`}>
+        {readiness.map(({ horizon, verified, reconstructed: cell }) => {
+          const mode = verified ? "VERIFIED" : cell.aggregate ? "RECONSTRUCTED" : cell.horizonStatus?.status || "PENDING";
+          return (
+            <button type="button" className={`readiness-card is-${mode.toLowerCase()}`} key={horizon} onClick={() => setRange(horizon)}>
+              <div><strong>{horizon}</strong><span>{mode}</span></div>
+              {verified || cell.aggregate ? (
+                <p>{strategy} {formatPercent((verified || cell.aggregate).equal_weight_return)} · 초과 {formatPercent((verified || cell.aggregate).equal_weight_excess_return)}</p>
+              ) : <p>완전한 실행 단위 관측 대기</p>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="performance-toolbar">
+        <span>기간</span>
+        <div className="range-tabs" role="tablist" aria-label="성과 기간">
+          {HORIZONS.map((item) => (
+            <button
+              type="button"
+              role="tab"
+              id={`performance-tab-${strategy}-${item}`}
+              aria-controls={`performance-panel-${strategy}`}
+              aria-selected={range === item}
+              tabIndex={range === item ? 0 : -1}
+              className={range === item ? "is-active" : ""}
+              onClick={() => setRange(item)}
+              onKeyDown={(event) => handleTabKey(event, item)}
+              key={item}
+            >
+              {item}
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="range-tabs" role="tablist" aria-label="성과 기간">
-            {availableRanges.map((item) => (
-              <button
-                type="button"
-                role="tab"
-                id={`performance-tab-${strategy}-${item}`}
-                aria-controls={`performance-panel-${strategy}`}
-                aria-selected={range === item}
-                tabIndex={range === item ? 0 : -1}
-                className={range === item ? "is-active" : ""}
-                onClick={() => setRange(item)}
-                onKeyDown={(event) => {
-                  if (!["ArrowLeft", "ArrowRight"].includes(event.key) || !availableRanges.length) return;
-                  event.preventDefault();
-                  const index = Math.max(0, availableRanges.indexOf(range));
-                  const offset = event.key === "ArrowRight" ? 1 : -1;
-                  const next = availableRanges[(index + offset + availableRanges.length) % availableRanges.length];
-                  setRange(next);
-                  requestAnimationFrame(() => document.getElementById(`performance-tab-${strategy}-${next}`)?.focus());
-                }}
-                key={item}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          {canPublish ? (
-            <div id={`performance-panel-${strategy}`} role="tabpanel" aria-labelledby={`performance-tab-${strategy}-${range}`}>
-              <dl className="performance-summary">
-                <div><dt>{strategy} RETURN</dt><dd>{formatPercent(aggregate.equal_weight_return)}</dd></div>
-                <div><dt>{benchmark}</dt><dd>{formatPercent(aggregate.qqq_equal_weight_return)}</dd></div>
-                <div><dt>EXCESS</dt><dd>{formatPercent(aggregate.equal_weight_excess_return)}</dd></div>
-                <div><dt>{benchmark} WIN RATE</dt><dd>{formatPercent(aggregate.qqq_win_rate)}</dd></div>
-                <div><dt>COMPLETE RUNS</dt><dd>{selectedHorizonStatus?.complete_run_count ?? aggregate.run_count}</dd></div>
-                <div><dt>SIGNALS</dt><dd>{selectedHorizonStatus?.underlying_signal_count ?? aggregate.count}</dd></div>
-                <div><dt>LATEST MEASURE</dt><dd>{aggregate.measurement_session_max || "—"}</dd></div>
-              </dl>
+        <span className="performance-source-label">{source || "NO COMPLETE CELL"}</span>
+      </div>
 
-              <section className="performance-timeline" aria-labelledby={`timeline-title-${strategy}`}>
-                <header>
-                  <h3 id={`timeline-title-${strategy}`}>VERIFIED RUN EXCESS</h3>
-                  <span>{runSeries.length} RUNS</span>
-                </header>
-                {runSeries.length ? runSeries.map((item) => (
-                  <div className="timeline-row" key={`${item.run_id}:${item.report_date}`}>
-                    <time dateTime={item.report_date}>{item.report_date}</time>
-                    <div className="timeline-track" aria-hidden="true">
-                      <i
-                        className={Number(item.excess_return) >= 0 ? "is-positive" : "is-negative"}
-                        style={{ width: `${Math.max(4, Math.abs(Number(item.excess_return)) / maxSeriesMagnitude * 100)}%` }}
-                      />
-                    </div>
-                    <strong>{formatPercent(item.excess_return)}</strong>
-                  </div>
-                )) : <p className="detail-empty-copy">검증된 실행별 시계열이 아직 제공되지 않았습니다.</p>}
-              </section>
+      <div id={`performance-panel-${strategy}`} role="tabpanel" aria-labelledby={`performance-tab-${strategy}-${range}`}>
+        {aggregate ? (
+          <>
+            <dl className="performance-summary">
+              <div><dt>{strategy} RETURN</dt><dd>{formatPercent(aggregate.equal_weight_return)}</dd></div>
+              <div><dt>{benchmark}</dt><dd>{formatPercent(aggregate.qqq_equal_weight_return)}</dd></div>
+              <div><dt>EXCESS</dt><dd>{formatPercent(aggregate.equal_weight_excess_return)}</dd></div>
+              <div><dt>{benchmark} WIN RATE</dt><dd>{formatPercent(aggregate.qqq_win_rate)}</dd></div>
+              <div><dt>COMPLETE RUNS</dt><dd>{selectedStatus?.complete_run_count ?? aggregate.run_count}</dd></div>
+              <div><dt>SIGNALS</dt><dd>{selectedStatus?.underlying_signal_count ?? aggregate.underlying_signal_count}</dd></div>
+              <div><dt>LATEST MEASURE</dt><dd>{aggregate.measurement_session_max || "—"}</dd></div>
+            </dl>
 
-              <details className="signals-details">
-                <summary>검증 신호 {signals.length}건 보기</summary>
-                {signals.length ? (
-                  <div className="signals-table-wrap">
-                    <table>
-                      <thead><tr><th>종목</th><th>진입일</th><th>측정일</th><th>수익률</th><th>초과</th></tr></thead>
-                      <tbody>{signals.map((item) => (
-                        <tr key={`${item.run_id}:${item.signal_id}`}>
-                          <th scope="row">{item.symbol}</th>
-                          <td>{item.entry_session}</td>
-                          <td>{item.measurement_session}</td>
-                          <td>{formatPercent(item.signal_return)}</td>
-                          <td>{formatPercent(item.excess_return)}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                ) : <p>검증된 개별 신호가 아직 제공되지 않았습니다.</p>}
-              </details>
+            <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmark} horizon={range} />
+
+            {source === "RECONSTRUCTED" ? (
+              <p className="reconstruction-note">
+                <strong>RECONSTRUCTED_REPOSITORY_BOUND</strong> · trusted repository archive commit 이후 첫 정규장 시가 · FMP adjusted price · 같은 session의 {benchmark} · 실행당 {expectedSignals}종목 완전 집합만 포함 · 수수료/슬리피지 미반영
+              </p>
+            ) : null}
+
+            <div className="performance-table-wrap">
+              <table className="performance-run-table">
+                <thead><tr><th>RUN DATE</th><th>RUN ID</th><th>{strategy}</th><th>{benchmark}</th><th>EXCESS</th><th>COVERAGE</th><th>STATE</th></tr></thead>
+                <tbody>
+                  {runSeries.map((item) => (
+                    <tr key={`${item.run_id}:${item.report_date}`}>
+                      <td>{item.report_date}</td>
+                      <td>{item.run_id}</td>
+                      <td>{formatPercent(item.strategy_return)}</td>
+                      <td>{formatPercent(item.qqq_return)}</td>
+                      <td className={Number(item.excess_return) >= 0 ? "is-positive" : "is-negative"}>{formatPercent(item.excess_return)}</td>
+                      <td>{item.signal_count} / {expectedSignals}</td>
+                      <td className="performance-tier">{item.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : <div className="performance-empty"><p>현재 전략에 검증 완료된 관측 기간이 없습니다.</p></div>}
-        </>
-      )}
+
+            <details className="signals-details">
+              <summary>{source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건</summary>
+              {signals.length ? (
+                <div className="signals-table-wrap">
+                  <table>
+                    <thead><tr><th>종목</th><th>진입일</th><th>측정일</th><th>수익률</th><th>초과</th></tr></thead>
+                    <tbody>{signals.map((item) => (
+                      <tr key={`${item.run_id}:${item.signal_id}:${item.horizon}`}>
+                        <th scope="row">{item.symbol}</th><td>{item.entry_session}</td><td>{item.measurement_session}</td>
+                        <td>{formatPercent(item.signal_return)}</td><td>{formatPercent(item.excess_return)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              ) : null}
+            </details>
+          </>
+        ) : (
+          <div className="performance-empty">
+            <p>{range}는 아직 {strategy} {expectedSignals}종목 전체와 {benchmark}의 동일 session 관측이 완성되지 않았습니다.</p>
+            <small>부분 가격으로 평균을 만들지 않습니다. 다음 백필에서 완전한 실행이 생기면 자동으로 열립니다.</small>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol, onSelectSymbol, onOpenDetail, onLatest }) {
+function SelectionView({ payload, index, strategy, query, selectedRunId, selectedSymbol, onSelectSymbol, onOpenDetail, onLatest }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [range, setRange] = useState("5D");
   const tabletDetailTriggerRef = useRef(null);
@@ -854,8 +904,8 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
     [payload.runs, selectedRunId, strategy],
   );
   const allRecommendations = useMemo(
-    () => currentRun ? getRunRecommendations(payload.recommendations, strategy, currentRun.run_id) : [],
-    [currentRun, payload.recommendations, strategy],
+    () => currentRun ? getIndexedRunRecommendations(index, strategy, currentRun.run_id) : [],
+    [currentRun, index, strategy],
   );
   const recommendations = useMemo(() => {
     const normalizedQuery = query.trim().toUpperCase();
@@ -867,10 +917,13 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
   const resolvedSelected = recommendations.find((item) => item.symbol === selectedSymbol)
     || recommendations[0]
     || null;
-  const previousContext = useMemo(
-    () => getPreviousRecommendation(payload.runs, payload.recommendations, currentRun, resolvedSelected?.symbol),
-    [currentRun, payload.recommendations, payload.runs, resolvedSelected?.symbol],
+  const runChanges = getIndexedRunChanges(index, strategy, currentRun?.run_id);
+  const transitions = new Map(
+    (runChanges?.transitions || [])
+      .filter((item) => item.recommendation)
+      .map((item) => [item.symbol, item]),
   );
+  const selectedTimeline = resolvedSelected ? getSymbolTimeline(index, strategy, resolvedSelected.symbol) : null;
   const isHistorical = Boolean(currentRun && latestRun && String(currentRun.run_id) !== String(latestRun.run_id));
   const evidence = getPerformanceState(payload.performance, payload.evidence_status);
 
@@ -950,13 +1003,13 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
             <button type="button" onClick={onLatest}>최신 실행으로</button>
           </div>
         ) : null}
-        <MetadataStrip
-          strategy={strategy}
-          totalCount={allRecommendations.length}
-          benchmark={payload.benchmark}
-          evidence={evidence}
-          contractVersion={payload.contract_version}
-        />
+        <div className="run-tape" aria-label="실행 정보">
+          <span><strong>{allRecommendations.length}</strong> OFFICIAL PICKS</span>
+          <span>RUN <strong>{currentRun.run_id}</strong></span>
+          <span>{currentRun.branch || "main"} · {currentRun.workflow || "official"}</span>
+          <span>BENCHMARK <strong>{payload.benchmark || "QQQ"}</strong></span>
+          <span className="is-evidence">OFFICIAL {evidence.level}</span>
+        </div>
       </section>
 
       <div className="selection-content">
@@ -970,6 +1023,7 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
           <RecommendationTable
             recommendations={recommendations}
             selectedSymbol={resolvedSelected?.symbol}
+            transitions={transitions}
             onPreview={onSelectSymbol}
             onOpenDetail={(symbol) => onOpenDetail(currentRun.run_id, symbol)}
           />
@@ -979,7 +1033,7 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
             recommendation={resolvedSelected}
             strategy={strategy}
             run={currentRun}
-            previousContext={previousContext}
+            timeline={selectedTimeline}
             onOpenFull={() => resolvedSelected && onOpenDetail(currentRun.run_id, resolvedSelected.symbol)}
           />
         </div>
@@ -1011,7 +1065,7 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
                 recommendation={resolvedSelected}
                 strategy={strategy}
                 run={currentRun}
-                previousContext={previousContext}
+                timeline={selectedTimeline}
                 onClose={closeTabletDrawer}
                 onOpenFull={() => resolvedSelected && onOpenDetail(currentRun.run_id, resolvedSelected.symbol)}
                 compact
@@ -1025,6 +1079,7 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
         <PerformancePanel
           strategy={strategy}
           performance={payload.performance}
+          backcast={payload.performance_backcast}
           evidenceStatus={payload.evidence_status}
           benchmark={payload.benchmark}
           range={range}
@@ -1035,40 +1090,99 @@ function SelectionView({ payload, strategy, query, selectedRunId, selectedSymbol
   );
 }
 
-function OverviewView({ payload, onStrategy }) {
+function OverviewView({ payload, index, lastSeen, onStrategy }) {
   const evidence = getPerformanceState(payload.performance, payload.evidence_status);
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
-    const run = sortRunsNewestFirst(payload.runs.filter((item) => item.strategy === strategy))[0];
+    const strategyRuns = index.runsByStrategy.get(strategy) || [];
+    const run = strategyRuns[0] || null;
+    const picks = run ? getIndexedRunRecommendations(index, strategy, run.run_id) : [];
+    const seenIndex = strategyRuns.findIndex((item) => String(item.run_id) === String(lastSeen?.[strategy]));
+    const comparisonRun = seenIndex > 0 ? strategyRuns[seenIndex]
+      : seenIndex === 0 ? strategyRuns[0]
+        : strategyRuns[1] || null;
+    const comparisonPicks = comparisonRun ? getIndexedRunRecommendations(index, strategy, comparisonRun.run_id) : [];
+    const currentBySymbol = new Map(picks.map((item) => [item.symbol, item]));
+    const previousBySymbol = new Map(comparisonPicks.map((item) => [item.symbol, item]));
+    const added = picks.filter((item) => !previousBySymbol.has(item.symbol)).map((item) => item.symbol);
+    const removed = comparisonPicks.filter((item) => !currentBySymbol.has(item.symbol)).map((item) => item.symbol);
+    const retained = picks.filter((item) => previousBySymbol.has(item.symbol));
+    const rankUp = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) > Number(item.recommendation_rank)).length;
+    const rankDown = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) < Number(item.recommendation_rank)).length;
+    const warningCount = picks.filter((item) => /주의|high|elevated/i.test(`${item.detail?.timing?.warning || ""} ${item.risk_flags || ""}`)).length;
     return {
       strategy,
       run,
-      count: run ? getRunRecommendations(payload.recommendations, strategy, run.run_id).length : 0,
+      picks,
+      added,
+      removed,
+      retained,
+      rankUp,
+      rankDown,
+      warningCount,
+      unreadRuns: seenIndex < 0 ? (run ? 1 : 0) : seenIndex,
+      isRead: seenIndex === 0,
     };
   });
+  const topPicks = latestRuns.flatMap(({ strategy, picks }) => picks.slice(0, 3).map((item) => ({ strategy, ...item })));
+  const backcastPreview = (payload.performance_backcast?.aggregates || []).find((item) => (
+    item.strategy === "MLG" && String(item.horizon).toLowerCase() === "5d" && item.status === "RECONSTRUCTED"
+  )) || (payload.performance_backcast?.aggregates || [])[0] || null;
   return (
-    <section className="secondary-view overview-view">
+    <section className="secondary-view overview-view overview-v2">
       <header>
         <p>GENERAL / OVERVIEW</p>
-        <h1>OFFICIAL SCREENERS</h1>
-        <span>두 엔진의 공식 순위와 점수는 서로 합산하거나 재정렬하지 않습니다.</span>
+        <h1>WHAT CHANGED</h1>
+        <span>지난 확인 이후 달라진 종목과 순위부터 보고, 필요할 때 상세와 과거 실행으로 내려갑니다.</span>
         <EvidenceBadge evidence={evidence} />
       </header>
-      <div className="overview-list">
-        {latestRuns.map(({ strategy, run, count }) => (
-          <button type="button" key={strategy} onClick={() => onStrategy(strategy)} disabled={!run}>
-            <span className="overview-engine">{strategy}</span>
-            <span className="overview-label">{STRATEGIES[strategy].label}</span>
-            <span>{count} PICKS</span>
-            <span>{formatDate(run?.report_date || run?.report_created_at)}</span>
-            <ChevronRight size={20} />
-          </button>
-        ))}
+
+      <section className="since-visit" aria-labelledby="since-visit-title">
+        <header><h2 id="since-visit-title">지난 방문 이후 / SINCE LAST VISIT</h2><span>{formatKst(payload.generated_at)}</span></header>
+        <div className="visit-strategies">
+          {latestRuns.map((item) => (
+            <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
+              <span className="visit-strategy-heading">
+                <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
+                <small>{item.isRead ? "확인 완료" : `${item.unreadRuns} NEW RUN`}</small>
+              </span>
+              <dl className="visit-changes">
+                <div><dt>새 진입</dt><dd className="is-added">{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
+                <div><dt>제외</dt><dd className="is-removed">{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
+                <div><dt>유지 / 순위</dt><dd>{item.retained.length} · ↑{item.rankUp} ↓{item.rankDown}</dd></div>
+              </dl>
+              <span className="visit-run-meta">{formatDate(item.run?.report_date || item.run?.report_created_at)} · {item.picks.length} PICKS · 경고 {item.warningCount}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="overview-working-grid">
+        <section className="latest-selection-mini">
+          <header><h2>최신 상위 종목</h2><span>MLG / TENX 각각 TOP 3</span></header>
+          <table className="mini-selection-table">
+            <thead><tr><th>ENGINE</th><th>RANK</th><th>TICKER</th><th>COMPANY</th><th>VERDICT</th><th>SCORE</th></tr></thead>
+            <tbody>{topPicks.map((item) => (
+              <tr key={`${item.strategy}:${item.run_id}:${item.symbol}`}>
+                <td>{item.strategy}</td><td>{String(item.recommendation_rank).padStart(2, "0")}</td><td><strong>{item.symbol}</strong></td>
+                <td>{item.company_name || "—"}</td><td className={verdictClass(item.verdict)}>{item.verdict || "—"}</td><td>{formatNumber(item.score)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </section>
+
+        <section className="backcast-preview">
+          <header><h2>QQQ 대비 성과</h2><span>OFFICIAL {evidence.level}</span></header>
+          <div className="backcast-preview-body">
+            <p>{backcastPreview ? "공식 검증과 분리된 저장소 기반 역산 참고치입니다." : "공식 검증은 보류 중이며, 저장소 기반 역산 파이프라인을 준비하고 있습니다."}</p>
+            <dl>
+              <div><dt>MODE</dt><dd>{backcastPreview ? "RECONSTRUCTED" : "PENDING"}</dd></div>
+              <div><dt>CELL</dt><dd>{backcastPreview ? `${backcastPreview.strategy} ${String(backcastPreview.horizon).toUpperCase()}` : "—"}</dd></div>
+              <div><dt>STRATEGY</dt><dd>{backcastPreview ? formatPercent(backcastPreview.equal_weight_return) : "—"}</dd></div>
+              <div><dt>EXCESS</dt><dd>{backcastPreview ? formatPercent(backcastPreview.equal_weight_excess_return) : "—"}</dd></div>
+            </dl>
+          </div>
+        </section>
       </div>
-      <dl className="overview-status">
-        <div><dt>BENCHMARK</dt><dd>{payload.benchmark || "QQQ"}</dd></div>
-        <div><dt>EVIDENCE</dt><dd>{evidence.label}</dd></div>
-        <div><dt>LAST SYNC</dt><dd>{formatKst(payload.generated_at)}</dd></div>
-      </dl>
     </section>
   );
 }
@@ -1084,21 +1198,17 @@ function ChangeSummary({ summary }) {
   );
 }
 
-function HistoryView({ payload, onStrategy }) {
+function HistoryView({ payload, index, onStrategy }) {
   const [filter, setFilter] = useState("ALL");
   const [historyQuery, setHistoryQuery] = useState("");
-  const runs = useMemo(() => sortRunsNewestFirst(payload.runs), [payload.runs]);
+  const runs = index.runs;
   const latestRunIds = useMemo(() => new Set(
     Object.keys(STRATEGIES)
       .map((strategy) => runs.find((run) => run.strategy === strategy))
       .filter(Boolean)
       .map((run) => `${run.strategy}:${run.run_id}`),
   ), [runs]);
-  const filteredRuns = runs.filter((run) => {
-    if (filter !== "ALL" && run.strategy !== filter) return false;
-    const haystack = `${run.strategy} ${run.run_id} ${run.report_created_at} ${run.report_date || ""}`.toUpperCase();
-    return haystack.includes(historyQuery.trim().toUpperCase());
-  });
+  const filteredRuns = searchHistoryRuns(index, { strategy: filter, query: historyQuery });
 
   return (
     <section className="secondary-view history-view">
@@ -1126,7 +1236,7 @@ function HistoryView({ payload, onStrategy }) {
           isLabelHidden
           value={historyQuery}
           onChange={setHistoryQuery}
-          placeholder="Search run ID or date..."
+          placeholder="Search ticker, company, run ID or date..."
           startIcon={<Search size={16} />}
           hasClear
           width="100%"
@@ -1134,17 +1244,27 @@ function HistoryView({ payload, onStrategy }) {
         />
       </div>
       <p className="history-result-count" aria-live="polite">{filteredRuns.length} / {runs.length} RUNS</p>
-      <div className="history-list">
+      <div className="history-list-v2">
         {filteredRuns.map((run) => {
-          const picks = getRunRecommendations(payload.recommendations, run.strategy, run.run_id);
-          const summary = summarizeRunChanges(payload.runs, payload.recommendations, run);
+          const picks = getIndexedRunRecommendations(index, run.strategy, run.run_id);
+          const summary = getIndexedRunChanges(index, run.strategy, run.run_id);
           const isLatest = latestRunIds.has(`${run.strategy}:${run.run_id}`);
           return (
-            <button type="button" key={`${run.strategy}:${run.run_id}`} onClick={() => onStrategy(run.strategy, run.run_id)}>
+            <button type="button" className="history-run" key={`${run.strategy}:${run.run_id}`} onClick={() => onStrategy(run.strategy, run.run_id)}>
               <span className="history-engine">{run.strategy}</span>
-              <span>{formatKst(run.report_created_at)}</span>
-              <span>RUN {run.run_id}</span>
-              <span>{picks.length} PICKS {isLatest ? <b>LATEST</b> : null}</span>
+              <span className="history-date">{formatDate(run.report_date || run.report_created_at)} {isLatest ? <b>LATEST</b> : null}</span>
+              <span className="history-id">RUN {run.run_id} · {picks.length} PICKS</span>
+              <span className="history-symbols">
+                {summary?.isBaseline ? `BASELINE · ${picks.map((item) => item.symbol).join(" · ")}` : (
+                  summary?.added.length || summary?.removed.length ? (
+                    <>
+                      {summary.added.length ? <i className="is-added">+ {summary.added.join(" · ")}</i> : null}
+                      {summary.added.length && summary.removed.length ? " / " : null}
+                      {summary.removed.length ? <i className="is-removed">− {summary.removed.join(" · ")}</i> : null}
+                    </>
+                  ) : <i className="is-unchanged">변동 없음</i>
+                )}
+              </span>
               <ChangeSummary summary={summary} />
               <ChevronRight size={19} />
             </button>
@@ -1163,12 +1283,13 @@ function StandalonePerformanceView({ payload, strategy }) {
     <section className="secondary-view performance-view">
       <header>
         <p>GENERAL / PERFORMANCE</p>
-        <h1>{evidence.level === "HOLD" ? `${strategy} PERFORMANCE ON HOLD` : `${strategy} VS ${payload.benchmark || "QQQ"}`}</h1>
-        <span>공식 추천 이후 동일 기간 성과 비교이며, 검증된 관측 구간만 공개합니다.</span>
+        <h1>{strategy} VS {payload.benchmark || "QQQ"}</h1>
+        <span>공식 검증 성과와 저장소 기반 역산 참고치를 섞지 않고 같은 화면에서 비교합니다.</span>
       </header>
       <PerformancePanel
         strategy={strategy}
         performance={payload.performance}
+        backcast={payload.performance_backcast}
         evidenceStatus={payload.evidence_status}
         benchmark={payload.benchmark}
         range={range}
@@ -1193,27 +1314,20 @@ function MethodologyView({ benchmark }) {
         <div><dt>HOLD</dt><dd><strong>성과 비공개</strong><span>관측 이력이나 무결성 검증이 부족하면 추천은 유지하되 성과 수치를 숨깁니다.</span></dd></div>
         <div><dt>PARTIAL</dt><dd><strong>일부 기간 공개</strong><span>검증을 통과한 기간만 공개하고 나머지 기간은 비활성화합니다.</span></dd></div>
         <div><dt>READY</dt><dd><strong>검증 완료</strong><span>보관된 관측 이력과 무결성 기준을 통과한 성과만 표시합니다.</span></dd></div>
+        <div><dt>RECONSTRUCTED</dt><dd><strong>저장소 기반 역산 참고치</strong><span>공식 결과가 존재했음을 증명하는 아카이브 커밋 이후 첫 정규장 시가와 동일 구간 {benchmark || "QQQ"}로 계산합니다. VERIFIED로 승격하지 않습니다.</span></dd></div>
+        <div><dt>DETAIL SOURCE</dt><dd><strong>결정 규칙 기반 구조화</strong><span>실행 원본값을 공개용 포매터로 정리합니다. 복구된 과거 상세는 compact audit에서 재구성하며 Telegram 원문과 동일하다고 주장하지 않습니다.</span></dd></div>
+        <div><dt>COMPLETE RUN</dt><dd><strong>MLG 10 · TENX 5</strong><span>한 실행의 공식 추천 전 종목과 {benchmark || "QQQ"} 가격이 같은 session으로 갖춰진 경우만 평균을 공개합니다.</span></dd></div>
+        <div><dt>LAST VISIT</dt><dd><strong>이 브라우저에만 저장</strong><span>마지막으로 연 최신 실행 ID만 localStorage에 남겨 신규 실행과 변동을 구분합니다. 종목 데이터나 암호문구는 저장하지 않습니다.</span></dd></div>
         <div><dt>PROVENANCE</dt><dd><strong>RUN ID + SOURCE TIME</strong><span>결과마다 실행 ID와 생성 시각을 유지합니다.</span></dd></div>
       </dl>
     </section>
   );
 }
 
-function FullDetailView({ payload, route, onBack }) {
-  const run = payload.runs.find(
-    (item) => item.strategy === route.strategy && String(item.run_id) === String(route.runId),
-  );
-  const recommendation = payload.recommendations.find(
-    (item) => item.strategy === route.strategy
-      && String(item.run_id) === String(route.runId)
-      && item.symbol === route.symbol,
-  );
-  const previousContext = getPreviousRecommendation(
-    payload.runs,
-    payload.recommendations,
-    run,
-    recommendation?.symbol,
-  );
+function FullDetailView({ payload, index, route, onBack }) {
+  const run = index.runByKey.get(`${route.strategy}:${route.runId}`) || null;
+  const recommendation = getIndexedRecommendation(index, route.strategy, route.runId, route.symbol);
+  const timeline = getSymbolTimeline(index, route.strategy, route.symbol);
 
   if (!run || !recommendation) {
     return (
@@ -1239,7 +1353,7 @@ function FullDetailView({ payload, route, onBack }) {
         recommendation={recommendation}
         strategy={route.strategy}
         run={run}
-        previousContext={previousContext}
+        timeline={timeline}
         full
       />
     </section>
@@ -1250,8 +1364,8 @@ function Dashboard({ payload, onLock }) {
   const [route, navigate] = useHashRoute();
   const [query, setQuery] = useState("");
   const [previewSymbols, setPreviewSymbols] = useState({});
-  const scrollPositionsRef = useRef(new Map());
-  const previousRouteKeyRef = useRef(null);
+  const [lastSeen, setLastSeen] = useState(loadLastSeenRuns);
+  const index = useMemo(() => createDashboardIndex(payload), [payload]);
   const strategy = route.strategy || "MLG";
   const evidence = getPerformanceState(payload.performance, payload.evidence_status);
   const latestStrategyRun = sortRunsNewestFirst(
@@ -1266,20 +1380,28 @@ function Dashboard({ payload, onLock }) {
   );
 
   useEffect(() => {
-    const previousRouteKey = previousRouteKeyRef.current;
-    if (previousRouteKey) scrollPositionsRef.current.set(previousRouteKey, window.scrollY);
-    const targetScroll = scrollPositionsRef.current.get(routeKey) ?? 0;
     const frame = requestAnimationFrame(() => {
-      window.scrollTo({ top: targetScroll, left: 0, behavior: "auto" });
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     });
-    previousRouteKeyRef.current = routeKey;
     return () => cancelAnimationFrame(frame);
   }, [routeKey]);
 
+  const markStrategyRead = useCallback((nextStrategy, explicitRunId = null) => {
+    const latest = index.runsByStrategy.get(nextStrategy)?.[0];
+    if (!latest || (explicitRunId && String(explicitRunId) !== String(latest.run_id))) return;
+    setLastSeen((current) => {
+      if (String(current[nextStrategy]) === String(latest.run_id)) return current;
+      const next = { ...current, [nextStrategy]: String(latest.run_id) };
+      try { window.localStorage.setItem(LAST_SEEN_STORAGE_KEY, JSON.stringify(next)); } catch { /* local storage can be disabled */ }
+      return next;
+    });
+  }, [index]);
+
   const selectStrategy = useCallback((nextStrategy, runId = null) => {
     setQuery("");
+    markStrategyRead(nextStrategy, runId);
     navigate({ view: "selection", strategy: nextStrategy, runId });
-  }, [navigate]);
+  }, [markStrategyRead, navigate]);
 
   function navigateItem(id) {
     if (id === "MLG" || id === "TENX") {
@@ -1296,9 +1418,9 @@ function Dashboard({ payload, onLock }) {
 
   let content;
   if (route.view === "overview") {
-    content = <OverviewView payload={payload} onStrategy={selectStrategy} />;
+    content = <OverviewView payload={payload} index={index} lastSeen={lastSeen} onStrategy={selectStrategy} />;
   } else if (route.view === "history") {
-    content = <HistoryView payload={payload} onStrategy={selectStrategy} />;
+    content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
     content = <StandalonePerformanceView payload={payload} strategy={strategy} />;
   } else if (route.view === "methodology") {
@@ -1307,6 +1429,7 @@ function Dashboard({ payload, onLock }) {
     content = (
       <FullDetailView
         payload={payload}
+        index={index}
         route={route}
         onBack={() => navigate({ view: "selection", strategy, runId: route.runId })}
       />
@@ -1315,6 +1438,7 @@ function Dashboard({ payload, onLock }) {
     content = (
       <SelectionView
         payload={payload}
+        index={index}
         strategy={strategy}
         query={query}
         selectedRunId={route.runId}
@@ -1328,6 +1452,7 @@ function Dashboard({ payload, onLock }) {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
       <BrandHeader
         activeView={route.view}
         strategy={strategy}

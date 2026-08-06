@@ -2,7 +2,9 @@ const STRATEGIES = new Set(["MLG", "TENX"]);
 const HORIZONS = new Set(["5d", "10d", "20d"]);
 const PERFORMANCE_STATUSES = new Set(["PENDING", "PARTIAL", "READY", "HOLD"]);
 const HORIZON_STATUSES = new Set(["VERIFIED", "PENDING", "HOLD"]);
+const BACKCAST_HORIZON_STATUSES = new Set(["RECONSTRUCTED", "PENDING", "HOLD"]);
 const PERFORMANCE_VIEW = "run_equal_weight";
+const BACKCAST_TIER = "RECONSTRUCTED_REPOSITORY_BOUND";
 
 function fail(path, message) {
   throw new TypeError(`${path}: ${message}`);
@@ -45,6 +47,16 @@ function requireNonnegativeInteger(value, path) {
   }
 }
 
+function requireClose(actual, expected, path, message) {
+  const tolerance = 1e-10 * Math.max(1, Math.abs(Number(actual)), Math.abs(Number(expected)));
+  if (Math.abs(Number(actual) - Number(expected)) > tolerance) fail(path, message);
+}
+
+function mean(values, path) {
+  if (!values.length) fail(path, "cannot be calculated from an empty series");
+  return values.reduce((total, value) => total + Number(value), 0) / values.length;
+}
+
 function requireUnitInterval(value, path) {
   requireFinite(value, path);
   if (Number(value) < 0 || Number(value) > 1) {
@@ -81,6 +93,12 @@ function requireOptionalIsoTimestamp(value, path) {
 function requireIdentity(value, path) {
   if (!["string", "number"].includes(typeof value) || String(value).trim() === "") {
     fail(path, "must be a non-empty string or number");
+  }
+}
+
+function requireLowerHex(value, length, path) {
+  if (typeof value !== "string" || !new RegExp(`^[0-9a-f]{${length}}$`).test(value)) {
+    fail(path, `must be ${length} lowercase hexadecimal characters`);
   }
 }
 
@@ -208,6 +226,315 @@ function validateRecommendationDetail(detail, path, strategy) {
   }
 }
 
+function validatePerformanceBackcast(backcast, benchmark) {
+  const path = "performance_backcast";
+  requireObject(backcast, path);
+  requireExactKeys(backcast, [
+    "status", "reason_code", "evaluated_at", "evidence_status", "evidence_tier",
+    "benchmark", "portfolio_view", "horizon_statuses", "aggregates", "run_series",
+    "signals", "methodology",
+  ], path);
+  if (!PERFORMANCE_STATUSES.has(backcast.status)) fail(`${path}.status`, "must be PENDING, PARTIAL, READY, or HOLD");
+  requireText(backcast.reason_code, `${path}.reason_code`);
+  requireOptionalIsoTimestamp(backcast.evaluated_at, `${path}.evaluated_at`);
+  if (backcast.evidence_status !== BACKCAST_TIER || backcast.evidence_tier !== BACKCAST_TIER) {
+    fail(path, `evidence status and tier must be ${BACKCAST_TIER}`);
+  }
+  if (backcast.benchmark !== benchmark || backcast.benchmark !== "QQQ") {
+    fail(`${path}.benchmark`, "must match the fixed QQQ dashboard benchmark");
+  }
+  if (backcast.portfolio_view !== PERFORMANCE_VIEW) fail(`${path}.portfolio_view`, `must be ${PERFORMANCE_VIEW}`);
+  ["horizon_statuses", "aggregates", "run_series", "signals"].forEach((field) => {
+    if (!Array.isArray(backcast[field])) fail(`${path}.${field}`, "must be an array");
+  });
+  requireObject(backcast.methodology, `${path}.methodology`);
+
+  const expectedCells = new Set(
+    ["MLG", "TENX"].flatMap((strategy) => ["5d", "10d", "20d"].map((horizon) => `${strategy}:${horizon}`)),
+  );
+  const horizonCells = new Set();
+  const horizonByCell = new Map();
+  backcast.horizon_statuses.forEach((item, index) => {
+    const itemPath = `${path}.horizon_statuses[${index}]`;
+    requireObject(item, itemPath);
+    requireExactKeys(item, [
+      "strategy", "horizon", "status", "complete_run_count", "underlying_signal_count",
+      "measurement_session_max", "reason_code",
+    ], itemPath);
+    requireStrategy(item.strategy, `${itemPath}.strategy`);
+    const horizon = String(item.horizon).toLowerCase();
+    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (!BACKCAST_HORIZON_STATUSES.has(item.status)) fail(`${itemPath}.status`, "must be RECONSTRUCTED, PENDING, or HOLD");
+    if (item.status === "RECONSTRUCTED") {
+      requireNonnegativeInteger(item.complete_run_count, `${itemPath}.complete_run_count`);
+      requireNonnegativeInteger(item.underlying_signal_count, `${itemPath}.underlying_signal_count`);
+      if (Number(item.complete_run_count) < 1 || Number(item.underlying_signal_count) < 1) {
+        fail(itemPath, "RECONSTRUCTED coverage must contain at least one complete run and signal");
+      }
+      requireIsoDate(item.measurement_session_max, `${itemPath}.measurement_session_max`);
+    } else if (item.complete_run_count !== null || item.underlying_signal_count !== null || item.measurement_session_max !== null) {
+      fail(itemPath, "PENDING or HOLD coverage fields must be null");
+    }
+    requireText(item.reason_code, `${itemPath}.reason_code`);
+    const key = `${item.strategy}:${horizon}`;
+    if (horizonCells.has(key)) fail(itemPath, "duplicates a strategy and horizon");
+    horizonCells.add(key);
+    horizonByCell.set(key, item);
+  });
+  if (horizonCells.size !== expectedCells.size || [...expectedCells].some((key) => !horizonCells.has(key))) {
+    fail(`${path}.horizon_statuses`, "must cover all 6 strategy and horizon pairs exactly once");
+  }
+
+  const aggregateCells = new Set();
+  const aggregateByCell = new Map();
+  backcast.aggregates.forEach((item, index) => {
+    const itemPath = `${path}.aggregates[${index}]`;
+    requireObject(item, itemPath);
+    requireExactKeys(item, [
+      "strategy", "horizon", "status", "equal_weight_return", "qqq_equal_weight_return",
+      "equal_weight_excess_return", "count", "run_count", "underlying_signal_count",
+      "portfolio_view", "qqq_win_rate", "positive_rate", "measurement_session_max",
+    ], itemPath);
+    requireStrategy(item.strategy, `${itemPath}.strategy`);
+    const horizon = String(item.horizon).toLowerCase();
+    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (item.status !== "RECONSTRUCTED") fail(`${itemPath}.status`, "must be RECONSTRUCTED");
+    ["equal_weight_return", "qqq_equal_weight_return", "equal_weight_excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
+    ["count", "run_count", "underlying_signal_count"].forEach((field) => requireNonnegativeInteger(item[field], `${itemPath}.${field}`));
+    if (Number(item.run_count) < 1 || Number(item.underlying_signal_count) < 1) {
+      fail(itemPath, "RECONSTRUCTED aggregate must contain at least one complete run and signal");
+    }
+    if (Number(item.count) !== Number(item.run_count)) fail(itemPath, "count must equal run_count");
+    const expectedSignalsPerRun = item.strategy === "MLG" ? 10 : 5;
+    if (Number(item.underlying_signal_count) !== Number(item.run_count) * expectedSignalsPerRun) {
+      fail(itemPath, `underlying_signal_count must contain only complete ${item.strategy} runs`);
+    }
+    if (item.portfolio_view !== PERFORMANCE_VIEW) fail(`${itemPath}.portfolio_view`, `must be ${PERFORMANCE_VIEW}`);
+    requireUnitInterval(item.qqq_win_rate, `${itemPath}.qqq_win_rate`);
+    requireUnitInterval(item.positive_rate, `${itemPath}.positive_rate`);
+    requireIsoDate(item.measurement_session_max, `${itemPath}.measurement_session_max`);
+    const key = `${item.strategy}:${horizon}`;
+    if (aggregateCells.has(key)) fail(itemPath, "duplicates a strategy and horizon");
+    aggregateCells.add(key);
+    aggregateByCell.set(key, item);
+  });
+
+  const runKeys = new Set();
+  backcast.run_series.forEach((item, index) => {
+    const itemPath = `${path}.run_series[${index}]`;
+    requireObject(item, itemPath);
+    requireExactKeys(item, [
+      "strategy", "run_id", "report_date", "horizon", "strategy_return", "qqq_return",
+      "excess_return", "signal_count", "entry_session", "measurement_session", "status", "provenance",
+    ], itemPath);
+    requireStrategy(item.strategy, `${itemPath}.strategy`);
+    requireIdentity(item.run_id, `${itemPath}.run_id`);
+    requireIsoDate(item.report_date, `${itemPath}.report_date`);
+    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    ["strategy_return", "qqq_return", "excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
+    requireNonnegativeInteger(item.signal_count, `${itemPath}.signal_count`);
+    const expectedSignalCount = item.strategy === "MLG" ? 10 : 5;
+    if (Number(item.signal_count) !== expectedSignalCount) {
+      fail(`${itemPath}.signal_count`, `must equal the complete ${item.strategy} run size ${expectedSignalCount}`);
+    }
+    requireIsoDate(item.entry_session, `${itemPath}.entry_session`);
+    requireIsoDate(item.measurement_session, `${itemPath}.measurement_session`);
+    if (item.status !== "RECONSTRUCTED") fail(`${itemPath}.status`, "must be RECONSTRUCTED");
+    requireObject(item.provenance, `${itemPath}.provenance`);
+    requireExactKeys(item.provenance, [
+      "evidence_tier", "availability_source", "archive_commit_sha", "archive_committed_at",
+      "source_head_sha", "source_workflow_path", "source_workflow_sha256",
+      "entry_policy_version", "proof_policy_version", "strategy", "run_id",
+    ], `${itemPath}.provenance`);
+    if (item.provenance.evidence_tier !== BACKCAST_TIER) fail(`${itemPath}.provenance.evidence_tier`, `must be ${BACKCAST_TIER}`);
+    if (item.provenance.availability_source !== "trusted_repository_archive_commit") {
+      fail(`${itemPath}.provenance.availability_source`, "must be trusted_repository_archive_commit");
+    }
+    requireLowerHex(item.provenance.archive_commit_sha, 40, `${itemPath}.provenance.archive_commit_sha`);
+    requireLowerHex(item.provenance.source_head_sha, 40, `${itemPath}.provenance.source_head_sha`);
+    requireLowerHex(item.provenance.source_workflow_sha256, 64, `${itemPath}.provenance.source_workflow_sha256`);
+    requireText(item.provenance.source_workflow_path, `${itemPath}.provenance.source_workflow_path`);
+    if (!item.provenance.source_workflow_path.startsWith(".github/workflows/")
+      || !item.provenance.source_workflow_path.endsWith(".yml")) {
+      fail(`${itemPath}.provenance.source_workflow_path`, "must name a repository workflow YAML file");
+    }
+    if (item.provenance.entry_policy_version !== "first_regular_open_after_trusted_archive_commit_v1") {
+      fail(`${itemPath}.provenance.entry_policy_version`, "has an unsupported entry policy");
+    }
+    if (item.provenance.proof_policy_version !== "repository_bound_backcast_v1") {
+      fail(`${itemPath}.provenance.proof_policy_version`, "has an unsupported proof policy");
+    }
+    if (item.provenance.strategy !== item.strategy || String(item.provenance.run_id) !== String(item.run_id)) {
+      fail(`${itemPath}.provenance`, "must match the parent strategy and run_id");
+    }
+    requireOptionalIsoTimestamp(item.provenance.archive_committed_at, `${itemPath}.provenance.archive_committed_at`);
+    if (item.provenance.archive_committed_at === null || item.provenance.archive_committed_at === undefined) {
+      fail(`${itemPath}.provenance.archive_committed_at`, "must be an ISO timestamp");
+    }
+    const key = `${item.strategy}:${String(item.horizon).toLowerCase()}:${item.run_id}`;
+    if (runKeys.has(key)) fail(itemPath, "duplicates a strategy, horizon, and run");
+    runKeys.add(key);
+  });
+
+  const signalKeys = new Set();
+  backcast.signals.forEach((item, index) => {
+    const itemPath = `${path}.signals[${index}]`;
+    requireObject(item, itemPath);
+    requireExactKeys(item, [
+      "strategy", "run_id", "signal_id", "symbol", "horizon", "signal_return", "qqq_return",
+      "excess_return", "entry_session", "measurement_session", "status",
+    ], itemPath);
+    requireStrategy(item.strategy, `${itemPath}.strategy`);
+    requireIdentity(item.run_id, `${itemPath}.run_id`);
+    requireIdentity(item.signal_id, `${itemPath}.signal_id`);
+    requireText(item.symbol, `${itemPath}.symbol`);
+    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    ["signal_return", "qqq_return", "excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
+    requireClose(
+      item.excess_return,
+      Number(item.signal_return) - Number(item.qqq_return),
+      `${itemPath}.excess_return`,
+      "must equal signal_return minus qqq_return",
+    );
+    requireIsoDate(item.entry_session, `${itemPath}.entry_session`);
+    requireIsoDate(item.measurement_session, `${itemPath}.measurement_session`);
+    if (item.status !== "RECONSTRUCTED") fail(`${itemPath}.status`, "must be RECONSTRUCTED");
+    const key = `${item.strategy}:${String(item.horizon).toLowerCase()}:${item.run_id}:${item.signal_id}`;
+    if (signalKeys.has(key)) fail(itemPath, "duplicates a strategy, horizon, run, and signal");
+    signalKeys.add(key);
+  });
+
+  backcast.run_series.forEach((run, index) => {
+    const itemPath = `${path}.run_series[${index}]`;
+    const horizon = String(run.horizon).toLowerCase();
+    const signals = backcast.signals.filter((signal) => (
+      signal.strategy === run.strategy
+      && String(signal.horizon).toLowerCase() === horizon
+      && String(signal.run_id) === String(run.run_id)
+    ));
+    if (signals.length !== run.signal_count) {
+      fail(itemPath, "signal_count must match reconstructed signal rows");
+    }
+    if (signals.some((signal) => (
+      signal.entry_session !== run.entry_session
+      || signal.measurement_session !== run.measurement_session
+    ))) {
+      fail(itemPath, "entry and measurement sessions must match every reconstructed signal row");
+    }
+    requireClose(
+      run.strategy_return,
+      mean(signals.map((signal) => signal.signal_return), `${itemPath}.strategy_return`),
+      `${itemPath}.strategy_return`,
+      "must equal the mean reconstructed signal return",
+    );
+    requireClose(
+      run.qqq_return,
+      mean(signals.map((signal) => signal.qqq_return), `${itemPath}.qqq_return`),
+      `${itemPath}.qqq_return`,
+      "must equal the mean reconstructed QQQ return",
+    );
+    requireClose(
+      run.excess_return,
+      mean(signals.map((signal) => signal.excess_return), `${itemPath}.excess_return`),
+      `${itemPath}.excess_return`,
+      "must equal the mean reconstructed signal excess return",
+    );
+    requireClose(
+      run.excess_return,
+      Number(run.strategy_return) - Number(run.qqq_return),
+      `${itemPath}.excess_return`,
+      "must equal strategy_return minus qqq_return",
+    );
+  });
+
+  backcast.aggregates.forEach((aggregate, index) => {
+    const itemPath = `${path}.aggregates[${index}]`;
+    const inCell = (item) => item.strategy === aggregate.strategy
+      && String(item.horizon).toLowerCase() === String(aggregate.horizon).toLowerCase();
+    const runs = backcast.run_series.filter(inCell);
+    const signals = backcast.signals.filter(inCell);
+    if (runs.length !== aggregate.run_count || signals.length !== aggregate.underlying_signal_count) {
+      fail(itemPath, "coverage counts must match reconstructed series rows");
+    }
+    requireClose(
+      aggregate.equal_weight_return,
+      mean(runs.map((run) => run.strategy_return), `${itemPath}.equal_weight_return`),
+      `${itemPath}.equal_weight_return`,
+      "must equal the mean reconstructed run return",
+    );
+    requireClose(
+      aggregate.qqq_equal_weight_return,
+      mean(runs.map((run) => run.qqq_return), `${itemPath}.qqq_equal_weight_return`),
+      `${itemPath}.qqq_equal_weight_return`,
+      "must equal the mean reconstructed run QQQ return",
+    );
+    requireClose(
+      aggregate.equal_weight_excess_return,
+      mean(runs.map((run) => run.excess_return), `${itemPath}.equal_weight_excess_return`),
+      `${itemPath}.equal_weight_excess_return`,
+      "must equal the mean reconstructed run excess return",
+    );
+    requireClose(
+      aggregate.equal_weight_excess_return,
+      Number(aggregate.equal_weight_return) - Number(aggregate.qqq_equal_weight_return),
+      `${itemPath}.equal_weight_excess_return`,
+      "must equal equal_weight_return minus qqq_equal_weight_return",
+    );
+    requireClose(
+      aggregate.qqq_win_rate,
+      mean(runs.map((run) => Number(run.excess_return) > 0 ? 1 : 0), `${itemPath}.qqq_win_rate`),
+      `${itemPath}.qqq_win_rate`,
+      "must equal the reconstructed run QQQ win rate",
+    );
+    requireClose(
+      aggregate.positive_rate,
+      mean(runs.map((run) => Number(run.strategy_return) > 0 ? 1 : 0), `${itemPath}.positive_rate`),
+      `${itemPath}.positive_rate`,
+      "must equal the reconstructed positive run rate",
+    );
+    const measurementSessionMax = signals.map((signal) => signal.measurement_session).sort().at(-1);
+    if (aggregate.measurement_session_max !== measurementSessionMax) {
+      fail(`${itemPath}.measurement_session_max`, "must match reconstructed signal coverage");
+    }
+  });
+
+  backcast.horizon_statuses.forEach((status, index) => {
+    const itemPath = `${path}.horizon_statuses[${index}]`;
+    const horizon = String(status.horizon).toLowerCase();
+    const key = `${status.strategy}:${horizon}`;
+    const aggregate = aggregateByCell.get(key);
+    const inCell = (item) => item.strategy === status.strategy
+      && String(item.horizon).toLowerCase() === horizon;
+    const runs = backcast.run_series.filter(inCell);
+    const signals = backcast.signals.filter(inCell);
+    if (status.status === "RECONSTRUCTED") {
+      if (!aggregate) fail(itemPath, "RECONSTRUCTED coverage requires exactly one aggregate");
+      if (runs.length !== status.complete_run_count || signals.length !== status.underlying_signal_count) {
+        fail(itemPath, "coverage counts must match reconstructed series rows");
+      }
+      const measurementSessionMax = signals.map((signal) => signal.measurement_session).sort().at(-1);
+      if (status.measurement_session_max !== measurementSessionMax
+        || status.measurement_session_max !== aggregate.measurement_session_max) {
+        fail(`${itemPath}.measurement_session_max`, "must match aggregate and signal coverage");
+      }
+    } else if (aggregate || runs.length || signals.length) {
+      fail(itemPath, "PENDING or HOLD coverage must not contain reconstructed rows");
+    }
+  });
+
+  const reconstructedCount = [...horizonByCell.values()].filter((item) => item.status === "RECONSTRUCTED").length;
+  const expectedStatus = reconstructedCount === expectedCells.size
+    ? "READY"
+    : reconstructedCount > 0
+      ? "PARTIAL"
+      : [...horizonByCell.values()].some((item) => item.status === "HOLD")
+        ? "HOLD"
+        : "PENDING";
+  if (backcast.status !== expectedStatus) {
+    fail(`${path}.status`, `must be ${expectedStatus} for the reconstructed horizon matrix`);
+  }
+}
+
 export function assertDashboardPayload(payload) {
   requireObject(payload, "payload");
   if (payload.contract_version !== "general_screener_v1") {
@@ -249,6 +576,24 @@ export function assertDashboardPayload(payload) {
     }
     if (item.detail !== undefined) {
       validateRecommendationDetail(item.detail, `${path}.detail`, item.strategy);
+    }
+    if (item.detail_provenance !== undefined) {
+      requireObject(item.detail_provenance, `${path}.detail_provenance`);
+      requireExactKeys(item.detail_provenance, [
+        "method", "source_kind", "original_telegram_text_used",
+      ], `${path}.detail_provenance`);
+      if (item.detail_provenance.method !== "deterministic_structured_reconstruction") {
+        fail(`${path}.detail_provenance.method`, "must be deterministic_structured_reconstruction");
+      }
+      if (item.detail_provenance.source_kind !== "compact_audit_snapshot") {
+        fail(`${path}.detail_provenance.source_kind`, "must be compact_audit_snapshot");
+      }
+      if (item.detail_provenance.original_telegram_text_used !== false) {
+        fail(`${path}.detail_provenance.original_telegram_text_used`, "must be false");
+      }
+      if (item.detail?.status !== "complete") {
+        fail(`${path}.detail_provenance`, "requires complete structured detail");
+      }
     }
   });
 
@@ -453,6 +798,10 @@ export function assertDashboardPayload(payload) {
         });
       });
     }
+  }
+
+  if (payload.performance_backcast !== undefined) {
+    validatePerformanceBackcast(payload.performance_backcast, payload.benchmark);
   }
 
   return payload;
