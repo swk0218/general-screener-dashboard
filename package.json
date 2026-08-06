@@ -15,6 +15,8 @@
   "dependencies": {
     "@astryxdesign/core": "^0.2.0",
     "@astryxdesign/theme-neutral": "^0.2.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans-kr": "^5.3.0",
     "@stylexjs/stylex": "^0.19.0",
     "@vitejs/plugin-react": "5.0.4",
     "lucide-react": "^1.28.0",
