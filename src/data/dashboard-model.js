@@ -1,5 +1,6 @@
 const STRATEGY_IDS = new Set(["MLG", "TENX"]);
 const VIEW_IDS = new Set(["overview", "history", "methodology"]);
+const METHODOLOGY_SECTIONS = new Set(["mlg", "tenx", "performance", "operations"]);
 const EVIDENCE_LEVELS = new Set(["HOLD", "PARTIAL", "READY"]);
 const EMPTY_LIST = Object.freeze([]);
 
@@ -48,6 +49,13 @@ export function parseHashRoute(hash = "") {
     };
   }
 
+  if (view === "methodology") {
+    const section = METHODOLOGY_SECTIONS.has(String(strategyValue || "").toLowerCase())
+      ? String(strategyValue).toLowerCase()
+      : "mlg";
+    return { view: "methodology", strategy: "MLG", runId: null, symbol: null, section };
+  }
+
   if (VIEW_IDS.has(view)) {
     return { view, strategy: "MLG", runId: null, symbol: null };
   }
@@ -65,6 +73,12 @@ export function serializeHashRoute(route) {
     return `#/selection/${strategy}${suffix}`;
   }
   if (route?.view === "performance") return `#/performance/${strategy}`;
+  if (route?.view === "methodology") {
+    const section = METHODOLOGY_SECTIONS.has(String(route.section || "").toLowerCase())
+      ? String(route.section).toLowerCase()
+      : "mlg";
+    return `#/methodology/${section}`;
+  }
   if (VIEW_IDS.has(route?.view)) return `#/${route.view}`;
   return "#/overview";
 }
@@ -408,6 +422,46 @@ export function searchHistoryRuns(index, { strategy = "ALL", query = "" } = {}) 
     const haystack = index.historySearchTextByRun.get(runIndexKey(run.strategy, run.run_id)) || "";
     return terms.every((term) => haystack.includes(term));
   });
+}
+
+/**
+ * Returns the newest matching appearance for each strategy/security pair.
+ * The dashboard uses this compact result set for its global security search,
+ * while the history search remains run-oriented.
+ */
+export function searchSecurities(index, query, limit = 8) {
+  if (!index?.runs) return EMPTY_LIST;
+  const terms = String(query || "").trim().toUpperCase().split(/\s+/).filter(Boolean);
+  if (!terms.length || !Number.isInteger(limit) || limit <= 0) return EMPTY_LIST;
+
+  const seen = new Set();
+  const results = [];
+  for (const run of index.runs) {
+    const recommendations = getIndexedRunRecommendations(index, run.strategy, run.run_id);
+    for (const recommendation of recommendations) {
+      const symbol = String(recommendation.symbol || "").toUpperCase();
+      const key = `${run.strategy}:${symbol}`;
+      if (seen.has(key)) continue;
+      const haystack = [
+        symbol,
+        recommendation.company_name || "",
+        run.strategy,
+      ].join(" ").toUpperCase();
+      if (!terms.every((term) => haystack.includes(term))) continue;
+      seen.add(key);
+      results.push(Object.freeze({
+        strategy: run.strategy,
+        runId: String(run.run_id),
+        reportDate: run.report_date || String(run.report_created_at || "").slice(0, 10),
+        symbol,
+        companyName: recommendation.company_name || null,
+        rank: recommendation.recommendation_rank,
+        score: recommendation.score,
+      }));
+      if (results.length >= limit) return Object.freeze(results);
+    }
+  }
+  return Object.freeze(results);
 }
 
 export function resolveSelectedRun(runs, strategy, runId) {

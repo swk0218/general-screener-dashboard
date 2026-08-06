@@ -660,12 +660,6 @@ dt,
 
 .recommendation-table tbody tr {
   position: relative;
-  cursor: pointer;
-  transition: background 130ms ease;
-}
-
-.recommendation-table tbody tr:hover {
-  background: #141a20;
 }
 
 .recommendation-table tbody tr.is-selected {

@@ -80,6 +80,81 @@ test("accepts optional rich recommendation detail", () => {
   assert.equal(assertDashboardPayload(payload), payload);
 });
 
+test("accepts and reconciles publisher price, detail coverage, and build metadata", () => {
+  const payload = validPayload();
+  payload.recommendations[0].detail = validDetail();
+  payload.recommendations[0].screening_price_as_of = "2026-08-04";
+  payload.recommendations[0].screening_price_basis = "official_tracking_selection_snapshot";
+  payload.recommendations[0].current_price_basis = "validated_price_ledger_current";
+  payload.runs[0].detail_coverage = {
+    status: "COMPLETE",
+    recommendation_count: 1,
+    complete_count: 1,
+    legacy_unavailable_count: 0,
+  };
+  payload.archive_detail_coverage = {
+    contract_version: "archive_detail_coverage_v1",
+    status: "COMPLETE",
+    recommendation_count: 1,
+    complete_count: 1,
+    legacy_unavailable_count: 0,
+    by_strategy: [
+      { strategy: "MLG", status: "COMPLETE", recommendation_count: 1, complete_count: 1, legacy_unavailable_count: 0 },
+      { strategy: "TENX", status: "UNAVAILABLE", recommendation_count: 0, complete_count: 0, legacy_unavailable_count: 0 },
+    ],
+  };
+  payload.price_semantics = {
+    contract_version: "general_screener_price_semantics_v1",
+    screening_price: {
+      meaning: "archived_selection_time_reference_snapshot",
+      performance_input: false,
+      as_of_field: "screening_price_as_of",
+      basis_field: "screening_price_basis",
+    },
+    current_price: {
+      meaning: "latest_valid_completed_eod_close",
+      performance_input: false,
+      as_of_field: "current_price_as_of",
+      basis_field: "current_price_basis",
+    },
+    official_performance: {
+      container: "performance",
+      entry_price: "adjusted_open_first_regular_session_after_signal_available",
+      measurement_price: "adjusted_close_after_completed_trading_sessions",
+      horizon_sessions: [20, 60, 120],
+      entry_policy_version: "v2_first_regular_open_after_signal_available",
+      benchmark: "QQQ",
+    },
+    backcast_performance: {
+      container: "performance_backcast",
+      entry_price: "adjusted_open_first_regular_session_after_archive_commit",
+      measurement_price: "adjusted_close_after_completed_trading_sessions",
+      horizon_sessions: [20, 60, 120],
+      evidence_tier: "RECONSTRUCTED_REPOSITORY_BOUND",
+      availability_source: "trusted_repository_archive_commit",
+      proof_policy_version: "repository_bound_backcast_v1",
+      verified_equivalent_to_official: false,
+      benchmark: "QQQ",
+    },
+  };
+  payload.build_metadata = {
+    contract_version: "general_screener_build_metadata_v1",
+    payload_version: "a".repeat(64),
+    deployment_sha: "b".repeat(40),
+    cache_bust_token: `${"b".repeat(12)}-${"a".repeat(16)}`,
+  };
+
+  assert.equal(assertDashboardPayload(payload), payload);
+
+  const badCoverage = structuredClone(payload);
+  badCoverage.runs[0].detail_coverage.complete_count = 0;
+  assert.throws(() => assertDashboardPayload(badCoverage), /detail counts|reconcile/);
+
+  const badCacheToken = structuredClone(payload);
+  badCacheToken.build_metadata.cache_bust_token = "stale";
+  assert.throws(() => assertDashboardPayload(badCacheToken), /cache_bust_token/);
+});
+
 test("accepts an explicit structured-reconstruction provenance", () => {
   const payload = validPayload();
   payload.recommendations[0].detail = validDetail();

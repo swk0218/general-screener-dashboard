@@ -15,6 +15,7 @@ import {
   parseHashRoute,
   resolveSelectedRun,
   searchHistoryRuns,
+  searchSecurities,
   serializeHashRoute,
   summarizeRunChanges,
 } from "../src/data/dashboard-model.js";
@@ -31,6 +32,19 @@ test("round-trips screener and full detail hash routes", () => {
 
   const detail = { view: "detail", strategy: "MLG", runId: "run-1", symbol: "BRK.B" };
   assert.deepEqual(parseHashRoute(serializeHashRoute(detail)), detail);
+});
+
+test("round-trips every methodology section and defaults invalid sections closed", () => {
+  for (const section of ["mlg", "tenx", "performance", "operations"]) {
+    assert.deepEqual(parseHashRoute(serializeHashRoute({ view: "methodology", section })), {
+      view: "methodology",
+      strategy: "MLG",
+      runId: null,
+      symbol: null,
+      section,
+    });
+  }
+  assert.equal(parseHashRoute("#/methodology/unknown").section, "mlg");
 });
 
 test("fails unknown evidence states closed and preserves READY/PARTIAL", () => {
@@ -260,4 +274,26 @@ test("searches history by ticker and company, including the run where a symbol e
   ]);
   assert.deepEqual(searchHistoryRuns(index, { strategy: "TENX", query: "AAA" }).map((run) => run.run_id), ["tenx-1"]);
   assert.deepEqual(searchHistoryRuns(index, { query: "does-not-exist" }), []);
+});
+
+test("searches securities globally and returns only the newest strategy appearance", () => {
+  const index = createDashboardIndex(indexedHistoryFixture());
+
+  assert.deepEqual(searchSecurities(index, "alpha").map((item) => (
+    `${item.strategy}:${item.runId}:${item.symbol}`
+  )), ["MLG:run-5:AAA", "TENX:tenx-1:AAA"]);
+  assert.deepEqual(searchSecurities(index, "MLG AAA").map((item) => item.runId), ["run-5"]);
+  assert.deepEqual(searchSecurities(index, "beta systems").map((item) => item.runId), ["run-4"]);
+  assert.deepEqual(searchSecurities(index, ""), []);
+  assert.deepEqual(searchSecurities(index, "AAA", 1).map((item) => item.strategy), ["MLG"]);
+});
+
+test("searches the newest matching historical company name when the latest name is missing", () => {
+  const payload = indexedHistoryFixture();
+  payload.recommendations.find((item) => item.strategy === "MLG" && item.run_id === "run-5").company_name = "";
+  const index = createDashboardIndex(payload);
+
+  assert.deepEqual(searchSecurities(index, "alpha analytics").map((item) => (
+    `${item.strategy}:${item.runId}:${item.symbol}`
+  )), ["TENX:tenx-1:AAA", "MLG:run-2:AAA"]);
 });

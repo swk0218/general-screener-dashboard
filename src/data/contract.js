@@ -5,6 +5,7 @@ const HORIZON_STATUSES = new Set(["VERIFIED", "PENDING", "HOLD"]);
 const BACKCAST_HORIZON_STATUSES = new Set(["RECONSTRUCTED", "PENDING", "HOLD"]);
 const PERFORMANCE_VIEW = "run_equal_weight";
 const BACKCAST_TIER = "RECONSTRUCTED_REPOSITORY_BOUND";
+const DETAIL_COVERAGE_STATUSES = new Set(["COMPLETE", "PARTIAL", "UNAVAILABLE"]);
 
 function fail(path, message) {
   throw new TypeError(`${path}: ${message}`);
@@ -105,6 +106,99 @@ function requireLowerHex(value, length, path) {
 function requireExactKeys(value, allowedKeys, path) {
   const unexpected = Object.keys(value).filter((key) => !allowedKeys.includes(key));
   if (unexpected.length) fail(path, `contains unsupported field ${unexpected[0]}`);
+}
+
+function validateCoverageCounts(value, path, extraKeys = []) {
+  requireObject(value, path);
+  requireExactKeys(value, [
+    "status", "recommendation_count", "complete_count", "legacy_unavailable_count", ...extraKeys,
+  ], path);
+  if (!DETAIL_COVERAGE_STATUSES.has(value.status)) {
+    fail(`${path}.status`, "must be COMPLETE, PARTIAL, or UNAVAILABLE");
+  }
+  ["recommendation_count", "complete_count", "legacy_unavailable_count"].forEach((field) => (
+    requireNonnegativeInteger(value[field], `${path}.${field}`)
+  ));
+  if (Number(value.complete_count) + Number(value.legacy_unavailable_count) !== Number(value.recommendation_count)) {
+    fail(path, "detail counts must sum to recommendation_count");
+  }
+  const expectedStatus = Number(value.recommendation_count) === 0 || Number(value.complete_count) === 0
+    ? "UNAVAILABLE"
+    : Number(value.complete_count) === Number(value.recommendation_count)
+      ? "COMPLETE"
+      : "PARTIAL";
+  if (value.status !== expectedStatus) fail(`${path}.status`, `must be ${expectedStatus} for its counts`);
+}
+
+function validatePriceSemantics(value) {
+  const path = "price_semantics";
+  requireObject(value, path);
+  requireExactKeys(value, [
+    "contract_version", "screening_price", "current_price", "official_performance", "backcast_performance",
+  ], path);
+  if (value.contract_version !== "general_screener_price_semantics_v1") {
+    fail(`${path}.contract_version`, "must be general_screener_price_semantics_v1");
+  }
+  const expected = {
+    screening_price: ["archived_selection_time_reference_snapshot", "screening_price_as_of", "screening_price_basis"],
+    current_price: ["latest_valid_completed_eod_close", "current_price_as_of", "current_price_basis"],
+  };
+  Object.entries(expected).forEach(([field, [meaning, asOfField, basisField]]) => {
+    const itemPath = `${path}.${field}`;
+    const item = value[field];
+    requireObject(item, itemPath);
+    requireExactKeys(item, ["meaning", "performance_input", "as_of_field", "basis_field"], itemPath);
+    if (item.meaning !== meaning || item.performance_input !== false
+      || item.as_of_field !== asOfField || item.basis_field !== basisField) {
+      fail(itemPath, "does not match the v1 display-price semantics");
+    }
+  });
+  const performanceFields = {
+    official_performance: {
+      container: "performance",
+      entry_price: "adjusted_open_first_regular_session_after_signal_available",
+      entry_policy_version: "v2_first_regular_open_after_signal_available",
+    },
+    backcast_performance: {
+      container: "performance_backcast",
+      entry_price: "adjusted_open_first_regular_session_after_archive_commit",
+    },
+  };
+  Object.entries(performanceFields).forEach(([field, expectations]) => {
+    const itemPath = `${path}.${field}`;
+    const item = value[field];
+    requireObject(item, itemPath);
+    Object.entries(expectations).forEach(([key, expectedValue]) => {
+      if (item[key] !== expectedValue) fail(`${itemPath}.${key}`, `must be ${expectedValue}`);
+    });
+    if (item.measurement_price !== "adjusted_close_after_completed_trading_sessions"
+      || item.benchmark !== "QQQ"
+      || JSON.stringify(item.horizon_sessions) !== JSON.stringify([20, 60, 120])) {
+      fail(itemPath, "does not match the v1 performance price semantics");
+    }
+  });
+  if (value.backcast_performance.verified_equivalent_to_official !== false) {
+    fail(`${path}.backcast_performance.verified_equivalent_to_official`, "must be false");
+  }
+}
+
+function validateBuildMetadata(value) {
+  const path = "build_metadata";
+  requireObject(value, path);
+  requireExactKeys(value, ["contract_version", "payload_version", "deployment_sha", "cache_bust_token"], path);
+  if (value.contract_version !== "general_screener_build_metadata_v1") {
+    fail(`${path}.contract_version`, "must be general_screener_build_metadata_v1");
+  }
+  requireLowerHex(value.payload_version, 64, `${path}.payload_version`);
+  if (value.deployment_sha !== null
+    && (typeof value.deployment_sha !== "string" || !/^[0-9a-f]{7,64}$/.test(value.deployment_sha))) {
+    fail(`${path}.deployment_sha`, "must be a lowercase Git SHA or null");
+  }
+  const prefix = value.deployment_sha ? value.deployment_sha.slice(0, 12) : "payload";
+  const expectedToken = `${prefix}-${value.payload_version.slice(0, 16)}`;
+  if (value.cache_bust_token !== expectedToken) {
+    fail(`${path}.cache_bust_token`, `must be ${expectedToken}`);
+  }
 }
 
 function validateRecommendationDetail(detail, path, strategy) {
@@ -553,6 +647,9 @@ export function assertDashboardPayload(payload) {
     requireStrategy(run.strategy, `${path}.strategy`);
     requireIdentity(run.run_id, `${path}.run_id`);
     requireText(run.report_created_at, `${path}.report_created_at`);
+    if (run.detail_coverage !== undefined) {
+      validateCoverageCounts(run.detail_coverage, `${path}.detail_coverage`);
+    }
     const key = `${run.strategy}:${run.run_id}`;
     if (runKeys.has(key)) fail(path, "duplicates a run key");
     runKeys.add(key);
@@ -571,8 +668,11 @@ export function assertDashboardPayload(payload) {
     }
     requireOptionalFinite(item.score, `${path}.score`);
     requireOptionalFinite(item.screening_price, `${path}.screening_price`);
+    requireOptionalIsoDate(item.screening_price_as_of, `${path}.screening_price_as_of`);
+    requireOptionalText(item.screening_price_basis, `${path}.screening_price_basis`);
     requireOptionalFinite(item.current_price, `${path}.current_price`);
     requireOptionalIsoDate(item.current_price_as_of, `${path}.current_price_as_of`);
+    requireOptionalText(item.current_price_basis, `${path}.current_price_basis`);
     const hasCurrentPrice = item.current_price !== null && item.current_price !== undefined;
     const hasCurrentPriceAsOf = item.current_price_as_of !== null && item.current_price_as_of !== undefined;
     if (hasCurrentPrice !== hasCurrentPriceAsOf) {
@@ -580,6 +680,9 @@ export function assertDashboardPayload(payload) {
     }
     if (hasCurrentPrice && Number(item.current_price) <= 0) {
       fail(`${path}.current_price`, "must be greater than zero");
+    }
+    if (!hasCurrentPrice && item.current_price_basis !== null && item.current_price_basis !== undefined) {
+      fail(`${path}.current_price_basis`, "requires current_price");
     }
     if (item.risk_flags !== null && item.risk_flags !== undefined && typeof item.risk_flags !== "string") {
       fail(`${path}.risk_flags`, "must be a string or null");
@@ -606,6 +709,60 @@ export function assertDashboardPayload(payload) {
       }
     }
   });
+
+  payload.runs.forEach((run, index) => {
+    if (run.detail_coverage === undefined) return;
+    const path = `runs[${index}].detail_coverage`;
+    const recommendations = payload.recommendations.filter((item) => (
+      item.strategy === run.strategy && String(item.run_id) === String(run.run_id)
+    ));
+    const completeCount = recommendations.filter((item) => item.detail?.status === "complete").length;
+    const legacyCount = recommendations.filter((item) => item.detail?.status === "legacy_unavailable").length;
+    if (Number(run.detail_coverage.recommendation_count) !== recommendations.length
+      || Number(run.detail_coverage.complete_count) !== completeCount
+      || Number(run.detail_coverage.legacy_unavailable_count) !== legacyCount) {
+      fail(path, "must reconcile with the run recommendations");
+    }
+  });
+
+  if (payload.price_semantics !== undefined) validatePriceSemantics(payload.price_semantics);
+
+  if (payload.archive_detail_coverage !== undefined) {
+    const coverage = payload.archive_detail_coverage;
+    const path = "archive_detail_coverage";
+    validateCoverageCounts(coverage, path, ["contract_version", "by_strategy"]);
+    if (coverage.contract_version !== "archive_detail_coverage_v1") {
+      fail(`${path}.contract_version`, "must be archive_detail_coverage_v1");
+    }
+    if (!Array.isArray(coverage.by_strategy) || coverage.by_strategy.length !== STRATEGIES.size) {
+      fail(`${path}.by_strategy`, "must contain MLG and TENX coverage");
+    }
+    const seenStrategies = new Set();
+    coverage.by_strategy.forEach((item, index) => {
+      const itemPath = `${path}.by_strategy[${index}]`;
+      validateCoverageCounts(item, itemPath, ["strategy"]);
+      requireStrategy(item.strategy, `${itemPath}.strategy`);
+      if (seenStrategies.has(item.strategy)) fail(itemPath, "duplicates a strategy");
+      seenStrategies.add(item.strategy);
+      const recommendations = payload.recommendations.filter((candidate) => candidate.strategy === item.strategy);
+      const completeCount = recommendations.filter((candidate) => candidate.detail?.status === "complete").length;
+      const legacyCount = recommendations.filter((candidate) => candidate.detail?.status === "legacy_unavailable").length;
+      if (Number(item.recommendation_count) !== recommendations.length
+        || Number(item.complete_count) !== completeCount
+        || Number(item.legacy_unavailable_count) !== legacyCount) {
+        fail(itemPath, "must reconcile with strategy recommendations");
+      }
+    });
+    const completeCount = payload.recommendations.filter((item) => item.detail?.status === "complete").length;
+    const legacyCount = payload.recommendations.filter((item) => item.detail?.status === "legacy_unavailable").length;
+    if (Number(coverage.recommendation_count) !== payload.recommendations.length
+      || Number(coverage.complete_count) !== completeCount
+      || Number(coverage.legacy_unavailable_count) !== legacyCount) {
+      fail(path, "must reconcile with all recommendations");
+    }
+  }
+
+  if (payload.build_metadata !== undefined) validateBuildMetadata(payload.build_metadata);
 
   if (payload.performance !== undefined) {
     requireObject(payload.performance, "performance");
