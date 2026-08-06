@@ -45,7 +45,9 @@ The engine-side publisher runs after successful scheduled MLG/TENX or price-back
 4. Validate the full plaintext contract.
 5. Encrypt with `DASHBOARD_PASSPHRASE` stored as a GitHub Actions secret.
 6. Commit only `public/data/payload.enc.json` to this frontend repository.
-7. Let `.github/workflows/pages.yml` verify and deploy `dist/client`.
+7. Mirror that same encrypted file to `data/payload.enc.json` on `gh-pages` with the scoped deploy key; GitHub Pages then publishes the branch.
+
+`.github/workflows/pages.yml` independently verifies every `main` update and retains a short-lived static build artifact for reviewed frontend releases.
 
 The engine workflow uses a write-enabled deploy key scoped only to this repository. If source,
 contract, encryption, or push validation fails, the last known-good encrypted payload remains live.
