@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
+import { Badge } from "@astryxdesign/core/Badge";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Theme } from "@astryxdesign/core/theme";
 import { neutralTheme } from "@astryxdesign/theme-neutral/built";
@@ -8,7 +14,6 @@ import {
   BarChart3,
   BookOpen,
   ChevronRight,
-  Clock3,
   Grid2X2,
   History,
   LayoutDashboard,
@@ -76,20 +81,28 @@ const CONFIDENCE_LABELS = Object.freeze({ high: "높음", medium: "보통", low:
 
 const NAV_ITEMS = Object.freeze([
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
-  { id: "MLG", label: "MLG", icon: TrendingUp },
-  { id: "TENX", label: "TENX", icon: Grid2X2 },
+  { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERFORMANCE", icon: BarChart3 },
-  { id: "methodology", label: "METHODOLOGY", icon: BookOpen },
+  { id: "methodology", label: "METHOD", icon: BookOpen },
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
   { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
-  { id: "strategy", label: "SCREENER", icon: TrendingUp },
-  { id: "history", label: "HISTORY", icon: Clock3 },
+  { id: "screener", label: "SCREENER", icon: TrendingUp },
+  { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERF", icon: BarChart3 },
   { id: "methodology", label: "METHOD", icon: BookOpen },
 ]);
+
+const VIEW_LABELS = Object.freeze({
+  overview: "OVERVIEW",
+  selection: "SCREENER",
+  detail: "SECURITY DETAIL",
+  history: "RUN HISTORY",
+  performance: "BENCHMARK",
+  methodology: "METHOD",
+});
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Asia/Seoul",
@@ -134,6 +147,13 @@ function formatPrice(value) {
 function formatPercent(value) {
   if (value === null || value === undefined || value === "") return "—";
   return `${formatNumber(Number(value) * 100)}%`;
+}
+
+function formatPercentPoints(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return `${number > 0 ? "+" : ""}${(number * 100).toFixed(2)}%p`;
 }
 
 function hasValue(value) {
@@ -195,9 +215,28 @@ function loadLastSeenRuns() {
 
 function verdictClass(verdict) {
   const normalized = String(verdict || "").toUpperCase();
-  if (normalized.includes("관찰") || normalized === "WATCH") return "is-cyan";
-  if (normalized === "FAIL") return "is-negative";
-  return "is-amber";
+  if (normalized === "FAIL" || normalized.includes("탈락") || normalized.includes("제외")) return "is-negative";
+  if (normalized.includes("관찰") || normalized === "WATCH" || normalized === "AUDIT") return "is-watch";
+  if (normalized.includes("핵심") || normalized === "PASS") return "is-investable";
+  return "is-neutral";
+}
+
+function returnTone(value) {
+  if (!Number.isFinite(Number(value)) || Number(value) === 0) return "is-neutral";
+  return Number(value) > 0 ? "is-positive" : "is-negative";
+}
+
+function transitionLabel(transition) {
+  const status = String(transition?.status || "").toUpperCase();
+  if (status === "NEW" || status === "RE-ENTRY" || status === "EXIT") return status;
+  return formatSigned(transition?.scoreDelta);
+}
+
+function transitionTone(transition) {
+  const status = String(transition?.status || "").toUpperCase();
+  if (status === "NEW" || status === "RE-ENTRY") return "is-positive";
+  if (status === "EXIT") return "is-negative";
+  return returnTone(transition?.scoreDelta);
 }
 
 function useHashRoute() {
@@ -297,16 +336,16 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
   );
 }
 
-function EvidenceBadge({ evidence, compact = false }) {
+function StrategyModeControl({ strategy, onChange, label = "스크리닝 전략" }) {
   return (
-    <span className={`evidence-badge is-${evidence.level.toLowerCase()} ${compact ? "is-compact" : ""}`}>
-      <span aria-hidden="true" />
-      {evidence.label}
-    </span>
+    <SegmentedControl value={strategy} onChange={onChange} label={label} size="md" layout="fill">
+      <SegmentedControlItem value="MLG" label="MLG · 중대형 성장주" />
+      <SegmentedControlItem value="TENX" label="TENX · 텐베거 유망주" />
+    </SegmentedControl>
   );
 }
 
-function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, evidence, onStrategy, onLock }) {
+function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, onLock }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchTriggerRef = useRef(null);
   const searchWrapRef = useRef(null);
@@ -325,19 +364,10 @@ function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, evide
   return (
     <header className="topbar">
       <div className="brand-wordmark">GENERAL SCREENER</div>
-      <nav className="engine-tabs" aria-label="스크리닝 전략">
-        {Object.keys(STRATEGIES).map((item) => (
-          <button
-            type="button"
-            key={item}
-            className={strategy === item && ["selection", "detail"].includes(activeView) ? "is-active" : ""}
-            aria-current={strategy === item && ["selection", "detail"].includes(activeView) ? "page" : undefined}
-            onClick={() => onStrategy(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+      <div className="topbar-context">
+        <span>{VIEW_LABELS[activeView] || "GENERAL"}</span>
+        {["selection", "detail", "performance"].includes(activeView) ? <strong>{strategy}</strong> : null}
+      </div>
       <div
         className={`top-search ${mobileSearchOpen ? "is-open" : ""} ${searchEnabled ? "" : "is-disabled"}`}
         ref={searchWrapRef}
@@ -375,7 +405,7 @@ function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, evide
       <div className="sync-status">
         <span className="sync-label">LAST SYNC</span>
         <time dateTime={generatedAt || undefined}>{formatKst(generatedAt)}</time>
-        <span className={`status-dot is-${evidence.level.toLowerCase()}`} aria-label={evidence.label} />
+        <span className="status-dot" aria-label="데이터 동기화 완료" />
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
         <LockKeyhole size={18} />
@@ -384,12 +414,12 @@ function BrandHeader({ activeView, strategy, query, setQuery, generatedAt, evide
   );
 }
 
-function SideNav({ activeView, strategy, onNavigate, onLock }) {
+function SideNav({ activeView, onNavigate, onLock }) {
   return (
     <aside className="side-nav" aria-label="주요 메뉴">
       <div className="side-nav-items">
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-          const active = id === strategy
+          const active = id === "screener"
             ? ["selection", "detail"].includes(activeView)
             : id === activeView;
           return (
@@ -414,22 +444,21 @@ function SideNav({ activeView, strategy, onNavigate, onLock }) {
   );
 }
 
-function MobileNav({ activeView, strategy, onNavigate }) {
+function MobileNav({ activeView, onNavigate }) {
   return (
     <nav className="mobile-nav" aria-label="모바일 주요 메뉴">
       {MOBILE_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-        const target = id === "strategy" ? strategy : id;
-        const active = id === "strategy" ? ["selection", "detail"].includes(activeView) : id === activeView;
+        const active = id === "screener" ? ["selection", "detail"].includes(activeView) : id === activeView;
         return (
           <button
             type="button"
             key={id}
             className={active ? "is-active" : ""}
             aria-current={active ? "page" : undefined}
-            onClick={() => onNavigate(target)}
+            onClick={() => onNavigate(id)}
           >
             <Icon size={22} strokeWidth={1.7} aria-hidden="true" />
-            <span>{id === "strategy" ? strategy : label}</span>
+            <span>{label}</span>
           </button>
         );
       })}
@@ -482,8 +511,8 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
               <td className={`verdict-cell ${verdictClass(item.verdict)}`}>{item.verdict || "—"}</td>
               <td className="number-cell score-cell">{formatNumber(item.score)}</td>
               <td className="number-cell muted-number">{formatPrice(item.screening_price)}</td>
-              <td className={`number-cell delta-column ${Number(transition?.scoreDelta) >= 0 ? "is-positive" : "is-negative"}`}>
-                {transition?.status === "NEW" ? "NEW" : transition?.status === "RE-ENTRY" ? "RE-ENTRY" : formatSigned(transition?.scoreDelta)}
+              <td className={`number-cell delta-column ${transitionTone(transition)}`}>
+                {transitionLabel(transition)}
               </td>
               <td className="row-action-cell">
                 <button type="button" onClick={() => onOpenDetail(item.symbol)} aria-label={`${item.symbol} 전체 상세 보기`}>
@@ -507,7 +536,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
               </span>
               <span className="mobile-numbers">
                 <strong>{formatNumber(item.score)}</strong>
-                <span>{transition?.status === "NEW" ? "NEW" : transition?.status === "RE-ENTRY" ? "RE-ENTRY" : formatSigned(transition?.scoreDelta)}</span>
+                <span className={transitionTone(transition)}>{transitionLabel(transition)}</span>
               </span>
               <ChevronRight size={22} strokeWidth={1.7} aria-hidden="true" />
             </button>
@@ -626,7 +655,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
           <div>
             <p>{strategy || recommendation.strategy} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
             <h1>{recommendation.symbol}</h1>
-            <span>{recommendation.company_name || "회사명 미수록"}</span>
+            {recommendation.company_name ? <span>{recommendation.company_name}</span> : null}
           </div>
           <dl>
             <div><dt>RANK</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
@@ -636,21 +665,6 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
             <div><dt>DATE</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
         </header>
-        <FactTape items={factItems} />
-        {detail.hasRichDetail ? (
-          <div className="detail-source-note">
-            <strong>{detail.detailProvenance ? "RECONSTRUCTED SNAPSHOT" : "STRUCTURED SNAPSHOT"}</strong>
-            <p>{detail.detailProvenance
-              ? "복구한 compact audit 원본값을 공개용 규칙으로 구조화했습니다. Telegram 원문을 복제한 것은 아닙니다."
-              : "실행 당시 원본 수치를 공개용 규칙으로 구조화한 설명입니다. Telegram 문구를 그대로 복제한 것은 아닙니다."}</p>
-          </div>
-        ) : (
-          <div className="archive-notice">
-            <strong>ARCHIVED SIGNAL</strong>
-            <p>이 실행은 순위·점수·가격·위험 플래그만 보관된 과거 신호입니다. 없는 설명을 생성하지 않고 확인 가능한 사실과 전체 등장 이력을 표시합니다.</p>
-          </div>
-        )}
-
         <div className="dossier-grid">
           <section className="dossier-block">
             <h2>선정 요약</h2>
@@ -683,8 +697,18 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
           </section>
         </div>
 
+        <section className="dossier-facts" aria-labelledby="dossier-facts-title">
+          <h2 id="dossier-facts-title">실행 당시 핵심 지표</h2>
+          <FactTape items={factItems} />
+        </section>
+
         <details className="provenance-details">
           <summary>근거 출처와 실행 계보</summary>
+          <p>{detail.hasRichDetail
+            ? detail.detailProvenance
+              ? "보관된 compact audit 수치를 공개 규칙으로 구조화한 상세입니다."
+              : "실행 당시 보관된 원본 수치를 공개 규칙으로 구조화한 상세입니다."
+            : "이 과거 실행은 순위·점수·가격·위험 플래그 범위에서만 보관됐습니다."}</p>
           <dl>
             <div><dt>실행 ID</dt><dd>{run?.run_id || recommendation.run_id || "—"}</dd></div>
             <div><dt>신호 ID</dt><dd>{recommendation.signal_id || "—"}</dd></div>
@@ -749,117 +773,71 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
     ))
     : reconstructed.signals;
   const selectedStatus = source === "VERIFIED" ? selectedOfficialStatus : reconstructed.horizonStatus;
-  const backcastAvailable = (backcast?.aggregates || []).some(
-    (item) => item.strategy === strategy && item.status === "RECONSTRUCTED",
-  );
-  const readiness = HORIZONS.map((horizon) => ({
-    horizon,
-    verified: getVerifiedAggregate(performance, strategy, horizon),
-    reconstructed: getBackcastCell(backcast, strategy, horizon),
-  }));
   const expectedSignals = strategy === "MLG" ? 10 : 5;
-
-  function handleTabKey(event, item) {
-    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
-    if (!keys.includes(event.key)) return;
-    event.preventDefault();
-    const index = HORIZONS.indexOf(item);
-    const next = event.key === "Home" ? HORIZONS[0]
-      : event.key === "End" ? HORIZONS.at(-1)
-        : HORIZONS[(index + (event.key === "ArrowRight" ? 1 : -1) + HORIZONS.length) % HORIZONS.length];
-    setRange(next);
-    requestAnimationFrame(() => document.getElementById(`performance-tab-${strategy}-${next}`)?.focus());
-  }
+  const completeRuns = Number(selectedStatus?.complete_run_count ?? aggregate?.run_count ?? runSeries.length ?? 0);
+  const signalCount = Number(selectedStatus?.underlying_signal_count ?? aggregate?.underlying_signal_count ?? signals.length ?? 0);
+  const strategyReturn = Number(aggregate?.equal_weight_return);
+  const benchmarkReturn = Number(aggregate?.qqq_equal_weight_return);
+  const excessReturn = Number(aggregate?.equal_weight_excess_return);
+  const benchmarkWinCount = runSeries.filter((item) => Number(item.excess_return) > 0).length;
+  const sourceLabel = source === "VERIFIED" ? "공식 측정" : source === "RECONSTRUCTED" ? "과거 실행 역산" : "측정 대기";
+  const sourceVariant = source === "VERIFIED" ? "green" : source === "RECONSTRUCTED" ? "cyan" : "neutral";
+  const comparisonCopy = Number.isFinite(excessReturn)
+    ? excessReturn >= 0
+      ? `${benchmark}보다 ${formatPercentPoints(excessReturn)} 앞섰습니다`
+      : `${benchmark}보다 ${formatPercentPoints(Math.abs(excessReturn))} 뒤졌습니다`
+    : "비교 가능한 실행을 기다리는 중입니다";
 
   return (
     <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
-      <div className="section-heading-row">
-        <h2 id="performance-title">{strategy} / {benchmark} PERFORMANCE</h2>
-        <span className="performance-tier">OFFICIAL ≠ RECONSTRUCTED</span>
-      </div>
-
-      <div className="performance-evidence-split" role="status">
-        <section className="is-official">
-          <strong>공식 검증 · {officialEvidence.level}</strong>
-          <p>{officialEvidence.description} · {officialEvidence.reason}</p>
-        </section>
-        <section className="is-backcast">
-          <strong>역산 참고치 · {backcastAvailable ? "AVAILABLE" : "PENDING"}</strong>
-          <p>{backcastAvailable ? "저장소 아카이브 시각에 묶인 과거 재구성입니다. 공식 검증값으로 승격하지 않습니다." : "완전한 실행 단위 가격 쌍이 준비되면 별도 참고치로 표시합니다."}</p>
-        </section>
-      </div>
-
-      <div className="readiness-grid" aria-label={`${strategy} 기간별 성과 상태`}>
-        {readiness.map(({ horizon, verified, reconstructed: cell }) => {
-          const mode = verified ? "VERIFIED" : cell.aggregate ? "RECONSTRUCTED" : cell.horizonStatus?.status || "PENDING";
-          return (
-            <button type="button" className={`readiness-card is-${mode.toLowerCase()}`} key={horizon} onClick={() => setRange(horizon)}>
-              <div><strong>{horizon}</strong><span>{mode}</span></div>
-              {verified || cell.aggregate ? (
-                <p>{strategy} {formatPercent((verified || cell.aggregate).equal_weight_return)} · 초과 {formatPercent((verified || cell.aggregate).equal_weight_excess_return)}</p>
-              ) : <p>완전한 실행 단위 관측 대기</p>}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="performance-toolbar">
-        <span>기간</span>
-        <div className="range-tabs" role="tablist" aria-label="성과 기간">
-          {HORIZONS.map((item) => (
-            <button
-              type="button"
-              role="tab"
-              id={`performance-tab-${strategy}-${item}`}
-              aria-controls={`performance-panel-${strategy}`}
-              aria-selected={range === item}
-              tabIndex={range === item ? 0 : -1}
-              className={range === item ? "is-active" : ""}
-              onClick={() => setRange(item)}
-              onKeyDown={(event) => handleTabKey(event, item)}
-              key={item}
-            >
-              {item}
-            </button>
-          ))}
+      <header className="performance-panel-header">
+        <div>
+          <p>{range} BENCHMARK SNAPSHOT</p>
+          <h2 id="performance-title">{strategy} vs {benchmark}</h2>
         </div>
-        <span className="performance-source-label">{source || "NO COMPLETE CELL"}</span>
+        <Badge variant={sourceVariant} label={sourceLabel} />
+      </header>
+
+      <div className="performance-controls">
+        <div>
+          <span>관측 기간</span>
+          <SegmentedControl value={range} onChange={setRange} label="성과 관측 기간" size="md" layout="fill">
+            {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "일")} />)}
+          </SegmentedControl>
+        </div>
+        <p>추천 이후 {range.replace("D", "거래일")} 시점의 동일가중 성과</p>
       </div>
 
-      <div id={`performance-panel-${strategy}`} role="tabpanel" aria-labelledby={`performance-tab-${strategy}-${range}`}>
+      <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
         {aggregate ? (
           <>
-            <dl className="performance-summary">
-              <div><dt>{strategy} RETURN</dt><dd>{formatPercent(aggregate.equal_weight_return)}</dd></div>
-              <div><dt>{benchmark}</dt><dd>{formatPercent(aggregate.qqq_equal_weight_return)}</dd></div>
-              <div><dt>EXCESS</dt><dd>{formatPercent(aggregate.equal_weight_excess_return)}</dd></div>
-              <div><dt>{benchmark} WIN RATE</dt><dd>{formatPercent(aggregate.qqq_win_rate)}</dd></div>
-              <div><dt>COMPLETE RUNS</dt><dd>{selectedStatus?.complete_run_count ?? aggregate.run_count}</dd></div>
-              <div><dt>SIGNALS</dt><dd>{selectedStatus?.underlying_signal_count ?? aggregate.underlying_signal_count}</dd></div>
-              <div><dt>LATEST MEASURE</dt><dd>{aggregate.measurement_session_max || "—"}</dd></div>
-            </dl>
+            <section className="performance-result" aria-label={`${strategy} ${range} 비교 결과`}>
+              <div className="performance-result-copy">
+                <p><strong>{strategy} {formatPercent(strategyReturn)}</strong><span>vs</span><strong>{benchmark} {formatPercent(benchmarkReturn)}</strong></p>
+                <h3 className={returnTone(excessReturn)}>{comparisonCopy}</h3>
+                {strategyReturn < 0 && excessReturn > 0 ? <small>벤치마크는 앞섰지만 절대수익률은 {formatPercent(strategyReturn)}입니다.</small> : null}
+              </div>
+              <dl className="performance-kpis">
+                <div><dt>{benchmark} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
+                <div><dt>실행별 우위</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
+                <div><dt>완전 실행</dt><dd>{completeRuns}회</dd></div>
+                <div><dt>종목 관측</dt><dd>{signalCount}건</dd></div>
+              </dl>
+            </section>
 
             <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmark} horizon={range} />
 
-            {source === "RECONSTRUCTED" ? (
-              <p className="reconstruction-note">
-                <strong>RECONSTRUCTED_REPOSITORY_BOUND</strong> · trusted repository archive commit 이후 첫 정규장 시가 · FMP adjusted price · 같은 session의 {benchmark} · 실행당 {expectedSignals}종목 완전 집합만 포함 · 수수료/슬리피지 미반영
-              </p>
-            ) : null}
-
             <div className="performance-table-wrap">
               <table className="performance-run-table">
-                <thead><tr><th>RUN DATE</th><th>RUN ID</th><th>{strategy}</th><th>{benchmark}</th><th>EXCESS</th><th>COVERAGE</th><th>STATE</th></tr></thead>
+                <thead><tr><th>실행일</th><th>{strategy}</th><th>{benchmark}</th><th>{benchmark} 대비</th><th>관측 종목</th></tr></thead>
                 <tbody>
                   {runSeries.map((item) => (
                     <tr key={`${item.run_id}:${item.report_date}`}>
-                      <td>{item.report_date}</td>
-                      <td>{item.run_id}</td>
+                      <td><span>{item.report_date}</span><small>RUN {item.run_id}</small></td>
                       <td>{formatPercent(item.strategy_return)}</td>
                       <td>{formatPercent(item.qqq_return)}</td>
-                      <td className={Number(item.excess_return) >= 0 ? "is-positive" : "is-negative"}>{formatPercent(item.excess_return)}</td>
+                      <td className={returnTone(item.excess_return)}>{formatPercentPoints(item.excess_return)}</td>
                       <td>{item.signal_count} / {expectedSignals}</td>
-                      <td className="performance-tier">{item.status}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -882,11 +860,24 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
                 </div>
               ) : null}
             </details>
+
+            <details className="calculation-details">
+              <summary>산정 방식 및 데이터 등급</summary>
+              <div>
+                <p>신호 확인 뒤 첫 정규장 조정시가에서 진입하고, 동일한 진입·측정 세션의 {benchmark}와 비교합니다. 실행당 {expectedSignals}종목 전체가 갖춰진 경우만 동일가중 평균에 포함하며 수수료와 슬리피지는 반영하지 않습니다.</p>
+                <dl>
+                  <div><dt>현재 표시</dt><dd>{sourceLabel}</dd></div>
+                  <div><dt>공식 성과 상태</dt><dd>{officialEvidence.level}</dd></div>
+                  <div><dt>최신 측정일</dt><dd>{aggregate.measurement_session_max || "—"}</dd></div>
+                  <div><dt>근거 코드</dt><dd>{source === "RECONSTRUCTED" ? "REPOSITORY-BOUND" : officialEvidence.reason}</dd></div>
+                </dl>
+              </div>
+            </details>
           </>
         ) : (
           <div className="performance-empty">
-            <p>{range}는 아직 {strategy} {expectedSignals}종목 전체와 {benchmark}의 동일 session 관측이 완성되지 않았습니다.</p>
-            <small>부분 가격으로 평균을 만들지 않습니다. 다음 백필에서 완전한 실행이 생기면 자동으로 열립니다.</small>
+            <strong>{strategy} {range} 성과는 아직 측정 중입니다.</strong>
+            <p>{expectedSignals}개 추천과 {benchmark}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
           </div>
         )}
       </div>
@@ -894,9 +885,8 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
   );
 }
 
-function SelectionView({ payload, index, strategy, query, selectedRunId, selectedSymbol, onSelectSymbol, onOpenDetail, onLatest }) {
+function SelectionView({ payload, index, strategy, query, selectedRunId, selectedSymbol, onSelectSymbol, onOpenDetail, onLatest, onStrategy }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [range, setRange] = useState("5D");
   const tabletDetailTriggerRef = useRef(null);
   const tabletDrawerRef = useRef(null);
   const { latestRun, currentRun, requestedRunMissing } = useMemo(
@@ -925,7 +915,6 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
   );
   const selectedTimeline = resolvedSelected ? getSymbolTimeline(index, strategy, resolvedSelected.symbol) : null;
   const isHistorical = Boolean(currentRun && latestRun && String(currentRun.run_id) !== String(latestRun.run_id));
-  const evidence = getPerformanceState(payload.performance, payload.evidence_status);
 
   useEffect(() => {
     if (resolvedSelected?.symbol && resolvedSelected.symbol !== selectedSymbol) {
@@ -983,6 +972,13 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
 
   return (
     <div className="selection-view">
+      <section className="screener-mode-bar" aria-label="스크리너 선택">
+        <div>
+          <p>SCREENER MODE</p>
+          <span>두 엔진은 독립적으로 순위를 계산합니다.</span>
+        </div>
+        <StrategyModeControl strategy={strategy} onChange={onStrategy} />
+      </section>
       <section className="run-header">
         <div className="run-title-row">
           <div>
@@ -992,10 +988,9 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
             </h1>
             <p className="strategy-descriptor">{STRATEGIES[strategy].label}</p>
           </div>
-          <EvidenceBadge evidence={evidence} />
         </div>
         <p className="run-provenance">
-          {isHistorical ? "HISTORICAL OFFICIAL RUN" : "LATEST OFFICIAL RUN"} · RUN {currentRun.run_id} · {currentRun.branch || "MAIN"}
+          {isHistorical ? "HISTORICAL RUN" : "LATEST RUN"} · RUN {currentRun.run_id} · {currentRun.branch || "MAIN"}
         </p>
         {isHistorical ? (
           <div className="historical-banner" role="status">
@@ -1007,8 +1002,7 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
           <span><strong>{allRecommendations.length}</strong> OFFICIAL PICKS</span>
           <span>RUN <strong>{currentRun.run_id}</strong></span>
           <span>{currentRun.branch || "main"} · {currentRun.workflow || "official"}</span>
-          <span>BENCHMARK <strong>{payload.benchmark || "QQQ"}</strong></span>
-          <span className="is-evidence">OFFICIAL {evidence.level}</span>
+          <span><strong>{STRATEGIES[strategy].label}</strong></span>
         </div>
       </section>
 
@@ -1074,24 +1068,11 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
           </>
         ) : null}
       </div>
-
-      <div className="selection-performance">
-        <PerformancePanel
-          strategy={strategy}
-          performance={payload.performance}
-          backcast={payload.performance_backcast}
-          evidenceStatus={payload.evidence_status}
-          benchmark={payload.benchmark}
-          range={range}
-          setRange={setRange}
-        />
-      </div>
     </div>
   );
 }
 
-function OverviewView({ payload, index, lastSeen, onStrategy }) {
-  const evidence = getPerformanceState(payload.performance, payload.evidence_status);
+function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onHistory }) {
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
     const strategyRuns = index.runsByStrategy.get(strategy) || [];
     const run = strategyRuns[0] || null;
@@ -1123,7 +1104,6 @@ function OverviewView({ payload, index, lastSeen, onStrategy }) {
       isRead: seenIndex === 0,
     };
   });
-  const topPicks = latestRuns.flatMap(({ strategy, picks }) => picks.slice(0, 3).map((item) => ({ strategy, ...item })));
   const backcastPreview = (payload.performance_backcast?.aggregates || []).find((item) => (
     item.strategy === "MLG" && String(item.horizon).toLowerCase() === "5d" && item.status === "RECONSTRUCTED"
   )) || (payload.performance_backcast?.aggregates || [])[0] || null;
@@ -1133,7 +1113,6 @@ function OverviewView({ payload, index, lastSeen, onStrategy }) {
         <p>GENERAL / OVERVIEW</p>
         <h1>WHAT CHANGED</h1>
         <span>지난 확인 이후 달라진 종목과 순위부터 보고, 필요할 때 상세와 과거 실행으로 내려갑니다.</span>
-        <EvidenceBadge evidence={evidence} />
       </header>
 
       <section className="since-visit" aria-labelledby="since-visit-title">
@@ -1154,32 +1133,56 @@ function OverviewView({ payload, index, lastSeen, onStrategy }) {
             </button>
           ))}
         </div>
+        <footer className="since-visit-footer">
+          <button type="button" onClick={onHistory}>전체 실행 기록 <ChevronRight size={16} aria-hidden="true" /></button>
+        </footer>
       </section>
 
       <div className="overview-working-grid">
         <section className="latest-selection-mini">
           <header><h2>최신 상위 종목</h2><span>MLG / TENX 각각 TOP 3</span></header>
-          <table className="mini-selection-table">
-            <thead><tr><th>ENGINE</th><th>RANK</th><th>TICKER</th><th>COMPANY</th><th>VERDICT</th><th>SCORE</th></tr></thead>
-            <tbody>{topPicks.map((item) => (
-              <tr key={`${item.strategy}:${item.run_id}:${item.symbol}`}>
-                <td>{item.strategy}</td><td>{String(item.recommendation_rank).padStart(2, "0")}</td><td><strong>{item.symbol}</strong></td>
-                <td>{item.company_name || "—"}</td><td className={verdictClass(item.verdict)}>{item.verdict || "—"}</td><td>{formatNumber(item.score)}</td>
-              </tr>
-            ))}</tbody>
-          </table>
+          <div className="mini-strategy-grid">
+            {latestRuns.map((item) => (
+              <section className="mini-strategy-card" key={item.strategy} aria-label={`${item.strategy} 상위 종목`}>
+                <header>
+                  <div><strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span></div>
+                  <button type="button" onClick={() => onStrategy(item.strategy)}>전체 보기 <ChevronRight size={14} /></button>
+                </header>
+                <ol>
+                  {item.picks.slice(0, 3).map((pick) => (
+                    <li key={`${item.strategy}:${pick.run_id}:${pick.symbol}`}>
+                      <button type="button" onClick={() => onStrategy(item.strategy)}>
+                        <span>{String(pick.recommendation_rank).padStart(2, "0")}</span>
+                        <strong>{pick.symbol}</strong>
+                        <span className="mini-company">{pick.company_name || ""}</span>
+                        <span className={verdictClass(pick.verdict)}>{pick.verdict || "—"}</span>
+                        <b>{formatNumber(pick.score)}</b>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
         </section>
 
         <section className="backcast-preview">
-          <header><h2>QQQ 대비 성과</h2><span>OFFICIAL {evidence.level}</span></header>
+          <header><h2>최근 벤치마크 비교</h2>{backcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
           <div className="backcast-preview-body">
-            <p>{backcastPreview ? "공식 검증과 분리된 저장소 기반 역산 참고치입니다." : "공식 검증은 보류 중이며, 저장소 기반 역산 파이프라인을 준비하고 있습니다."}</p>
-            <dl>
-              <div><dt>MODE</dt><dd>{backcastPreview ? "RECONSTRUCTED" : "PENDING"}</dd></div>
-              <div><dt>CELL</dt><dd>{backcastPreview ? `${backcastPreview.strategy} ${String(backcastPreview.horizon).toUpperCase()}` : "—"}</dd></div>
-              <div><dt>STRATEGY</dt><dd>{backcastPreview ? formatPercent(backcastPreview.equal_weight_return) : "—"}</dd></div>
-              <div><dt>EXCESS</dt><dd>{backcastPreview ? formatPercent(backcastPreview.equal_weight_excess_return) : "—"}</dd></div>
-            </dl>
+            {backcastPreview ? (
+              <>
+                <p className="backcast-comparison-line">
+                  <strong>{backcastPreview.strategy} {String(backcastPreview.horizon).toUpperCase()} {formatPercent(backcastPreview.equal_weight_return)}</strong>
+                  <span>vs</span>
+                  <strong>{payload.benchmark || "QQQ"} {formatPercent(backcastPreview.qqq_equal_weight_return)}</strong>
+                </p>
+                <p className={`backcast-outcome ${returnTone(backcastPreview.equal_weight_excess_return)}`}>
+                  {payload.benchmark || "QQQ"} 대비 {formatPercentPoints(backcastPreview.equal_weight_excess_return)}
+                </p>
+                <span className="backcast-meta">완전 실행 {backcastPreview.run_count || "—"}회 · 종목 관측 {backcastPreview.underlying_signal_count || "—"}건</span>
+              </>
+            ) : <p>완전한 실행 단위의 가격 관측이 쌓이면 이곳에 비교 결과가 표시됩니다.</p>}
+            <button type="button" className="backcast-open" onClick={() => onPerformance(backcastPreview?.strategy || "MLG")}>성과 자세히 <ChevronRight size={16} /></button>
           </div>
         </section>
       </div>
@@ -1276,16 +1279,19 @@ function HistoryView({ payload, index, onStrategy }) {
   );
 }
 
-function StandalonePerformanceView({ payload, strategy }) {
+function StandalonePerformanceView({ payload, strategy, onStrategy }) {
   const [range, setRange] = useState("5D");
-  const evidence = getPerformanceState(payload.performance, payload.evidence_status);
   return (
     <section className="secondary-view performance-view">
       <header>
         <p>GENERAL / PERFORMANCE</p>
-        <h1>{strategy} VS {payload.benchmark || "QQQ"}</h1>
-        <span>공식 검증 성과와 저장소 기반 역산 참고치를 섞지 않고 같은 화면에서 비교합니다.</span>
+        <h1>BENCHMARK COMPARISON</h1>
+        <span>전략 수익률과 같은 기간 {payload.benchmark || "QQQ"}를 실행 단위로 바로 비교합니다.</span>
       </header>
+      <div className="performance-strategy-control">
+        <span>비교 전략</span>
+        <StrategyModeControl strategy={strategy} onChange={onStrategy} label="성과 비교 전략" />
+      </div>
       <PerformancePanel
         strategy={strategy}
         performance={payload.performance}
@@ -1300,26 +1306,194 @@ function StandalonePerformanceView({ payload, strategy }) {
 }
 
 function MethodologyView({ benchmark }) {
+  const [section, setSection] = useState("mlg");
+  const activeTitle = {
+    mlg: "MLG 스크리닝 로직",
+    tenx: "TENX 스크리닝 로직",
+    performance: `${benchmark || "QQQ"} 수익률 산정`,
+    operations: "자동 업데이트와 운영",
+  }[section];
+
   return (
     <section className="secondary-view methodology-view">
       <header>
         <p>GENERAL / METHODOLOGY</p>
-        <h1>READ THE SIGNAL, KEEP THE LINEAGE</h1>
-        <span>스크리너 출력과 성과 근거를 분리해 표시합니다.</span>
+        <h1>스크리닝 및 성과 산정 방식</h1>
+        <span>무엇을 걸러내고, 어떻게 순위를 만들며, 성과가 언제 업데이트되는지 설명합니다.</span>
       </header>
-      <dl className="methodology-list">
-        <div><dt>MLG</dt><dd><strong>중대형 성장주</strong><span>공식 MLG 엔진 순위를 그대로 표시합니다.</span></dd></div>
-        <div><dt>TENX</dt><dd><strong>텐베거 유망주</strong><span>공식 TENX Top5 순위를 그대로 표시합니다.</span></dd></div>
-        <div><dt>BENCHMARK</dt><dd><strong>{benchmark || "QQQ"}</strong><span>동일 진입 시점과 관측 기간으로 초과수익을 계산합니다.</span></dd></div>
-        <div><dt>HOLD</dt><dd><strong>성과 비공개</strong><span>관측 이력이나 무결성 검증이 부족하면 추천은 유지하되 성과 수치를 숨깁니다.</span></dd></div>
-        <div><dt>PARTIAL</dt><dd><strong>일부 기간 공개</strong><span>검증을 통과한 기간만 공개하고 나머지 기간은 비활성화합니다.</span></dd></div>
-        <div><dt>READY</dt><dd><strong>검증 완료</strong><span>보관된 관측 이력과 무결성 기준을 통과한 성과만 표시합니다.</span></dd></div>
-        <div><dt>RECONSTRUCTED</dt><dd><strong>저장소 기반 역산 참고치</strong><span>공식 결과가 존재했음을 증명하는 아카이브 커밋 이후 첫 정규장 시가와 동일 구간 {benchmark || "QQQ"}로 계산합니다. VERIFIED로 승격하지 않습니다.</span></dd></div>
-        <div><dt>DETAIL SOURCE</dt><dd><strong>결정 규칙 기반 구조화</strong><span>실행 원본값을 공개용 포매터로 정리합니다. 복구된 과거 상세는 compact audit에서 재구성하며 Telegram 원문과 동일하다고 주장하지 않습니다.</span></dd></div>
-        <div><dt>COMPLETE RUN</dt><dd><strong>MLG 10 · TENX 5</strong><span>한 실행의 공식 추천 전 종목과 {benchmark || "QQQ"} 가격이 같은 session으로 갖춰진 경우만 평균을 공개합니다.</span></dd></div>
-        <div><dt>LAST VISIT</dt><dd><strong>이 브라우저에만 저장</strong><span>마지막으로 연 최신 실행 ID만 localStorage에 남겨 신규 실행과 변동을 구분합니다. 종목 데이터나 암호문구는 저장하지 않습니다.</span></dd></div>
-        <div><dt>PROVENANCE</dt><dd><strong>RUN ID + SOURCE TIME</strong><span>결과마다 실행 ID와 생성 시각을 유지합니다.</span></dd></div>
-      </dl>
+
+      <div className="method-tabs">
+        <TabList value={section} onChange={setSection} size="lg" layout="fill" hasDivider aria-label="방법론 항목">
+          <Tab value="mlg" label="MLG 로직" />
+          <Tab value="tenx" label="TENX 로직" />
+          <Tab value="performance" label="수익률 산정" />
+          <Tab value="operations" label="시스템 운영" />
+        </TabList>
+      </div>
+
+      <div className="method-panel" role="region" aria-label={activeTitle}>
+        {section === "mlg" ? (
+          <>
+            <section className="method-hero-card">
+              <div><p>MLG</p><h2>중대형 성장주 Top 10</h2><span>실적 이력·현금흐름·애널리스트 커버리지가 갖춰진 미국 중대형 성장주를 찾습니다.</span></div>
+              <dl><div><dt>기초 규모</dt><dd>시총 $5B+</dd></div><div><dt>정밀 게이트</dt><dd>시총 $10B+</dd></div><div><dt>공식 결과</dt><dd>Top 10</dd></div></dl>
+            </section>
+            <div className="method-content-grid">
+              <section className="method-card is-wide">
+                <h3>선별 흐름</h3>
+                <ol className="method-steps">
+                  <li><b>1</b><div><strong>미국 보통주 풀</strong><span>S&amp;P 500·Russell 1000·Nasdaq·NYSE를 목표로, 주가 $5 이상과 평균 거래량 20만주 이상부터 시작합니다.</span></div></li>
+                  <li><b>2</b><div><strong>품질 성장주 회수</strong><span>대형주 앵커, 품질 소프트웨어, AI 플랫폼·인프라와 섹터별 후보를 빠짐없이 모읍니다.</span></div></li>
+                  <li><b>3</b><div><strong>경량 점수로 후보 압축</strong><span>매출·EPS 성장, Rule of 40, 향후 전망, ROE와 부채 품질로 정밀 분석 대상을 압축합니다.</span></div></li>
+                  <li><b>4</b><div><strong>하드게이트와 최종 순위</strong><span>모든 필수 조건을 통과한 후보만 공식 score 내림차순으로 정렬해 Top 10을 게시합니다.</span></div></li>
+                </ol>
+              </section>
+              <section className="method-card">
+                <h3>주요 하드게이트</h3>
+                <ul className="method-checks">
+                  <li><span>FCF</span><strong>양수</strong></li>
+                  <li><span>Rule of 40</span><strong>30% 이상</strong></li>
+                  <li><span>매출 성장</span><strong>10% 이상</strong></li>
+                  <li><span>EPS 성장</span><strong>20% 이상</strong></li>
+                  <li><span>3년 매출 CAGR</span><strong>11% 이상</strong></li>
+                  <li><span>전망·부채·SEC</span><strong>무결성 통과</strong></li>
+                </ul>
+              </section>
+              <section className="method-card">
+                <h3>최종 점수 100</h3>
+                <dl className="method-weights">
+                  <div><dt>코어 성장 적합도</dt><dd>20</dd></div><div><dt>EPS 전망</dt><dd>18</dd></div><div><dt>밸류에이션</dt><dd>17</dd></div>
+                  <div><dt>매출 전망</dt><dd>15</dd></div><div><dt>해자</dt><dd>10</dd></div><div><dt>애널리스트 신호</dt><dd>8</dd></div>
+                  <div><dt>이벤트 품질</dt><dd>6</dd></div><div><dt>부채 품질</dt><dd>4</dd></div><div><dt>컨센서스</dt><dd>2</dd></div>
+                </dl>
+              </section>
+            </div>
+            <div className="method-note"><Badge variant="green" label="핵심 후보" /><Badge variant="yellow" label="관찰 후보" /><span>두 라벨은 결과 해석용입니다. 포트폴리오 라벨이나 진입 타이밍 지표가 공식 순위를 다시 매기지는 않습니다.</span></div>
+          </>
+        ) : null}
+
+        {section === "tenx" ? (
+          <>
+            <section className="method-hero-card">
+              <div><p>TENX</p><h2>텐베거 유망주 Top 5</h2><span>미국 상장 기술·첨단산업에서 5~10년 비대칭성이 있는 초기 성장 후보를 찾습니다.</span></div>
+              <dl><div><dt>시가총액</dt><dd>$0.25B–40B</dd></div><div><dt>집중 분석</dt><dd>약 45개</dd></div><div><dt>공식 결과</dt><dd>Top 5</dd></div></dl>
+            </section>
+            <div className="method-content-grid">
+              <section className="method-card is-wide">
+                <h3>선별 흐름</h3>
+                <ol className="method-steps">
+                  <li><b>1</b><div><strong>Focused growth universe</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라로 범위를 먼저 고정합니다.</span></div></li>
+                  <li><b>2</b><div><strong>Core-lite 압축</strong><span>성장 가속, 향후 지속성, 주당 gross-profit 품질, 비대칭성과 데이터 품질로 최대 300개를 유지합니다.</span></div></li>
+                  <li><b>3</b><div><strong>재무·SEC 원문 대사</strong><span>분기·연간, 통화, 주식수와 출처 시점이 맞지 않으면 계산하지 않고 hard-fail 또는 HOLD로 남깁니다.</span></div></li>
+                  <li><b>4</b><div><strong>단일 점수 Top 5</strong><span>유한한 tenx_final_score 하나로 내림차순 정렬합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
+                </ol>
+              </section>
+              <section className="method-card">
+                <h3>Core v3.1 비중</h3>
+                <dl className="method-weights">
+                  <div><dt>초기 텐베거 비대칭성</dt><dd>30%</dd></div><div><dt>향후 성장 지속성</dt><dd>25%</dd></div>
+                  <div><dt>성장 가속</dt><dd>15%</dd></div><div><dt>주주 경제성</dt><dd>15%</dd></div><div><dt>생존·현금 전환</dt><dd>15%</dd></div>
+                  <div><dt>후보 자체 시장 확인</dt><dd>+3점</dd></div>
+                </dl>
+              </section>
+              <section className="method-card">
+                <h3>텐베거 경로</h3>
+                <p className="method-formula">목표 기업가치 ÷ 합리적 매출배수 → 필요한 5·7·10년 매출 CAGR</p>
+                <ul className="method-bullets">
+                  <li>현재 시가총액의 10배를 목표값으로 둡니다.</li>
+                  <li>엔진이 지지하는 성장률과 필요한 성장률의 차이를 path gap으로 봅니다.</li>
+                  <li>{benchmark || "QQQ"}는 TENX 점수 입력에 사용하지 않습니다.</li>
+                </ul>
+              </section>
+            </div>
+            <div className="method-note"><Badge variant="green" label="PASS" /><Badge variant="yellow" label="WATCH" /><Badge variant="red" label="FAIL" /><span>공개 판정과 점수 순위는 별도이며, PASS를 자동투자 준비도로 번역하지 않습니다.</span></div>
+          </>
+        ) : null}
+
+        {section === "performance" ? (
+          <>
+            <section className="method-hero-card">
+              <div><p>PERFORMANCE</p><h2>{benchmark || "QQQ"}와 같은 거래일로 비교</h2><span>추천 종목과 벤치마크에 동일한 진입·측정 세션을 적용해 5·10·20거래일 성과를 계산합니다.</span></div>
+              <dl><div><dt>진입</dt><dd>첫 정규장 시가</dd></div><div><dt>관측</dt><dd>5D · 10D · 20D</dd></div><div><dt>집계</dt><dd>동일가중</dd></div></dl>
+            </section>
+            <div className="method-content-grid">
+              <section className="method-card is-wide">
+                <h3>산식</h3>
+                <div className="formula-stack">
+                  <code>종목 수익률 = 관측일 조정종가 ÷ 진입일 조정시가 − 1</code>
+                  <code>{benchmark || "QQQ"} 수익률 = 같은 관측일 조정종가 ÷ 같은 진입일 조정시가 − 1</code>
+                  <code>초과수익률 = 전략 수익률 − {benchmark || "QQQ"} 수익률</code>
+                </div>
+              </section>
+              <section className="method-card">
+                <h3>집계 순서</h3>
+                <ol className="method-numbered">
+                  <li>각 추천 종목의 수익률을 계산</li>
+                  <li>MLG 10종목·TENX 5종목 전체가 있는 실행만 평균</li>
+                  <li>완전한 실행 수익률끼리 다시 단순평균</li>
+                  <li>초과수익이 양수인 실행 비율을 {benchmark || "QQQ"} 우위로 표시</li>
+                </ol>
+              </section>
+              <section className="method-card">
+                <h3>숫자에 포함되는 조건</h3>
+                <ul className="method-bullets">
+                  <li>main의 scheduled production 추천</li>
+                  <li>종목과 {benchmark || "QQQ"}의 진입·관측 세션 일치</li>
+                  <li>양수 가격과 가격 무결성 게이트 통과</li>
+                  <li>부분 실행과 아직 성숙하지 않은 기간은 제외</li>
+                </ul>
+              </section>
+            </div>
+            <p className="method-note">같은 종목이 여러 실행에서 반복 추천되면 실행별 별도 신호로 계산합니다. 거래비용과 슬리피지는 현재 산식에 포함하지 않습니다.</p>
+          </>
+        ) : null}
+
+        {section === "operations" ? (
+          <>
+            <section className="method-hero-card">
+              <div><p>OPERATIONS</p><h2>엔진 실행부터 암호화 게시까지</h2><span>프론트엔드는 FMP를 직접 호출하지 않고, 검증된 저장소 이력을 암호화한 payload만 읽습니다.</span></div>
+              <dl><div><dt>MLG</dt><dd>수·토 09:00</dd></div><div><dt>TENX</dt><dd>화·금 09:00</dd></div><div><dt>가격 백필</dt><dd>화–토 07:30</dd></div></dl>
+            </section>
+            <div className="method-content-grid">
+              <section className="method-card is-wide">
+                <h3>자동 업데이트 흐름</h3>
+                <ol className="method-steps operation-steps">
+                  <li><b>1</b><div><strong>엔진 실행</strong><span>MLG와 TENX가 각자의 규칙으로 추천과 상세 근거를 생성합니다.</span></div></li>
+                  <li><b>2</b><div><strong>품질 게이트와 발송</strong><span>데이터·신호·보고서 품질 검증을 통과한 공식 실행만 Telegram과 운영 상태로 확정됩니다.</span></div></li>
+                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 main에 누적하고, 종목과 {benchmark || "QQQ"}의 5·10·20일 가격을 별도 작업이 보강합니다.</span></div></li>
+                  <li><b>4</b><div><strong>암호화 게시</strong><span>게시기가 최신 이력으로 좁은 JSON을 만들고 AES-GCM 암호문만 프론트 저장소에 보냅니다.</span></div></li>
+                  <li><b>5</b><div><strong>GitHub Pages 배포</strong><span>프론트 검증과 빌드를 통과하면 종목·이력·성과 화면이 함께 업데이트됩니다.</span></div></li>
+                </ol>
+              </section>
+              <section className="method-card">
+                <h3>예약 시각 · KST</h3>
+                <dl className="method-schedule">
+                  <div><dt>MLG 공식 실행</dt><dd>수요일 · 토요일 09:00</dd></div>
+                  <div><dt>TENX 공식 실행</dt><dd>화요일 · 금요일 09:00</dd></div>
+                  <div><dt>가격·{benchmark || "QQQ"} 백필</dt><dd>화요일–토요일 07:30</dd></div>
+                </dl>
+              </section>
+              <section className="method-card">
+                <h3>실패 시 동작</h3>
+                <ul className="method-bullets">
+                  <li>수동 실행은 기본 dry-run이며 공식 이력에 넣지 않습니다.</li>
+                  <li>변환·암호화·검증이 실패하면 기존 배포 데이터를 유지합니다.</li>
+                  <li>브라우저에는 API 키와 평문 payload가 배포되지 않습니다.</li>
+                </ul>
+              </section>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      <details className="method-data-grades">
+        <summary>데이터 등급과 표시 원칙</summary>
+        <dl>
+          <div><dt>공식 측정</dt><dd>실제 발송 또는 전달 결정 뒤 기록된 공개시각을 기준으로 계산합니다.</dd></div>
+          <div><dt>과거 실행 역산</dt><dd>검증된 저장소 archive commit 이후 첫 정규장을 보수적 진입 시점으로 사용합니다.</dd></div>
+          <div><dt>측정 대기</dt><dd>필요한 거래일이나 완전한 종목 집합이 아직 갖춰지지 않은 기간입니다.</dd></div>
+        </dl>
+      </details>
     </section>
   );
 }
@@ -1367,7 +1541,6 @@ function Dashboard({ payload, onLock }) {
   const [lastSeen, setLastSeen] = useState(loadLastSeenRuns);
   const index = useMemo(() => createDashboardIndex(payload), [payload]);
   const strategy = route.strategy || "MLG";
-  const evidence = getPerformanceState(payload.performance, payload.evidence_status);
   const latestStrategyRun = sortRunsNewestFirst(
     payload.runs.filter((item) => item.strategy === strategy),
   )[0];
@@ -1404,8 +1577,8 @@ function Dashboard({ payload, onLock }) {
   }, [markStrategyRead, navigate]);
 
   function navigateItem(id) {
-    if (id === "MLG" || id === "TENX") {
-      selectStrategy(id);
+    if (id === "screener") {
+      selectStrategy(strategy);
       return;
     }
     if (id === "performance") {
@@ -1418,11 +1591,26 @@ function Dashboard({ payload, onLock }) {
 
   let content;
   if (route.view === "overview") {
-    content = <OverviewView payload={payload} index={index} lastSeen={lastSeen} onStrategy={selectStrategy} />;
+    content = (
+      <OverviewView
+        payload={payload}
+        index={index}
+        lastSeen={lastSeen}
+        onStrategy={selectStrategy}
+        onHistory={() => navigate({ view: "history", strategy })}
+        onPerformance={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
+      />
+    );
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
-    content = <StandalonePerformanceView payload={payload} strategy={strategy} />;
+    content = (
+      <StandalonePerformanceView
+        payload={payload}
+        strategy={strategy}
+        onStrategy={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
+      />
+    );
   } else if (route.view === "methodology") {
     content = <MethodologyView benchmark={payload.benchmark} />;
   } else if (route.view === "detail") {
@@ -1446,6 +1634,7 @@ function Dashboard({ payload, onLock }) {
         onSelectSymbol={(symbol) => setPreviewSymbols((current) => ({ ...current, [strategy]: symbol }))}
         onOpenDetail={(runId, symbol) => navigate({ view: "detail", strategy, runId, symbol })}
         onLatest={() => selectStrategy(strategy)}
+        onStrategy={selectStrategy}
       />
     );
   }
@@ -1459,13 +1648,11 @@ function Dashboard({ payload, onLock }) {
         query={query}
         setQuery={setQuery}
         generatedAt={payload.generated_at}
-        evidence={evidence}
-        onStrategy={selectStrategy}
         onLock={onLock}
       />
-      <SideNav activeView={route.view} strategy={strategy} onNavigate={navigateItem} onLock={onLock} />
+      <SideNav activeView={route.view} onNavigate={navigateItem} onLock={onLock} />
       <main className="workspace" id="main-content">{content}</main>
-      <MobileNav activeView={route.view} strategy={strategy} onNavigate={navigateItem} />
+      <MobileNav activeView={route.view} onNavigate={navigateItem} />
     </div>
   );
 }

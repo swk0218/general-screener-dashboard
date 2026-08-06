@@ -17,12 +17,6 @@ function compactDate(value) {
   return String(value || "").slice(5, 10).replace("-", ".");
 }
 
-function buildPath(points, key, xFor, yFor) {
-  return points.map((point, index) => (
-    `${index === 0 ? "M" : "L"} ${xFor(index).toFixed(2)} ${yFor(finite(point[key])).toFixed(2)}`
-  )).join(" ");
-}
-
 export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ", horizon }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -36,7 +30,9 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
     const max = rawMax + span * 0.16;
     const innerWidth = WIDTH - MARGIN.left - MARGIN.right;
     const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
-    const xFor = (index) => MARGIN.left + (sorted.length === 1 ? innerWidth / 2 : index / (sorted.length - 1) * innerWidth);
+    const groupWidth = innerWidth / Math.max(1, sorted.length);
+    const barWidth = Math.min(28, groupWidth * 0.3);
+    const xFor = (index) => MARGIN.left + groupWidth * (index + 0.5);
     const yFor = (value) => MARGIN.top + (max - value) / (max - min) * innerHeight;
     const ticks = Array.from({ length: 5 }, (_, index) => min + (max - min) * index / 4).reverse();
     return {
@@ -44,8 +40,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
       xFor,
       yFor,
       ticks,
-      strategyPath: buildPath(sorted, "strategy_return", xFor, yFor),
-      benchmarkPath: buildPath(sorted, "qqq_return", xFor, yFor),
+      barWidth,
     };
   }, [points]);
 
@@ -56,8 +51,8 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
   return (
     <figure className="return-chart" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <figcaption>
-        <span id={titleId}>실행별 {horizon} 수익률</span>
-        <span id={descriptionId}>각 공식 실행의 동일가중 추천 수익률과 같은 기간 {benchmark} 수익률 비교</span>
+        <span id={titleId}>실행별 {horizon} 수익률 비교</span>
+        <span id={descriptionId}>각 실행의 {strategy}와 같은 거래기간 {benchmark}를 나란히 비교한 막대 차트</span>
       </figcaption>
       <div className="return-chart-legend" aria-hidden="true">
         <span><i className="is-strategy" />{strategy}</span>
@@ -69,7 +64,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
         role="img"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        style={{ minWidth: `${Math.max(320, chart.sorted.length * 92)}px` }}
+        style={{ minWidth: `${Math.max(280, chart.sorted.length * 92)}px` }}
       >
         <g className="return-chart-grid">
           {chart.ticks.map((tick) => (
@@ -86,27 +81,38 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           y1={chart.yFor(0)}
           y2={chart.yFor(0)}
         />
-        {chart.sorted.length > 1 ? (
-          <>
-            <path className="return-series is-strategy" d={chart.strategyPath} />
-            <path className="return-series is-benchmark" d={chart.benchmarkPath} />
-          </>
-        ) : null}
         {chart.sorted.map((point, index) => {
           const x = chart.xFor(index);
           const strategyValue = finite(point.strategy_return);
           const qqqValue = finite(point.qqq_return);
+          const baseline = chart.yFor(0);
+          const strategyY = chart.yFor(strategyValue);
+          const benchmarkY = chart.yFor(qqqValue);
           return (
             <g key={`${point.run_id}:${point.report_date}`}>
               <text className="return-date-label" x={x} y={HEIGHT - 14} textAnchor="middle">
                 {compactDate(point.report_date)}
               </text>
-              <circle className="return-point is-strategy" cx={x} cy={chart.yFor(strategyValue)} r="4">
+              <rect
+                className="return-bar is-strategy"
+                x={x - chart.barWidth - 2}
+                y={Math.min(baseline, strategyY)}
+                width={chart.barWidth}
+                height={Math.max(1, Math.abs(baseline - strategyY))}
+                rx="1"
+              >
                 <title>{`${point.report_date} ${strategy} ${formatPercent(strategyValue)}`}</title>
-              </circle>
-              <circle className="return-point is-benchmark" cx={x} cy={chart.yFor(qqqValue)} r="4">
+              </rect>
+              <rect
+                className="return-bar is-benchmark"
+                x={x + 2}
+                y={Math.min(baseline, benchmarkY)}
+                width={chart.barWidth}
+                height={Math.max(1, Math.abs(baseline - benchmarkY))}
+                rx="1"
+              >
                 <title>{`${point.report_date} ${benchmark} ${formatPercent(qqqValue)}`}</title>
-              </circle>
+              </rect>
             </g>
           );
         })}
