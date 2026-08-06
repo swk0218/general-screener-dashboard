@@ -23,7 +23,7 @@ npm run dev
 Create or update the encrypted payload from a temporary plaintext file:
 
 ```powershell
-$env:DASHBOARD_PASSPHRASE = '<private passphrase of at least 10 characters; 24+ recommended>'
+$env:DASHBOARD_PASSPHRASE = '<private passphrase of at least 8 characters>'
 npm run encrypt:payload -- --input fixtures\payload.json --output public\data\payload.enc.json
 ```
 

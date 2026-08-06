@@ -4,7 +4,7 @@ import { assertDashboardPayload } from "../src/data/contract.js";
 
 function validPayload() {
   return {
-    contract_version: "general_screener_v1",
+    contract_version: "general_screener_v2",
     generated_at: "2026-08-05T02:45:36Z",
     benchmark: "QQQ",
     evidence_status: "HOLD: PRICE_OBSERVATION_ARCHIVE_PENDING",
@@ -16,6 +16,8 @@ function validPayload() {
       recommendation_rank: 1,
       score: 88.79,
       screening_price: 211.94,
+      current_price: 214.25,
+      current_price_as_of: "2026-08-05",
       risk_flags: "event_risk_status=available",
     }],
     performance: { aggregates: [], signals: [] },
@@ -39,7 +41,7 @@ function validDetail() {
   };
 }
 
-test("accepts the dashboard v1 contract", () => {
+test("accepts the dashboard v2 contract", () => {
   const payload = validPayload();
   assert.equal(assertDashboardPayload(payload), payload);
 });
@@ -60,6 +62,16 @@ test("rejects object risk flags before encryption", () => {
   const payload = validPayload();
   payload.recommendations[0].risk_flags = { status: "available" };
   assert.throws(() => assertDashboardPayload(payload), /must be a string or null/);
+});
+
+test("requires a positive current price and its as-of date together", () => {
+  const missingDate = validPayload();
+  delete missingDate.recommendations[0].current_price_as_of;
+  assert.throws(() => assertDashboardPayload(missingDate), /must be present together/);
+
+  const nonpositive = validPayload();
+  nonpositive.recommendations[0].current_price = 0;
+  assert.throws(() => assertDashboardPayload(nonpositive), /greater than zero/);
 });
 
 test("accepts optional rich recommendation detail", () => {
@@ -105,7 +117,7 @@ function exactPerformanceFixture() {
     run_id: "run-1",
     signal_id: index + 101,
     symbol,
-    horizon: "5d",
+    horizon: "20d",
     signal_return: index ? 0.06 : 0.08,
     qqq_return: 0.03,
     excess_return: index ? 0.03 : 0.05,
@@ -115,22 +127,22 @@ function exactPerformanceFixture() {
   }));
   return {
     status: "PARTIAL",
-    reason_code: "TEN_DAY_PENDING",
+    reason_code: "LONG_HORIZON_PENDING",
     evaluated_at: "2026-08-06T00:00:00Z",
     evidence_status: "HOLD: PARTIAL_HORIZON_MATRIX",
     portfolio_view: "run_equal_weight",
-    horizon_statuses: ["MLG", "TENX"].flatMap((strategy) => ["5d", "10d", "20d"].map((horizon) => ({
+    horizon_statuses: ["MLG", "TENX"].flatMap((strategy) => ["20d", "60d", "120d"].map((horizon) => ({
       strategy,
       horizon,
-      status: strategy === "MLG" && horizon === "5d" ? "VERIFIED" : "PENDING",
-      complete_run_count: strategy === "MLG" && horizon === "5d" ? 1 : null,
-      underlying_signal_count: strategy === "MLG" && horizon === "5d" ? signals.length : null,
-      measurement_session_max: strategy === "MLG" && horizon === "5d" ? "2026-08-05" : null,
-      reason_code: strategy === "MLG" && horizon === "5d" ? "COMPLETE_RUNS_AVAILABLE" : "COMPLETE_RUN_PENDING",
+      status: strategy === "MLG" && horizon === "20d" ? "VERIFIED" : "PENDING",
+      complete_run_count: strategy === "MLG" && horizon === "20d" ? 1 : null,
+      underlying_signal_count: strategy === "MLG" && horizon === "20d" ? signals.length : null,
+      measurement_session_max: strategy === "MLG" && horizon === "20d" ? "2026-08-05" : null,
+      reason_code: strategy === "MLG" && horizon === "20d" ? "COMPLETE_RUNS_AVAILABLE" : "COMPLETE_RUN_PENDING",
     }))),
     aggregates: [{
       strategy: "MLG",
-      horizon: "5d",
+      horizon: "20d",
       equal_weight_return: 0.07,
       qqq_equal_weight_return: 0.03,
       equal_weight_excess_return: 0.04,
@@ -147,7 +159,7 @@ function exactPerformanceFixture() {
       strategy: "MLG",
       run_id: "run-1",
       report_date: "2026-07-29",
-      horizon: "5d",
+      horizon: "20d",
       strategy_return: 0.07,
       qqq_return: 0.03,
       excess_return: 0.04,
@@ -164,7 +176,7 @@ function backcastFixture() {
     run_id: "run-1",
     signal_id: `signal-${index + 1}`,
     symbol: `T${index + 1}`,
-    horizon: "5d",
+    horizon: "20d",
     signal_return: 0.01 + index / 1000,
     qqq_return: 0.008,
     excess_return: 0.002 + index / 1000,
@@ -180,18 +192,18 @@ function backcastFixture() {
     evidence_tier: "RECONSTRUCTED_REPOSITORY_BOUND",
     benchmark: "QQQ",
     portfolio_view: "run_equal_weight",
-    horizon_statuses: ["MLG", "TENX"].flatMap((strategy) => ["5d", "10d", "20d"].map((horizon) => ({
+    horizon_statuses: ["MLG", "TENX"].flatMap((strategy) => ["20d", "60d", "120d"].map((horizon) => ({
       strategy,
       horizon,
-      status: strategy === "MLG" && horizon === "5d" ? "RECONSTRUCTED" : "PENDING",
-      complete_run_count: strategy === "MLG" && horizon === "5d" ? 1 : null,
-      underlying_signal_count: strategy === "MLG" && horizon === "5d" ? 10 : null,
-      measurement_session_max: strategy === "MLG" && horizon === "5d" ? "2026-08-05" : null,
-      reason_code: strategy === "MLG" && horizon === "5d" ? "COMPLETE_RECONSTRUCTED_RUNS" : "COMPLETE_RUN_PENDING",
+      status: strategy === "MLG" && horizon === "20d" ? "RECONSTRUCTED" : "PENDING",
+      complete_run_count: strategy === "MLG" && horizon === "20d" ? 1 : null,
+      underlying_signal_count: strategy === "MLG" && horizon === "20d" ? 10 : null,
+      measurement_session_max: strategy === "MLG" && horizon === "20d" ? "2026-08-05" : null,
+      reason_code: strategy === "MLG" && horizon === "20d" ? "COMPLETE_RECONSTRUCTED_RUNS" : "COMPLETE_RUN_PENDING",
     }))),
     aggregates: [{
       strategy: "MLG",
-      horizon: "5d",
+      horizon: "20d",
       status: "RECONSTRUCTED",
       equal_weight_return: 0.0145,
       qqq_equal_weight_return: 0.008,
@@ -208,7 +220,7 @@ function backcastFixture() {
       strategy: "MLG",
       run_id: "run-1",
       report_date: "2026-07-28",
-      horizon: "5d",
+      horizon: "20d",
       strategy_return: 0.0145,
       qqq_return: 0.008,
       excess_return: 0.0065,
@@ -351,7 +363,7 @@ test("accepts fail-closed HOLD coverage with nullable observation fields", () =>
     evidence_status: "HOLD: INTEGRITY_GATE_FAILED",
     portfolio_view: "run_equal_weight",
     horizon_statuses: ["MLG", "TENX"].flatMap((strategy) => (
-      ["5d", "10d", "20d"].map((horizon) => ({
+      ["20d", "60d", "120d"].map((horizon) => ({
         strategy,
         horizon,
         status: "HOLD",

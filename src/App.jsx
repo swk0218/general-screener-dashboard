@@ -21,7 +21,6 @@ import {
   LogOut,
   PanelRightOpen,
   Search,
-  ShieldCheck,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -49,7 +48,7 @@ const STRATEGIES = Object.freeze({
   TENX: { label: "텐베거 유망주", pickLabel: "5 PICKS", version: "TENX" },
 });
 
-const HORIZONS = Object.freeze(["5D", "10D", "20D"]);
+const HORIZONS = Object.freeze(["20D", "60D", "120D"]);
 const LAST_SEEN_STORAGE_KEY = "general-screener:last-seen-runs:v1";
 
 const RISK_LABELS = Object.freeze({
@@ -181,6 +180,18 @@ function humanizeConfidence(value) {
   return CONFIDENCE_LABELS[normalized] || value;
 }
 
+function benchmarkDisplayName(benchmark) {
+  return String(benchmark || "QQQ").toUpperCase() === "QQQ" ? "나스닥100" : benchmark;
+}
+
+function verdictLabel(verdict) {
+  const normalized = String(verdict || "").trim().toUpperCase();
+  if (normalized === "PASS") return "핵심 후보";
+  if (normalized === "WATCH" || normalized === "AUDIT") return "관찰 후보";
+  if (normalized === "FAIL") return "예비 후보";
+  return verdict || "—";
+}
+
 function getBackcastCell(backcast, strategy, horizon) {
   const normalized = String(horizon).toLowerCase();
   const horizonStatus = (backcast?.horizon_statuses || []).find(
@@ -299,13 +310,10 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
         <div className="unlock-symbol" aria-hidden="true"><LockKeyhole size={28} strokeWidth={1.6} /></div>
         <p className="eyeline">PRIVATE TERMINAL ACCESS</p>
         <h1 id="unlock-title">GENERAL SCREENER</h1>
-        <p className="unlock-copy">
-          입력값은 이 기기에서 데이터 복호화에만 사용되며 서버로 전송하거나 저장하지 않습니다.
-        </p>
         <form onSubmit={submit} className="unlock-form">
           <TextInput
             type="password"
-            label="암호문구"
+            label="PASSWORD"
             value={passphrase}
             onChange={setPassphrase}
             placeholder="Enter passphrase"
@@ -327,10 +335,6 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
             isLoading={isUnlocking}
           />
         </form>
-        <div className="unlock-footnote">
-          <ShieldCheck size={15} aria-hidden="true" />
-          <span>API key 없음 · 평문 payload 없음 · browser memory only</span>
-        </div>
       </section>
     </main>
   );
@@ -477,7 +481,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
             <th scope="col" className="company-column">COMPANY</th>
             <th scope="col">VERDICT</th>
             <th scope="col" className="number-cell">SCORE</th>
-            <th scope="col" className="number-cell">PRICE</th>
+            <th scope="col" className="number-cell">SCREEN PRICE</th>
             <th scope="col" className="number-cell delta-column">Δ PREV</th>
             <th scope="col"><span className="sr-only">상세</span></th>
           </tr>
@@ -508,7 +512,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
                 </button>
               </td>
               <td className="company-column">{item.company_name || "—"}</td>
-              <td className={`verdict-cell ${verdictClass(item.verdict)}`}>{item.verdict || "—"}</td>
+              <td className={`verdict-cell ${verdictClass(item.verdict)}`}>{verdictLabel(item.verdict)}</td>
               <td className="number-cell score-cell">{formatNumber(item.score)}</td>
               <td className="number-cell muted-number">{formatPrice(item.screening_price)}</td>
               <td className={`number-cell delta-column ${transitionTone(transition)}`}>
@@ -532,7 +536,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
               <span className="mobile-rank">{String(item.recommendation_rank).padStart(2, "0")}</span>
               <span className="mobile-security">
                 <strong>{item.symbol}</strong>
-                <span className={verdictClass(item.verdict)}>{item.verdict || "—"}</span>
+                <span className={verdictClass(item.verdict)}>{verdictLabel(item.verdict)}</span>
               </span>
               <span className="mobile-numbers">
                 <strong>{formatNumber(item.score)}</strong>
@@ -627,6 +631,8 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
     return <aside className="detail-panel empty-detail">종목을 선택하면 상세 근거가 표시됩니다.</aside>;
   }
   const detail = getRecommendationDetail(recommendation);
+  const hasCurrentPrice = hasValue(recommendation.current_price);
+  const displayCurrentPrice = hasCurrentPrice ? formatPrice(recommendation.current_price) : "업데이트 대기";
   const latestTimeline = timeline?.entries?.find((entry) => entry.recommendation) || null;
   const factItems = [
     { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
@@ -643,8 +649,9 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
   const knownFacts = [
     { label: "공식 순위", value: String(recommendation.recommendation_rank).padStart(2, "0") },
     { label: "전략 점수", value: formatNumber(recommendation.score) },
+    { label: "최근 종가", value: displayCurrentPrice },
     { label: "스크리닝 가격", value: formatPrice(recommendation.screening_price) },
-    { label: "후보 상태", value: recommendation.candidate_state || recommendation.verdict },
+    { label: "후보 상태", value: verdictLabel(recommendation.verdict) },
     ...detail.metrics,
   ];
 
@@ -659,9 +666,9 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
           </div>
           <dl>
             <div><dt>RANK</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
-            <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{recommendation.verdict || "—"}</dd></div>
+            <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
             <div><dt>SCORE</dt><dd>{formatNumber(recommendation.score)}</dd></div>
-            <div><dt>PRICE</dt><dd>{formatPrice(recommendation.screening_price)}</dd></div>
+            <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
             <div><dt>DATE</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
         </header>
@@ -732,8 +739,8 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
       </div>
       <dl className="detail-metrics">
         <div><dt>SCORE</dt><dd>{formatNumber(recommendation.score)}</dd></div>
-        <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{recommendation.verdict || "—"}</dd></div>
-        <div><dt>PRICE</dt><dd>{formatPrice(recommendation.screening_price)}</dd></div>
+        <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
+        <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
         {recommendation.sector ? <div><dt>SECTOR</dt><dd>{recommendation.sector}</dd></div> : null}
         {recommendation.confidence ? <div><dt>CONFIDENCE</dt><dd>{humanizeConfidence(recommendation.confidence)}</dd></div> : null}
       </dl>
@@ -754,6 +761,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 }
 
 function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
+  const benchmarkLabel = benchmarkDisplayName(benchmark);
   const officialEvidence = getPerformanceState(performance, evidenceStatus);
   const verifiedAggregate = getVerifiedAggregate(performance, strategy, range);
   const reconstructed = getBackcastCell(backcast, strategy, range);
@@ -784,8 +792,8 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
   const sourceVariant = source === "VERIFIED" ? "green" : source === "RECONSTRUCTED" ? "cyan" : "neutral";
   const comparisonCopy = Number.isFinite(excessReturn)
     ? excessReturn >= 0
-      ? `${benchmark}보다 ${formatPercentPoints(excessReturn)} 앞섰습니다`
-      : `${benchmark}보다 ${formatPercentPoints(Math.abs(excessReturn))} 뒤졌습니다`
+      ? `${benchmarkLabel}보다 ${formatPercentPoints(excessReturn)} 앞섰습니다`
+      : `${benchmarkLabel}보다 ${formatPercentPoints(Math.abs(excessReturn))} 뒤졌습니다`
     : "비교 가능한 실행을 기다리는 중입니다";
 
   return (
@@ -793,7 +801,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
       <header className="performance-panel-header">
         <div>
           <p>{range} BENCHMARK SNAPSHOT</p>
-          <h2 id="performance-title">{strategy} vs {benchmark}</h2>
+          <h2 id="performance-title">{strategy} vs {benchmarkLabel}</h2>
         </div>
         <Badge variant={sourceVariant} label={sourceLabel} />
       </header>
@@ -813,23 +821,22 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
           <>
             <section className="performance-result" aria-label={`${strategy} ${range} 비교 결과`}>
               <div className="performance-result-copy">
-                <p><strong>{strategy} {formatPercent(strategyReturn)}</strong><span>vs</span><strong>{benchmark} {formatPercent(benchmarkReturn)}</strong></p>
+                <p><strong>{strategy} <span className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</span></strong><span>vs</span><strong>{benchmarkLabel} <span className={returnTone(benchmarkReturn)}>{formatPercent(benchmarkReturn)}</span></strong></p>
                 <h3 className={returnTone(excessReturn)}>{comparisonCopy}</h3>
-                {strategyReturn < 0 && excessReturn > 0 ? <small>벤치마크는 앞섰지만 절대수익률은 {formatPercent(strategyReturn)}입니다.</small> : null}
               </div>
               <dl className="performance-kpis">
-                <div><dt>{benchmark} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
+                <div><dt>{benchmarkLabel} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
                 <div><dt>실행별 우위</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
                 <div><dt>완전 실행</dt><dd>{completeRuns}회</dd></div>
                 <div><dt>종목 관측</dt><dd>{signalCount}건</dd></div>
               </dl>
             </section>
 
-            <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmark} horizon={range} />
+            <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmarkLabel} horizon={range} />
 
             <div className="performance-table-wrap">
               <table className="performance-run-table">
-                <thead><tr><th>실행일</th><th>{strategy}</th><th>{benchmark}</th><th>{benchmark} 대비</th><th>관측 종목</th></tr></thead>
+                <thead><tr><th>실행일</th><th>{strategy}</th><th>{benchmarkLabel}</th><th>{benchmarkLabel} 대비</th><th>관측 종목</th></tr></thead>
                 <tbody>
                   {runSeries.map((item) => (
                     <tr key={`${item.run_id}:${item.report_date}`}>
@@ -864,7 +871,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
             <details className="calculation-details">
               <summary>산정 방식 및 데이터 등급</summary>
               <div>
-                <p>신호 확인 뒤 첫 정규장 조정시가에서 진입하고, 동일한 진입·측정 세션의 {benchmark}와 비교합니다. 실행당 {expectedSignals}종목 전체가 갖춰진 경우만 동일가중 평균에 포함하며 수수료와 슬리피지는 반영하지 않습니다.</p>
+                <p>신호 확인 뒤 첫 정규장 조정시가에서 진입하고, 동일한 진입·측정 세션의 {benchmarkLabel}과 비교합니다. 실행당 {expectedSignals}종목 전체가 갖춰진 경우만 동일가중 평균에 포함하며 수수료와 슬리피지는 반영하지 않습니다.</p>
                 <dl>
                   <div><dt>현재 표시</dt><dd>{sourceLabel}</dd></div>
                   <div><dt>공식 성과 상태</dt><dd>{officialEvidence.level}</dd></div>
@@ -877,7 +884,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
         ) : (
           <div className="performance-empty">
             <strong>{strategy} {range} 성과는 아직 측정 중입니다.</strong>
-            <p>{expectedSignals}개 추천과 {benchmark}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
+            <p>{expectedSignals}개 추천과 {benchmarkLabel}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
           </div>
         )}
       </div>
@@ -975,7 +982,6 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
       <section className="screener-mode-bar" aria-label="스크리너 선택">
         <div>
           <p>SCREENER MODE</p>
-          <span>두 엔진은 독립적으로 순위를 계산합니다.</span>
         </div>
         <StrategyModeControl strategy={strategy} onChange={onStrategy} />
       </section>
@@ -1011,7 +1017,8 @@ function SelectionView({ payload, index, strategy, query, selectedRunId, selecte
           <div className="section-heading-row table-heading">
             <h2 id="current-selection-title">{isHistorical ? "HISTORICAL SELECTION" : "CURRENT SELECTION"}</h2>
             <span className="row-hint" aria-live="polite">
-              {query ? `${recommendations.length} / ${allRecommendations.length} MATCHES` : `${allRecommendations.length} OFFICIAL PICKS`}
+              <span className="desktop-row-hint">{query ? `${recommendations.length} / ${allRecommendations.length} MATCHES` : `${allRecommendations.length} OFFICIAL PICKS`}</span>
+              <span className="mobile-row-hint">점수 · 직전 대비</span>
             </span>
           </div>
           <RecommendationTable
@@ -1089,7 +1096,6 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onH
     const retained = picks.filter((item) => previousBySymbol.has(item.symbol));
     const rankUp = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) > Number(item.recommendation_rank)).length;
     const rankDown = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) < Number(item.recommendation_rank)).length;
-    const warningCount = picks.filter((item) => /주의|high|elevated/i.test(`${item.detail?.timing?.warning || ""} ${item.risk_flags || ""}`)).length;
     return {
       strategy,
       run,
@@ -1099,24 +1105,22 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onH
       retained,
       rankUp,
       rankDown,
-      warningCount,
       unreadRuns: seenIndex < 0 ? (run ? 1 : 0) : seenIndex,
       isRead: seenIndex === 0,
     };
   });
   const backcastPreview = (payload.performance_backcast?.aggregates || []).find((item) => (
-    item.strategy === "MLG" && String(item.horizon).toLowerCase() === "5d" && item.status === "RECONSTRUCTED"
+    item.strategy === "MLG" && String(item.horizon).toLowerCase() === "20d" && item.status === "RECONSTRUCTED"
   )) || (payload.performance_backcast?.aggregates || [])[0] || null;
+  const benchmarkLabel = benchmarkDisplayName(payload.benchmark);
   return (
     <section className="secondary-view overview-view overview-v2">
       <header>
-        <p>GENERAL / OVERVIEW</p>
         <h1>WHAT CHANGED</h1>
-        <span>지난 확인 이후 달라진 종목과 순위부터 보고, 필요할 때 상세와 과거 실행으로 내려갑니다.</span>
       </header>
 
-      <section className="since-visit" aria-labelledby="since-visit-title">
-        <header><h2 id="since-visit-title">지난 방문 이후 / SINCE LAST VISIT</h2><span>{formatKst(payload.generated_at)}</span></header>
+      <section className="since-visit" aria-label="최근 실행 변화">
+        <header className="since-visit-time"><time dateTime={payload.generated_at}>UPDATED {formatKst(payload.generated_at)}</time></header>
         <div className="visit-strategies">
           {latestRuns.map((item) => (
             <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
@@ -1129,7 +1133,6 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onH
                 <div><dt>제외</dt><dd className="is-removed">{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
                 <div><dt>유지 / 순위</dt><dd>{item.retained.length} · ↑{item.rankUp} ↓{item.rankDown}</dd></div>
               </dl>
-              <span className="visit-run-meta">{formatDate(item.run?.report_date || item.run?.report_created_at)} · {item.picks.length} PICKS · 경고 {item.warningCount}</span>
             </button>
           ))}
         </div>
@@ -1155,7 +1158,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onH
                         <span>{String(pick.recommendation_rank).padStart(2, "0")}</span>
                         <strong>{pick.symbol}</strong>
                         <span className="mini-company">{pick.company_name || ""}</span>
-                        <span className={verdictClass(pick.verdict)}>{pick.verdict || "—"}</span>
+                        <span className={verdictClass(pick.verdict)}>{verdictLabel(pick.verdict)}</span>
                         <b>{formatNumber(pick.score)}</b>
                       </button>
                     </li>
@@ -1172,12 +1175,12 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onPerformance, onH
             {backcastPreview ? (
               <>
                 <p className="backcast-comparison-line">
-                  <strong>{backcastPreview.strategy} {String(backcastPreview.horizon).toUpperCase()} {formatPercent(backcastPreview.equal_weight_return)}</strong>
+                  <strong>{backcastPreview.strategy} {String(backcastPreview.horizon).toUpperCase()} <span className={returnTone(backcastPreview.equal_weight_return)}>{formatPercent(backcastPreview.equal_weight_return)}</span></strong>
                   <span>vs</span>
-                  <strong>{payload.benchmark || "QQQ"} {formatPercent(backcastPreview.qqq_equal_weight_return)}</strong>
+                  <strong>{benchmarkLabel} <span className={returnTone(backcastPreview.qqq_equal_weight_return)}>{formatPercent(backcastPreview.qqq_equal_weight_return)}</span></strong>
                 </p>
                 <p className={`backcast-outcome ${returnTone(backcastPreview.equal_weight_excess_return)}`}>
-                  {payload.benchmark || "QQQ"} 대비 {formatPercentPoints(backcastPreview.equal_weight_excess_return)}
+                  {benchmarkLabel} 대비 {formatPercentPoints(backcastPreview.equal_weight_excess_return)}
                 </p>
                 <span className="backcast-meta">완전 실행 {backcastPreview.run_count || "—"}회 · 종목 관측 {backcastPreview.underlying_signal_count || "—"}건</span>
               </>
@@ -1280,13 +1283,11 @@ function HistoryView({ payload, index, onStrategy }) {
 }
 
 function StandalonePerformanceView({ payload, strategy, onStrategy }) {
-  const [range, setRange] = useState("5D");
+  const [range, setRange] = useState("20D");
   return (
     <section className="secondary-view performance-view">
       <header>
-        <p>GENERAL / PERFORMANCE</p>
         <h1>BENCHMARK COMPARISON</h1>
-        <span>전략 수익률과 같은 기간 {payload.benchmark || "QQQ"}를 실행 단위로 바로 비교합니다.</span>
       </header>
       <div className="performance-strategy-control">
         <span>비교 전략</span>
@@ -1307,10 +1308,11 @@ function StandalonePerformanceView({ payload, strategy, onStrategy }) {
 
 function MethodologyView({ benchmark }) {
   const [section, setSection] = useState("mlg");
+  const benchmarkLabel = benchmarkDisplayName(benchmark);
   const activeTitle = {
     mlg: "MLG 스크리닝 로직",
     tenx: "TENX 스크리닝 로직",
-    performance: `${benchmark || "QQQ"} 수익률 산정`,
+    performance: `${benchmarkLabel} 수익률 산정`,
     operations: "자동 업데이트와 운영",
   }[section];
 
@@ -1402,27 +1404,27 @@ function MethodologyView({ benchmark }) {
                 <ul className="method-bullets">
                   <li>현재 시가총액의 10배를 목표값으로 둡니다.</li>
                   <li>엔진이 지지하는 성장률과 필요한 성장률의 차이를 path gap으로 봅니다.</li>
-                  <li>{benchmark || "QQQ"}는 TENX 점수 입력에 사용하지 않습니다.</li>
+                  <li>{benchmarkLabel}은 TENX 점수 입력에 사용하지 않습니다.</li>
                 </ul>
               </section>
             </div>
-            <div className="method-note"><Badge variant="green" label="PASS" /><Badge variant="yellow" label="WATCH" /><Badge variant="red" label="FAIL" /><span>공개 판정과 점수 순위는 별도이며, PASS를 자동투자 준비도로 번역하지 않습니다.</span></div>
+            <div className="method-note"><Badge variant="green" label="핵심 후보" /><Badge variant="yellow" label="관찰 후보" /><Badge variant="red" label="예비 후보" /><span>공개 판정과 점수 순위는 별도로 계산합니다.</span></div>
           </>
         ) : null}
 
         {section === "performance" ? (
           <>
             <section className="method-hero-card">
-              <div><p>PERFORMANCE</p><h2>{benchmark || "QQQ"}와 같은 거래일로 비교</h2><span>추천 종목과 벤치마크에 동일한 진입·측정 세션을 적용해 5·10·20거래일 성과를 계산합니다.</span></div>
-              <dl><div><dt>진입</dt><dd>첫 정규장 시가</dd></div><div><dt>관측</dt><dd>5D · 10D · 20D</dd></div><div><dt>집계</dt><dd>동일가중</dd></div></dl>
+              <div><p>PERFORMANCE</p><h2>{benchmarkLabel}과 같은 거래일로 비교</h2><span>추천 종목과 벤치마크에 동일한 진입·측정 세션을 적용해 20·60·120거래일 성과를 계산합니다.</span></div>
+              <dl><div><dt>진입</dt><dd>첫 정규장 시가</dd></div><div><dt>관측</dt><dd>20D · 60D · 120D</dd></div><div><dt>집계</dt><dd>동일가중</dd></div></dl>
             </section>
             <div className="method-content-grid">
               <section className="method-card is-wide">
                 <h3>산식</h3>
                 <div className="formula-stack">
                   <code>종목 수익률 = 관측일 조정종가 ÷ 진입일 조정시가 − 1</code>
-                  <code>{benchmark || "QQQ"} 수익률 = 같은 관측일 조정종가 ÷ 같은 진입일 조정시가 − 1</code>
-                  <code>초과수익률 = 전략 수익률 − {benchmark || "QQQ"} 수익률</code>
+                  <code>{benchmarkLabel} 수익률 = 같은 관측일 조정종가 ÷ 같은 진입일 조정시가 − 1</code>
+                  <code>초과수익률 = 전략 수익률 − {benchmarkLabel} 수익률</code>
                 </div>
               </section>
               <section className="method-card">
@@ -1431,14 +1433,14 @@ function MethodologyView({ benchmark }) {
                   <li>각 추천 종목의 수익률을 계산</li>
                   <li>MLG 10종목·TENX 5종목 전체가 있는 실행만 평균</li>
                   <li>완전한 실행 수익률끼리 다시 단순평균</li>
-                  <li>초과수익이 양수인 실행 비율을 {benchmark || "QQQ"} 우위로 표시</li>
+                  <li>초과수익이 양수인 실행 비율을 {benchmarkLabel} 우위로 표시</li>
                 </ol>
               </section>
               <section className="method-card">
                 <h3>숫자에 포함되는 조건</h3>
                 <ul className="method-bullets">
                   <li>main의 scheduled production 추천</li>
-                  <li>종목과 {benchmark || "QQQ"}의 진입·관측 세션 일치</li>
+                  <li>종목과 {benchmarkLabel}의 진입·관측 세션 일치</li>
                   <li>양수 가격과 가격 무결성 게이트 통과</li>
                   <li>부분 실행과 아직 성숙하지 않은 기간은 제외</li>
                 </ul>
@@ -1460,7 +1462,7 @@ function MethodologyView({ benchmark }) {
                 <ol className="method-steps operation-steps">
                   <li><b>1</b><div><strong>엔진 실행</strong><span>MLG와 TENX가 각자의 규칙으로 추천과 상세 근거를 생성합니다.</span></div></li>
                   <li><b>2</b><div><strong>품질 게이트와 발송</strong><span>데이터·신호·보고서 품질 검증을 통과한 공식 실행만 Telegram과 운영 상태로 확정됩니다.</span></div></li>
-                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 main에 누적하고, 종목과 {benchmark || "QQQ"}의 5·10·20일 가격을 별도 작업이 보강합니다.</span></div></li>
+                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 main에 누적하고, 종목과 {benchmarkLabel}의 20·60·120일 가격을 별도 작업이 보강합니다.</span></div></li>
                   <li><b>4</b><div><strong>암호화 게시</strong><span>게시기가 최신 이력으로 좁은 JSON을 만들고 AES-GCM 암호문만 프론트 저장소에 보냅니다.</span></div></li>
                   <li><b>5</b><div><strong>GitHub Pages 배포</strong><span>프론트 검증과 빌드를 통과하면 종목·이력·성과 화면이 함께 업데이트됩니다.</span></div></li>
                 </ol>
@@ -1470,7 +1472,7 @@ function MethodologyView({ benchmark }) {
                 <dl className="method-schedule">
                   <div><dt>MLG 공식 실행</dt><dd>수요일 · 토요일 09:00</dd></div>
                   <div><dt>TENX 공식 실행</dt><dd>화요일 · 금요일 09:00</dd></div>
-                  <div><dt>가격·{benchmark || "QQQ"} 백필</dt><dd>화요일–토요일 07:30</dd></div>
+                  <div><dt>가격·{benchmarkLabel} 백필</dt><dd>화요일–토요일 07:30</dd></div>
                 </dl>
               </section>
               <section className="method-card">

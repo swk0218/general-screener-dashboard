@@ -1,5 +1,5 @@
 const STRATEGIES = new Set(["MLG", "TENX"]);
-const HORIZONS = new Set(["5d", "10d", "20d"]);
+const HORIZONS = new Set(["20d", "60d", "120d"]);
 const PERFORMANCE_STATUSES = new Set(["PENDING", "PARTIAL", "READY", "HOLD"]);
 const HORIZON_STATUSES = new Set(["VERIFIED", "PENDING", "HOLD"]);
 const BACKCAST_HORIZON_STATUSES = new Set(["RECONSTRUCTED", "PENDING", "HOLD"]);
@@ -250,7 +250,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
   requireObject(backcast.methodology, `${path}.methodology`);
 
   const expectedCells = new Set(
-    ["MLG", "TENX"].flatMap((strategy) => ["5d", "10d", "20d"].map((horizon) => `${strategy}:${horizon}`)),
+    ["MLG", "TENX"].flatMap((strategy) => ["20d", "60d", "120d"].map((horizon) => `${strategy}:${horizon}`)),
   );
   const horizonCells = new Set();
   const horizonByCell = new Map();
@@ -263,7 +263,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
     ], itemPath);
     requireStrategy(item.strategy, `${itemPath}.strategy`);
     const horizon = String(item.horizon).toLowerCase();
-    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 20d, 60d, or 120d");
     if (!BACKCAST_HORIZON_STATUSES.has(item.status)) fail(`${itemPath}.status`, "must be RECONSTRUCTED, PENDING, or HOLD");
     if (item.status === "RECONSTRUCTED") {
       requireNonnegativeInteger(item.complete_run_count, `${itemPath}.complete_run_count`);
@@ -297,7 +297,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
     ], itemPath);
     requireStrategy(item.strategy, `${itemPath}.strategy`);
     const horizon = String(item.horizon).toLowerCase();
-    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (!HORIZONS.has(horizon)) fail(`${itemPath}.horizon`, "must be 20d, 60d, or 120d");
     if (item.status !== "RECONSTRUCTED") fail(`${itemPath}.status`, "must be RECONSTRUCTED");
     ["equal_weight_return", "qqq_equal_weight_return", "equal_weight_excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
     ["count", "run_count", "underlying_signal_count"].forEach((field) => requireNonnegativeInteger(item[field], `${itemPath}.${field}`));
@@ -330,7 +330,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
     requireStrategy(item.strategy, `${itemPath}.strategy`);
     requireIdentity(item.run_id, `${itemPath}.run_id`);
     requireIsoDate(item.report_date, `${itemPath}.report_date`);
-    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 20d, 60d, or 120d");
     ["strategy_return", "qqq_return", "excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
     requireNonnegativeInteger(item.signal_count, `${itemPath}.signal_count`);
     const expectedSignalCount = item.strategy === "MLG" ? 10 : 5;
@@ -388,7 +388,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
     requireIdentity(item.run_id, `${itemPath}.run_id`);
     requireIdentity(item.signal_id, `${itemPath}.signal_id`);
     requireText(item.symbol, `${itemPath}.symbol`);
-    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 5d, 10d, or 20d");
+    if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${itemPath}.horizon`, "must be 20d, 60d, or 120d");
     ["signal_return", "qqq_return", "excess_return"].forEach((field) => requireFinite(item[field], `${itemPath}.${field}`));
     requireClose(
       item.excess_return,
@@ -537,7 +537,7 @@ function validatePerformanceBackcast(backcast, benchmark) {
 
 export function assertDashboardPayload(payload) {
   requireObject(payload, "payload");
-  if (payload.contract_version !== "general_screener_v1") {
+  if (payload.contract_version !== "general_screener_v2") {
     fail("contract_version", "unsupported contract");
   }
   requireText(payload.generated_at, "generated_at");
@@ -571,6 +571,16 @@ export function assertDashboardPayload(payload) {
     }
     requireOptionalFinite(item.score, `${path}.score`);
     requireOptionalFinite(item.screening_price, `${path}.screening_price`);
+    requireOptionalFinite(item.current_price, `${path}.current_price`);
+    requireOptionalIsoDate(item.current_price_as_of, `${path}.current_price_as_of`);
+    const hasCurrentPrice = item.current_price !== null && item.current_price !== undefined;
+    const hasCurrentPriceAsOf = item.current_price_as_of !== null && item.current_price_as_of !== undefined;
+    if (hasCurrentPrice !== hasCurrentPriceAsOf) {
+      fail(path, "current_price and current_price_as_of must be present together");
+    }
+    if (hasCurrentPrice && Number(item.current_price) <= 0) {
+      fail(`${path}.current_price`, "must be greater than zero");
+    }
     if (item.risk_flags !== null && item.risk_flags !== undefined && typeof item.risk_flags !== "string") {
       fail(`${path}.risk_flags`, "must be a string or null");
     }
@@ -632,7 +642,7 @@ export function assertDashboardPayload(payload) {
       if (!Array.isArray(payload.performance.run_series)) fail("performance.run_series", "must be an array");
       const expectedHorizonKeys = new Set(
         ["MLG", "TENX"].flatMap((strategy) => (
-          ["5d", "10d", "20d"].map((horizon) => `${strategy}:${horizon}`)
+          ["20d", "60d", "120d"].map((horizon) => `${strategy}:${horizon}`)
         )),
       );
       const horizonKeys = new Set();
@@ -644,7 +654,7 @@ export function assertDashboardPayload(payload) {
           "measurement_session_max", "reason_code",
         ], path);
         requireStrategy(item.strategy, `${path}.strategy`);
-        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 5d, 10d, or 20d");
+        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 20d, 60d, or 120d");
         if (!HORIZON_STATUSES.has(item.status)) fail(`${path}.status`, "must be VERIFIED, PENDING, or HOLD");
         if (item.status === "VERIFIED") {
           requireNonnegativeInteger(item.complete_run_count, `${path}.complete_run_count`);
@@ -675,7 +685,7 @@ export function assertDashboardPayload(payload) {
         requireStrategy(item.strategy, `${path}.strategy`);
         requireIdentity(item.run_id, `${path}.run_id`);
         requireIsoDate(item.report_date, `${path}.report_date`);
-        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 5d, 10d, or 20d");
+        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 20d, 60d, or 120d");
         requireFinite(item.strategy_return, `${path}.strategy_return`);
         requireFinite(item.qqq_return, `${path}.qqq_return`);
         requireFinite(item.excess_return, `${path}.excess_return`);
@@ -703,7 +713,7 @@ export function assertDashboardPayload(payload) {
         requireIdentity(item.run_id, `${path}.run_id`);
         requireIdentity(item.signal_id, `${path}.signal_id`);
         requireText(item.symbol, `${path}.symbol`);
-        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 5d, 10d, or 20d");
+        if (!HORIZONS.has(String(item.horizon).toLowerCase())) fail(`${path}.horizon`, "must be 20d, 60d, or 120d");
         requireFinite(item.signal_return, `${path}.signal_return`);
         requireFinite(item.qqq_return, `${path}.qqq_return`);
         requireFinite(item.excess_return, `${path}.excess_return`);
@@ -726,7 +736,7 @@ export function assertDashboardPayload(payload) {
       requireObject(item, path);
       requireStrategy(item.strategy, `${path}.strategy`);
       if (!HORIZONS.has(String(item.horizon).toLowerCase())) {
-        fail(`${path}.horizon`, "must be 5d, 10d, or 20d");
+        fail(`${path}.horizon`, "must be 20d, 60d, or 120d");
       }
       requireOptionalFinite(item.equal_weight_return, `${path}.equal_weight_return`);
       requireOptionalFinite(item.qqq_equal_weight_return, `${path}.qqq_equal_weight_return`);
