@@ -125,6 +125,11 @@ function formatDate(value) {
   return String(value).slice(0, 10);
 }
 
+function formatMonthDay(value) {
+  const match = /^(?:\d{4})-(\d{2})-(\d{2})/.exec(formatDate(value));
+  return match ? `${match[1]}.${match[2]}` : "—";
+}
+
 function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || value === "") return "—";
   return Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "—";
@@ -1210,6 +1215,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
             <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
               <span className="visit-strategy-heading">
                 <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
+                {item.run ? <small className="visit-updated-badge">{formatMonthDay(item.run.report_date || item.run.report_created_at)} Updated</small> : null}
               </span>
               <dl className="visit-changes">
                 <div><dt>새 진입</dt><dd className="is-added">{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>

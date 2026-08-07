@@ -22,6 +22,8 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.match(appSource, /저장소 확정 이후 첫 정규장부터/);
   assert.match(appSource, /formatPercentPoints\(item\.excess_return\)/);
   assert.match(appSource, /스크리너 성과/);
+  assert.match(appSource, /formatMonthDay\(item\.run\.report_date \|\| item\.run\.report_created_at\)/);
+  assert.match(appSource, /Updated<\/small>/);
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 

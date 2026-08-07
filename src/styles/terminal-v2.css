@@ -2672,3 +2672,59 @@ input:focus-visible,
     padding: 10px;
   }
 }
+
+/* Final annotated polish: compact run dates and stronger strategy controls. */
+.visit-updated-badge {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--gs-cyan) 34%, var(--gs-divider));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gs-cyan) 9%, transparent);
+  color: var(--gs-cyan);
+  font: 600 9px/1 var(--gs-mono);
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.screener-mode-bar .astryx-segmented-control [role="radio"],
+.performance-strategy-control .astryx-segmented-control [role="radio"] {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .005em;
+}
+
+.screener-mode-bar .astryx-segmented-control [role="radio"] *,
+.performance-strategy-control .astryx-segmented-control [role="radio"] * {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.screener-mode-bar .astryx-segmented-control [role="radio"][aria-checked="true"],
+.performance-strategy-control .astryx-segmented-control [role="radio"][aria-checked="true"] {
+  font-weight: 700;
+}
+
+.performance-controls > p {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .performance-controls > p {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .visit-strategy-heading {
+    gap: 8px;
+  }
+
+  .visit-updated-badge {
+    padding-inline: 6px;
+    font-size: 8px;
+  }
+}
