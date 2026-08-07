@@ -2712,6 +2712,25 @@ input:focus-visible,
   line-height: 1.45;
 }
 
+.benchmark-copy-desktop {
+  display: none;
+}
+
+@media (min-width: 1181px) {
+  .benchmark-copy-prefix,
+  .benchmark-copy-result {
+    display: block;
+  }
+
+  .benchmark-copy-compact {
+    display: none;
+  }
+
+  .benchmark-copy-desktop {
+    display: inline;
+  }
+}
+
 @media (max-width: 720px) {
   .performance-controls > p {
     font-size: 10px;

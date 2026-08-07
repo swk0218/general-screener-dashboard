@@ -3,12 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+const stylesSource = await readFile(new URL("../src/styles/terminal-v2.css", import.meta.url), "utf8");
 
 test("keeps the development password treatment and positive benchmark celebration copy", () => {
   assert.match(appSource, /label="PASSWORD"/);
   assert.match(appSource, /placeholder="\*\*\*\*\*\*\*\*"/);
   assert.doesNotMatch(appSource, /ENCRYPTED STATIC VAULT/);
   assert.match(appSource, /대비 \$\{formatPercentPoints\(value\)\} 앞섰습니다/);
+  assert.match(appSource, /className="benchmark-copy-desktop"/);
+  assert.match(appSource, /`\+\$\{\(value \* 100\)\.toFixed\(2\)\}%`/);
+  assert.match(stylesSource, /@media \(min-width: 1181px\)/);
 });
 
 test("uses Korean candidate labels and long-horizon performance tabs", () => {

@@ -206,6 +206,23 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
     : `${benchmarkLabel} 대비 ${(Math.abs(value) * 100).toFixed(2)}%p 뒤졌습니다`;
 }
 
+function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
+  if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
+  const value = Number(excessReturn);
+  const compactValue = value >= 0 ? formatPercentPoints(value) : `${(Math.abs(value) * 100).toFixed(2)}%p`;
+  const desktopValue = value >= 0 ? `+${(value * 100).toFixed(2)}%` : `${(Math.abs(value) * 100).toFixed(2)}%`;
+  return (
+    <>
+      <span className="benchmark-copy-prefix">{benchmarkLabel} 대비</span>{" "}
+      <span className="benchmark-copy-result">
+        <span className="benchmark-copy-compact">{compactValue}</span>
+        <span className="benchmark-copy-desktop">{desktopValue}</span>{" "}
+        {value >= 0 ? "앞섰습니다" : "뒤졌습니다"}
+      </span>
+    </>
+  );
+}
+
 function routeDocumentTitle(route) {
   if (route?.view === "detail" && route.symbol) return `${route.symbol} 상세 | GENERAL SCREENER`;
   if (route?.view === "selection") return `${route.strategy || "MLG"} 스크리너 | GENERAL SCREENER`;
@@ -876,7 +893,6 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
   const benchmarkWinCount = runSeries.filter((item) => Number(item.excess_return) > 0).length;
   const sourceLabel = source === "VERIFIED" ? "공식 측정" : source === "RECONSTRUCTED" ? "과거 실행 역산" : "측정 대기";
   const sourceVariant = source === "VERIFIED" ? "green" : source === "RECONSTRUCTED" ? "cyan" : "neutral";
-  const comparisonCopy = benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const entryBasisLabel = source === "VERIFIED"
     ? "공식 공개 이후 첫 정규장"
     : "저장소 확정 이후 첫 정규장(역산)";
@@ -909,7 +925,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
             <section className="performance-result" aria-label={`${strategy} ${range} 비교 결과`}>
               <div className="performance-result-copy">
                 <p><strong>{strategy} <span className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</span></strong><span>vs</span><strong>{benchmarkLabel} <span className={returnTone(benchmarkReturn)}>{formatPercent(benchmarkReturn)}</span></strong></p>
-                <h3 className={returnTone(excessReturn)}>{comparisonCopy}</h3>
+                <h3 className={returnTone(excessReturn)}><BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={excessReturn} /></h3>
               </div>
               <dl className="performance-kpis">
                 <div><dt>절대수익</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
@@ -1269,7 +1285,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
                   <strong>{benchmarkLabel} <span className={returnTone(backcastPreview.qqq_equal_weight_return)}>{formatPercent(backcastPreview.qqq_equal_weight_return)}</span></strong>
                 </p>
                 <p className={`backcast-outcome ${returnTone(backcastPreview.equal_weight_excess_return)}`}>
-                  {benchmarkComparisonCopy(benchmarkLabel, backcastPreview.equal_weight_excess_return)}
+                  <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={backcastPreview.equal_weight_excess_return} />
                 </p>
                 <span className="backcast-meta">완전 실행 {backcastPreview.run_count || "—"}회 · 종목 관측 {backcastPreview.underlying_signal_count || "—"}건</span>
               </>
