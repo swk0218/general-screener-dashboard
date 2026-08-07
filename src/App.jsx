@@ -268,7 +268,9 @@ function returnTone(value) {
 
 function transitionLabel(transition) {
   const status = String(transition?.status || "").toUpperCase();
-  if (status === "NEW" || status === "RE-ENTRY" || status === "EXIT") return status;
+  if (status === "NEW") return "신규 진입";
+  if (status === "RE-ENTRY") return "재진입";
+  if (status === "EXIT") return "제외";
   return formatSigned(transition?.scoreDelta);
 }
 
@@ -333,7 +335,6 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
     <main className="unlock-screen">
       <header className="unlock-header">
         <span className="brand-wordmark">GENERAL SCREENER</span>
-        <span className="system-state"><span className="status-dot" /> ENCRYPTED STATIC VAULT</span>
       </header>
       <section className="unlock-panel" aria-labelledby="unlock-title">
         <div className="unlock-symbol" aria-hidden="true"><LockKeyhole size={28} strokeWidth={1.6} /></div>
@@ -345,7 +346,7 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
             label="PASSWORD"
             value={passphrase}
             onChange={setPassphrase}
-            placeholder="Enter passphrase"
+            placeholder="********"
             width="100%"
             size="lg"
             hasAutoFocus
@@ -864,7 +865,6 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
   const selectedStatus = source === "VERIFIED" ? selectedOfficialStatus : reconstructed.horizonStatus;
   const expectedSignals = strategy === "MLG" ? 10 : 5;
   const completeRuns = Number(selectedStatus?.complete_run_count ?? aggregate?.run_count ?? runSeries.length ?? 0);
-  const signalCount = Number(selectedStatus?.underlying_signal_count ?? aggregate?.underlying_signal_count ?? signals.length ?? 0);
   const strategyReturn = Number(aggregate?.equal_weight_return);
   const benchmarkReturn = Number(aggregate?.qqq_equal_weight_return);
   const excessReturn = Number(aggregate?.equal_weight_excess_return);
@@ -872,33 +872,12 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
   const sourceLabel = source === "VERIFIED" ? "공식 측정" : source === "RECONSTRUCTED" ? "과거 실행 역산" : "측정 대기";
   const sourceVariant = source === "VERIFIED" ? "green" : source === "RECONSTRUCTED" ? "cyan" : "neutral";
   const comparisonCopy = benchmarkComparisonCopy(benchmarkLabel, excessReturn);
-  const evidenceTier = source === "VERIFIED"
-    ? "OFFICIAL VERIFIED"
-    : source === "RECONSTRUCTED"
-      ? String(backcast?.evidence_tier || "REPOSITORY-BOUND").replaceAll("_", " ")
-      : "PENDING";
-  const officialStatusCopy = officialEvidence.level === "READY"
-    ? "공식 공개시각 기준 관측이 검증됐습니다."
-    : officialEvidence.level === "PARTIAL"
-      ? "검증이 끝난 관측 구간만 공식 수치로 사용합니다."
-      : "공식 공개시각 기준 성과는 아직 누적 또는 검증 중입니다.";
   const entryBasisLabel = source === "VERIFIED"
     ? "공식 공개 이후 첫 정규장"
     : "저장소 확정 이후 첫 정규장(역산)";
   const horizonBasisCopy = source === "RECONSTRUCTED"
     ? `저장소 확정 이후 첫 정규장부터 ${range.replace("D", "거래일")} 동일가중 참고 성과`
     : `공식 추천 공개 이후 ${range.replace("D", "거래일")} 동일가중 성과`;
-  const displaySourceClass = source === "VERIFIED"
-    ? "is-verified"
-    : source === "RECONSTRUCTED"
-      ? "is-reconstructed"
-      : "is-pending";
-  const displayEvidenceCopy = source === "RECONSTRUCTED"
-    ? `검증된 저장소 이력을 재구성한 참고 성과입니다. ${officialStatusCopy}`
-    : source === "VERIFIED"
-      ? "공식 관측 계약을 통과한 성과입니다."
-      : officialStatusCopy;
-
   return (
     <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
       <header className="performance-panel-header">
@@ -908,11 +887,6 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
         </div>
         <Badge variant={sourceVariant} label={sourceLabel} />
       </header>
-
-      <div className={`performance-evidence-banner ${displaySourceClass}`} aria-label="성과 데이터 상태">
-        <strong>현재 표시: {sourceLabel} · 공식 성과: {officialEvidence.level}</strong>
-        <span>{displayEvidenceCopy}</span>
-      </div>
 
       <div className="performance-controls">
         <div>
@@ -931,12 +905,11 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
               <div className="performance-result-copy">
                 <p><strong>{strategy} <span className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</span></strong><span>vs</span><strong>{benchmarkLabel} <span className={returnTone(benchmarkReturn)}>{formatPercent(benchmarkReturn)}</span></strong></p>
                 <h3 className={returnTone(excessReturn)}>{comparisonCopy}</h3>
-                <small>{evidenceTier} · 완전 실행 {completeRuns}회 · 종목 관측 {signalCount}건</small>
               </div>
               <dl className="performance-kpis">
-                <div><dt>전략 절대수익</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
+                <div><dt>절대수익</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
                 <div><dt>{benchmarkLabel} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
-                <div><dt>완전 실행</dt><dd>{completeRuns}회</dd></div>
+                <div><dt>실행 완료</dt><dd>{completeRuns}회</dd></div>
                 <div><dt>실행별 우위</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
               </dl>
             </section>
@@ -1100,32 +1073,27 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
             <p className="strategy-descriptor">{STRATEGIES[strategy].label}</p>
           </div>
         </div>
-        <p className="run-provenance">
-          {isHistorical ? "HISTORICAL RUN" : "LATEST RUN"} · RUN {currentRun.run_id} · {currentRun.branch || "MAIN"}
-        </p>
+        {isHistorical ? <p className="run-provenance">과거 실행 · RUN {currentRun.run_id}</p> : null}
         {isHistorical ? (
           <div className="historical-banner" role="status">
             <span>과거 실행을 보고 있습니다. 최신 추천과 혼동하지 마세요.</span>
             <button type="button" onClick={onLatest}>최신 실행으로</button>
           </div>
         ) : null}
-        <div className="run-tape" aria-label="실행 정보">
-          <span><strong>{allRecommendations.length}</strong> 공식 선정</span>
-          <span>RUN <strong>{currentRun.run_id}</strong></span>
-          <span>{currentRun.branch || "main"} · {currentRun.workflow || "official"}</span>
-          <span><strong>{STRATEGIES[strategy].label}</strong></span>
-          <span>상세 설명 <strong>{richDetailCount} / {allRecommendations.length}</strong></span>
-        </div>
+        {isHistorical ? (
+          <div className="run-tape" aria-label="과거 실행 정보">
+            <span><strong>{allRecommendations.length}</strong>개 선정</span>
+            <span>RUN <strong>{currentRun.run_id}</strong></span>
+            <span>상세 설명 <strong>{richDetailCount} / {allRecommendations.length}</strong></span>
+          </div>
+        ) : null}
       </section>
 
       <div className="selection-content">
         <section className="table-panel" aria-labelledby="current-selection-title">
           <div className="section-heading-row table-heading">
             <h2 id="current-selection-title">{isHistorical ? "과거 실행 종목" : "현재 선정 종목"}</h2>
-            <span className="row-hint" aria-live="polite">
-              <span className="desktop-row-hint">{query ? `${recommendations.length} / ${allRecommendations.length}개 일치` : `${allRecommendations.length}개 공식 선정`}</span>
-              <span className="mobile-row-hint">점수 · 직전 대비</span>
-            </span>
+            {query ? <span className="row-hint" aria-live="polite">{recommendations.length} / {allRecommendations.length}개 일치</span> : null}
           </div>
           <div className="selection-filter">
             <TextInput
@@ -1133,11 +1101,11 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
               isLabelHidden
               value={query}
               onChange={setQuery}
-              placeholder="현재 목록에서 종목 또는 회사 검색"
+              placeholder="종목 또는 회사 검색"
               startIcon={<Search size={16} strokeWidth={1.8} />}
               hasClear
               width="100%"
-              size="lg"
+              size="md"
             />
           </div>
           <RecommendationTable
@@ -1224,8 +1192,6 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
       retained,
       rankUp,
       rankDown,
-      unreadRuns: seenIndex < 0 ? (run ? 1 : 0) : seenIndex,
-      isRead: seenIndex === 0,
     };
   });
   const backcastPreview = (payload.performance_backcast?.aggregates || []).find((item) => (
@@ -1239,13 +1205,11 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
       </header>
 
       <section className="since-visit" aria-label="최근 실행 변화">
-        <header className="since-visit-time"><time dateTime={payload.generated_at}>UPDATED {formatKst(payload.generated_at)}</time></header>
         <div className="visit-strategies">
           {latestRuns.map((item) => (
             <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
               <span className="visit-strategy-heading">
                 <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
-                <small>{item.isRead ? "확인 완료" : `${item.unreadRuns} NEW RUN`}</small>
               </span>
               <dl className="visit-changes">
                 <div><dt>새 진입</dt><dd className="is-added">{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
@@ -1262,7 +1226,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
 
       <div className="overview-working-grid">
         <section className="latest-selection-mini">
-          <header><h2>최신 상위 종목</h2><span>TOP 3 · 우측은 점수</span></header>
+          <header><h2>최신 상위 종목</h2></header>
           <div className="mini-strategy-grid">
             {latestRuns.map((item) => (
               <section className="mini-strategy-card" key={item.strategy} aria-label={`${item.strategy} 상위 종목`}>
@@ -1289,7 +1253,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
         </section>
 
         <section className="backcast-preview">
-          <header><h2>{backcastPreview ? `${backcastPreview.strategy} ${String(backcastPreview.horizon).toUpperCase()} 역산 비교` : "성과 비교 준비 중"}</h2>{backcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
+          <header><h2>{backcastPreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{backcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
           <div className="backcast-preview-body">
             {backcastPreview ? (
               <>
@@ -1313,12 +1277,12 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
 }
 
 function ChangeSummary({ summary }) {
-  if (!summary || summary.isBaseline) return <span className="history-change is-baseline">BASELINE</span>;
+  if (!summary || summary.isBaseline) return <span className="history-change is-baseline">기준 실행</span>;
   return (
     <span className="history-change" aria-label={`신규 ${summary.added.length}, 제외 ${summary.removed.length}, 유지 ${summary.retained.length}`}>
-      <i className="is-added">+{summary.added.length}</i>
-      <i className="is-removed">−{summary.removed.length}</i>
-      <i>{summary.retained.length} KEEP</i>
+      <i className="is-added">신규 {summary.added.length}</i>
+      <i className="is-removed">제외 {summary.removed.length}</i>
+      <i>유지 {summary.retained.length}</i>
     </span>
   );
 }
@@ -1338,8 +1302,7 @@ function HistoryView({ payload, index, onStrategy }) {
   return (
     <section className="secondary-view history-view">
       <header>
-        <h1>공식 실행 기록</h1>
-        <span>실행 ID별 공식 추천 기록과 직전 실행 대비 구성 변동입니다.</span>
+        <h1>실행 기록</h1>
       </header>
       <div className="history-controls">
         <div className="history-filter" role="group" aria-label="엔진 필터">
@@ -1360,28 +1323,26 @@ function HistoryView({ payload, index, onStrategy }) {
           isLabelHidden
           value={historyQuery}
           onChange={setHistoryQuery}
-          placeholder="Search ticker, company, run ID or date..."
+          placeholder="종목·회사·실행 ID·날짜 검색"
           startIcon={<Search size={16} />}
           hasClear
           width="100%"
-          size="lg"
+          size="md"
         />
       </div>
-      <p className="history-result-count" aria-live="polite">{filteredRuns.length} / {runs.length} RUNS</p>
+      <p className="history-result-count" aria-live="polite">전체 {filteredRuns.length}건</p>
       <div className="history-list-v2">
         {filteredRuns.map((run) => {
           const picks = getIndexedRunRecommendations(index, run.strategy, run.run_id);
-          const richDetailCount = Number(run.detail_coverage?.complete_count
-            ?? picks.filter((item) => getRecommendationDetail(item).hasRichDetail).length);
           const summary = getIndexedRunChanges(index, run.strategy, run.run_id);
           const isLatest = latestRunIds.has(`${run.strategy}:${run.run_id}`);
           return (
             <button type="button" className="history-run" key={`${run.strategy}:${run.run_id}`} onClick={() => onStrategy(run.strategy, run.run_id)}>
               <span className="history-engine">{run.strategy}</span>
-              <span className="history-date">{formatDate(run.report_date || run.report_created_at)} {isLatest ? <b>LATEST</b> : null}</span>
-              <span className="history-id">RUN {run.run_id} · {picks.length}개 선정 <small>상세 설명 {richDetailCount}/{picks.length}</small></span>
+              <span className="history-date">{formatDate(run.report_date || run.report_created_at)} {isLatest ? <b>최신</b> : null}</span>
+              <span className="history-id">RUN {run.run_id} · {picks.length}개 선정</span>
               <span className="history-symbols">
-                {summary?.isBaseline ? `BASELINE · ${picks.map((item) => item.symbol).join(" · ")}` : (
+                {summary?.isBaseline ? `기준 실행 · ${picks.map((item) => item.symbol).join(" · ")}` : (
                   summary?.added.length || summary?.removed.length ? (
                     <>
                       {summary.added.length ? <i className="is-added">+ {summary.added.join(" · ")}</i> : null}
@@ -1396,7 +1357,7 @@ function HistoryView({ payload, index, onStrategy }) {
             </button>
           );
         })}
-        {!filteredRuns.length ? <div className="empty-list">조건과 일치하는 공식 실행 기록이 없습니다.</div> : null}
+        {!filteredRuns.length ? <div className="empty-list">조건과 일치하는 실행 기록이 없습니다.</div> : null}
       </div>
     </section>
   );
@@ -1502,10 +1463,10 @@ function MethodologyView({ benchmark, section, onSection }) {
               <section className="method-card is-wide">
                 <h3>선별 흐름</h3>
                 <ol className="method-steps">
-                  <li><b>1</b><div><strong>Focused growth universe</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라로 범위를 먼저 고정합니다.</span></div></li>
-                  <li><b>2</b><div><strong>Core-lite 압축</strong><span>성장 가속, 향후 지속성, 주당 gross-profit 품질, 비대칭성과 데이터 품질로 최대 300개를 유지합니다.</span></div></li>
-                  <li><b>3</b><div><strong>재무·SEC 원문 대사</strong><span>분기·연간, 통화, 주식수와 출처 시점이 맞지 않으면 계산하지 않고 hard-fail 또는 HOLD로 남깁니다.</span></div></li>
-                  <li><b>4</b><div><strong>단일 점수 Top 5</strong><span>유한한 tenx_final_score 하나로 내림차순 정렬합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
+                  <li><b>1</b><div><strong>고성장 기대 섹터</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라를 우선 분석합니다.</span></div></li>
+                  <li><b>2</b><div><strong>성장성과 지속성 검증</strong><span>성장 가속, 향후 지속성, 주당 총이익 품질, 비대칭성과 데이터 품질을 함께 평가해 분석 대상을 압축합니다.</span></div></li>
+                  <li><b>3</b><div><strong>데이터 검증</strong><span>분기·연간 기준, 통화, 주식수와 출처 시점이 맞지 않으면 계산에서 제외하거나 보류합니다.</span></div></li>
+                  <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>성장성·비대칭성·생존력 점수를 합산해 상위 5종목을 선정합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
                 </ol>
               </section>
               <section className="method-card">

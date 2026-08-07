@@ -2445,3 +2445,230 @@ input:focus-visible,
     box-shadow: inset 2px 0 0 var(--gs-green);
   }
 }
+
+/* 2026-08 mobile review consolidation: quieter chrome and clearer state. */
+.unlock-header {
+  justify-content: flex-start;
+}
+
+.unlock-panel {
+  margin: 0;
+}
+
+.secondary-view > header {
+  padding-bottom: 18px;
+  border-bottom: 0;
+}
+
+.astryx-segmented-control [role="radio"] {
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.astryx-segmented-control [role="radio"][aria-checked="true"] {
+  background: var(--gs-green) !important;
+  color: #07120a !important;
+  box-shadow: none !important;
+}
+
+.astryx-segmented-control [role="radio"][aria-checked="true"] * {
+  color: #07120a !important;
+}
+
+.history-filter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(68px, 1fr));
+}
+
+.history-filter button {
+  min-width: 0;
+  border-color: var(--gs-divider);
+  background: var(--gs-bg-raised);
+  color: var(--gs-muted);
+}
+
+.history-filter button.is-active,
+.history-filter button.is-active:last-child {
+  border-color: var(--gs-green);
+  background: var(--gs-green);
+  color: #07120a;
+  font-weight: 700;
+}
+
+.selection-filter {
+  max-width: 360px;
+  padding: 8px 0 10px;
+}
+
+.selection-filter input,
+.history-controls input {
+  font-size: 13px !important;
+}
+
+.performance-panel-header .astryx-badge,
+.backcast-preview .astryx-badge {
+  min-height: 20px;
+  padding-inline: 7px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.history-engine {
+  color: var(--gs-text);
+}
+
+.history-date b {
+  margin-left: 5px;
+  color: var(--gs-green);
+  font: 600 9px/1.2 var(--gs-mono);
+}
+
+.history-run .history-symbols {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.history-change {
+  gap: 7px;
+}
+
+.history-result-count {
+  margin: 9px 0;
+}
+
+@media (max-width: 720px) {
+  .unlock-screen {
+    grid-template-rows: 58px minmax(0, 1fr);
+  }
+
+  .unlock-header {
+    padding-inline: var(--content-gutter);
+  }
+
+  .unlock-panel {
+    width: calc(100vw - (var(--content-gutter) * 2));
+    padding: 28px 24px;
+    transform: translateY(-3vh);
+  }
+
+  .secondary-view > header {
+    padding-bottom: 14px;
+  }
+
+  .overview-v2 > header {
+    margin-bottom: 12px;
+  }
+
+  .screener-mode-bar {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .run-header {
+    padding-top: 16px;
+    padding-bottom: 14px;
+  }
+
+  .run-header .run-date {
+    display: none;
+  }
+
+  .table-heading {
+    min-height: 48px;
+  }
+
+  .selection-filter {
+    max-width: none;
+    padding: 8px 0 10px;
+  }
+
+  .recommendation-mobile-list button.is-selected {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .recommendation-mobile-list button {
+    min-height: 76px;
+    grid-template-columns: 46px minmax(0, 1fr) 84px 24px;
+    gap: 7px;
+  }
+
+  .history-controls {
+    gap: 12px;
+    padding: 12px 0 8px;
+    border-bottom: 0;
+  }
+
+  .history-filter {
+    width: 100%;
+  }
+
+  .history-filter button {
+    height: 40px;
+  }
+
+  .history-result-count {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--gs-divider);
+  }
+
+  .history-list-v2 {
+    border-top: 0;
+  }
+
+  .history-run {
+    grid-template-columns: 54px minmax(0, 1fr) 18px;
+    grid-template-rows: auto auto auto;
+    gap: 5px 10px;
+    min-height: 0;
+    padding: 15px 0;
+    box-shadow: none;
+  }
+
+  .history-run:hover,
+  .history-run:focus-visible {
+    background: var(--gs-bg-raised);
+    box-shadow: none;
+  }
+
+  .history-run .history-engine {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+
+  .history-run .history-date {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .history-run .history-id {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .history-run .history-symbols {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 8px;
+    line-height: 1.65;
+  }
+
+  .history-run > svg {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .performance-panel-header {
+    min-height: 62px;
+  }
+
+  .performance-result-copy {
+    min-height: 132px;
+  }
+
+  .performance-strategy-control {
+    padding: 10px;
+  }
+}
