@@ -1219,8 +1219,11 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
   const benchmarkLabel = benchmarkDisplayName(payload.benchmark);
   return (
     <section className="secondary-view overview-view overview-v2">
-      <header>
+      <header className="overview-page-header">
         <h1>최근 변경 사항</h1>
+        <button type="button" className="overview-history-link" onClick={onHistory}>
+          실행 기록 <ChevronRight size={16} aria-hidden="true" />
+        </button>
       </header>
 
       <section className="since-visit" aria-label="최근 실행 변화">
@@ -1349,8 +1352,16 @@ function HistoryView({ payload, index, onStrategy }) {
           width="100%"
           size="md"
         />
+        <p className="history-result-count" aria-live="polite">전체 {filteredRuns.length}건</p>
       </div>
-      <p className="history-result-count" aria-live="polite">전체 {filteredRuns.length}건</p>
+      <div className="history-column-head" aria-hidden="true">
+        <span>전략</span>
+        <span>실행일</span>
+        <span>실행 정보</span>
+        <span>구성 변화</span>
+        <span>결과</span>
+        <span />
+      </div>
       <div className="history-list-v2">
         {filteredRuns.map((run) => {
           const picks = getIndexedRunRecommendations(index, run.strategy, run.run_id);
@@ -1771,7 +1782,7 @@ function Dashboard({ payload, onLock }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell view-${route.view}`}>
       <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
       <BrandHeader
         activeView={route.view}

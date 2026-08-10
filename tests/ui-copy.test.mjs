@@ -51,3 +51,13 @@ test("uses concise Korean history, transition, and TENX method copy", () => {
   assert.doesNotMatch(appSource, /Focused growth universe/);
   assert.doesNotMatch(appSource, /tenx_final_score/);
 });
+
+test("isolates the desktop workstation layout from the reviewed mobile views", () => {
+  assert.match(appSource, /className=\{`app-shell view-\$\{route\.view\}`\}/);
+  assert.match(appSource, /className="overview-history-link"/);
+  assert.match(appSource, /className="history-column-head"/);
+  assert.match(stylesSource, /Desktop workstation recomposition/);
+  assert.match(stylesSource, /\.overview-history-link,\s*\.history-column-head \{\s*display: none;/);
+  assert.match(stylesSource, /grid-template-columns: minmax\(0, 1fr\) clamp\(320px, 26vw, 360px\);/);
+  assert.match(stylesSource, /@media \(min-width: 1181px\) and \(max-width: 1399px\)/);
+});
