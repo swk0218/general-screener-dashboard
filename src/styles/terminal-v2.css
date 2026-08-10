@@ -1009,8 +1009,9 @@ input:focus-visible,
 
 .screener-mode-bar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(420px, 560px);
-  gap: 28px;
+  grid-template-columns: 112px minmax(420px, 560px);
+  justify-content: start;
+  gap: 20px;
   align-items: center;
   min-height: 76px;
   padding: 14px 27px;
@@ -1220,7 +1221,7 @@ input:focus-visible,
 
 .backcast-outcome {
   margin: 13px 0 6px !important;
-  font: 700 clamp(18px, 2vw, 25px)/1.25 var(--gs-sans) !important;
+  font: 400 clamp(18px, 2vw, 25px)/1.25 var(--gs-sans) !important;
 }
 
 .backcast-meta {
@@ -1337,6 +1338,7 @@ input:focus-visible,
 .performance-result-copy h3 {
   margin: 14px 0 0;
   font-size: clamp(24px, 3vw, 38px);
+  font-weight: 400;
   line-height: 1.15;
   letter-spacing: -.035em;
 }
@@ -2712,26 +2714,69 @@ input:focus-visible,
   line-height: 1.45;
 }
 
-.benchmark-copy-desktop {
-  display: none;
+.benchmark-copy-prefix,
+.benchmark-copy-status {
+  font-weight: 400;
+}
+
+.benchmark-copy-value {
+  font-weight: 700;
 }
 
 @media (min-width: 1181px) {
+  .secondary-view,
+  .overview-v2,
+  .selection-view {
+    width: 100%;
+    max-width: 1460px;
+    margin-inline: auto;
+  }
+
+  .selection-content {
+    grid-template-columns: minmax(780px, 1.8fr) minmax(340px, .72fr);
+  }
+
+  .history-controls {
+    grid-template-columns: auto minmax(340px, 420px);
+    justify-content: start;
+    gap: 20px;
+  }
+
+  .history-run {
+    min-height: 60px;
+  }
+
+  .history-run .history-date,
+  .history-run .history-symbols {
+    font-size: 12px;
+  }
+
+  .history-run .history-id {
+    font-size: 11px;
+  }
+
+  .method-steps li span,
+  .method-checks span,
+  .method-weights dt,
+  .method-schedule dt {
+    font-size: 12px;
+  }
+
   .benchmark-copy-prefix,
   .benchmark-copy-result {
     display: block;
   }
-
-  .benchmark-copy-compact {
-    display: none;
-  }
-
-  .benchmark-copy-desktop {
-    display: inline;
-  }
 }
 
 @media (max-width: 720px) {
+  .visit-changes dd.is-added.has-change {
+    color: var(--gs-green);
+  }
+
+  .visit-changes dd.is-removed.has-change {
+    color: var(--gs-negative);
+  }
+
   .performance-controls > p {
     font-size: 10px;
   }

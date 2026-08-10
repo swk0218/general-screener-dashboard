@@ -202,22 +202,20 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
   if (!Number.isFinite(Number(excessReturn))) return "비교 가능한 실행을 기다리는 중입니다";
   const value = Number(excessReturn);
   return value >= 0
-    ? `${benchmarkLabel} 대비 ${formatPercentPoints(value)} 앞섰습니다`
-    : `${benchmarkLabel} 대비 ${(Math.abs(value) * 100).toFixed(2)}%p 뒤졌습니다`;
+    ? `${benchmarkLabel} 대비 ${(value * 100).toFixed(2)}% 앞섰습니다`
+    : `${benchmarkLabel} 대비 ${(Math.abs(value) * 100).toFixed(2)}% 뒤쳐졌습니다`;
 }
 
 function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
   if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const value = Number(excessReturn);
-  const compactValue = value >= 0 ? formatPercentPoints(value) : `${(Math.abs(value) * 100).toFixed(2)}%p`;
-  const desktopValue = value >= 0 ? `+${(value * 100).toFixed(2)}%` : `${(Math.abs(value) * 100).toFixed(2)}%`;
+  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%`;
   return (
     <>
       <span className="benchmark-copy-prefix">{benchmarkLabel} 대비</span>{" "}
       <span className="benchmark-copy-result">
-        <span className="benchmark-copy-compact">{compactValue}</span>
-        <span className="benchmark-copy-desktop">{desktopValue}</span>{" "}
-        {value >= 0 ? "앞섰습니다" : "뒤졌습니다"}
+        <strong className="benchmark-copy-value">{displayValue}</strong>{" "}
+        <span className="benchmark-copy-status">{value >= 0 ? "앞섰습니다" : "뒤쳐졌습니다"}</span>
       </span>
     </>
   );
@@ -1234,8 +1232,8 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
                 {item.run ? <small className="visit-updated-badge">{formatMonthDay(item.run.report_date || item.run.report_created_at)} Updated</small> : null}
               </span>
               <dl className="visit-changes">
-                <div><dt>새 진입</dt><dd className="is-added">{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
-                <div><dt>제외</dt><dd className="is-removed">{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
+                <div><dt>새 진입</dt><dd className={`is-added${item.added.length ? " has-change" : ""}`}>{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
+                <div><dt>제외</dt><dd className={`is-removed${item.removed.length ? " has-change" : ""}`}>{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
                 <div><dt>유지 / 순위</dt><dd>{item.retained.length} · ↑{item.rankUp} ↓{item.rankDown}</dd></div>
               </dl>
             </button>
