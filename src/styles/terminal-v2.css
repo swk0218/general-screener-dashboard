@@ -2802,12 +2802,24 @@ input:focus-visible,
 
 @media (min-width: 1181px) {
   :root {
-    --desktop-frame: 1280px;
+    --sidebar-width: 208px;
+    --desktop-frame: 1440px;
     --desktop-gutter: 32px;
+    --selection-heading-rail: 38px;
+    --selection-filter-rail: 40px;
+    --selection-column-rail: 38px;
+    --selection-row-rail: 46px;
   }
 
   .topbar {
     grid-template-columns: var(--sidebar-width) minmax(320px, 380px) minmax(0, 1fr);
+  }
+
+  .topbar > .brand-wordmark {
+    min-width: 0;
+    padding-inline: 24px 20px;
+    overflow: hidden;
+    font-size: 16px;
   }
 
   .topbar-context {
@@ -2819,9 +2831,41 @@ input:focus-visible,
     padding-inline: 18px 0;
   }
 
+  .top-search .astryx-text-input {
+    gap: 7px;
+  }
+
+  .top-search input {
+    font-size: 13px !important;
+    line-height: 18px;
+    letter-spacing: 0;
+  }
+
   .sync-status {
     grid-column: 3;
+    align-self: center;
+    gap: 6px;
     padding-right: 28px;
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: .04em;
+  }
+
+  .sync-status .sync-label {
+    color: var(--gs-dim);
+    font: 500 10px/1 var(--gs-mono);
+    letter-spacing: .035em;
+  }
+
+  .sync-status time {
+    font: 500 10px/1 var(--gs-mono);
+  }
+
+  .sync-status .status-dot {
+    width: 6px;
+    height: 6px;
+    flex-basis: 6px;
+    margin-left: 2px;
   }
 
   .view-selection .top-search {
@@ -3088,12 +3132,15 @@ input:focus-visible,
   }
 
   .table-panel {
-    padding: 26px 0 0;
+    margin-top: 26px;
+    padding: 0;
+    border-top: 1px solid var(--gs-divider-strong);
     border-right: 0;
   }
 
   .table-heading {
-    min-height: 38px;
+    height: var(--selection-heading-rail);
+    min-height: var(--selection-heading-rail);
     padding: 0 0 13px;
   }
 
@@ -3102,8 +3149,9 @@ input:focus-visible,
   }
 
   .selection-filter {
+    height: var(--selection-filter-rail);
     max-width: 420px;
-    padding: 14px 0 12px;
+    padding: 4px 0;
     border-bottom: 0;
   }
 
@@ -3119,12 +3167,12 @@ input:focus-visible,
 
   .recommendation-table th,
   .recommendation-table td {
-    height: 46px;
+    height: var(--selection-row-rail);
     padding-inline: 8px;
   }
 
   .recommendation-table th {
-    height: 38px;
+    height: var(--selection-column-rail);
     font-size: 11px;
   }
 
@@ -3161,7 +3209,11 @@ input:focus-visible,
   }
 
   .desktop-detail .detail-heading {
-    padding: 19px 20px 18px;
+    height: calc(var(--selection-heading-rail) + var(--selection-filter-rail) + var(--selection-column-rail));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 18px 20px;
     border-bottom: 1px solid var(--gs-divider);
   }
 
@@ -3181,16 +3233,23 @@ input:focus-visible,
   .desktop-detail .detail-metrics {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 20px;
-    padding: 0 20px 10px;
+    grid-auto-rows: var(--selection-row-rail);
+    gap: 0;
+    padding: 0;
   }
 
   .desktop-detail .detail-metrics > div {
-    min-height: 66px;
+    height: var(--selection-row-rail);
+    min-height: var(--selection-row-rail);
     align-items: flex-start;
     flex-direction: column;
     justify-content: center;
-    gap: 5px;
+    gap: 2px;
+    padding: 0 20px;
+  }
+
+  .desktop-detail .detail-metrics > div:nth-child(2n) {
+    border-left: 1px solid var(--gs-divider);
   }
 
   .desktop-detail .detail-metrics > div:nth-child(5) {
@@ -3199,16 +3258,28 @@ input:focus-visible,
 
   .desktop-detail .detail-metrics dt {
     font-size: 10px;
+    line-height: 1.2;
   }
 
   .desktop-detail .detail-metrics dd {
     max-width: 100%;
     font-size: 14px;
+    line-height: 1.2;
     text-align: left;
   }
 
+  .desktop-detail .metric-as-of {
+    margin-top: 1px;
+    font-size: 8px;
+    line-height: 1.1;
+  }
+
   .desktop-detail .detail-summary {
-    padding: 18px 20px;
+    min-height: calc(var(--selection-row-rail) * 2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 14px 20px;
     border-top: 0;
   }
 
@@ -3218,8 +3289,8 @@ input:focus-visible,
   }
 
   .desktop-detail .detail-summary p {
-    font-size: 13px;
-    line-height: 1.7;
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   .desktop-detail .fact-tape {
@@ -3228,9 +3299,14 @@ input:focus-visible,
   }
 
   .desktop-detail .fact-tape > div {
-    padding: 12px 20px;
+    min-height: 56px;
+    padding: 10px 20px;
     border-right: 0;
     border-bottom: 1px solid var(--gs-divider);
+  }
+
+  .desktop-detail .fact-tape > div:nth-child(2n + 1) {
+    border-right: 1px solid var(--gs-divider);
   }
 
   .desktop-detail .fact-tape dt {

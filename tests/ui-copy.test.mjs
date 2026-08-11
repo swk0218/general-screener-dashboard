@@ -61,3 +61,15 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
   assert.match(stylesSource, /grid-template-columns: minmax\(0, 1fr\) clamp\(320px, 26vw, 360px\);/);
   assert.match(stylesSource, /@media \(min-width: 1181px\) and \(max-width: 1399px\)/);
 });
+
+test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
+  assert.match(appSource, /<span className="sync-label">Last Update<\/span>/);
+  assert.match(appSource, /formatKstDate\(generatedAt\)/);
+  assert.doesNotMatch(appSource, /LAST SYNC/);
+  assert.match(stylesSource, /--sidebar-width: 208px;/);
+  assert.match(stylesSource, /\.top-search input \{\s*font-size: 13px !important;/);
+  assert.match(stylesSource, /--selection-heading-rail: 38px;/);
+  assert.match(stylesSource, /--selection-filter-rail: 40px;/);
+  assert.match(stylesSource, /height: calc\(var\(--selection-heading-rail\) \+ var\(--selection-filter-rail\) \+ var\(--selection-column-rail\)\);/);
+  assert.match(stylesSource, /grid-auto-rows: var\(--selection-row-rail\);/);
+});

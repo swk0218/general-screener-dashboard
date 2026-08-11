@@ -120,6 +120,13 @@ function formatKst(value) {
   return `${DATE_FORMATTER.format(date).replace(",", "")} KST`;
 }
 
+function formatKstDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return DATE_FORMATTER.format(date).slice(0, 10);
+}
+
 function formatDate(value) {
   if (!value) return "—";
   return String(value).slice(0, 10);
@@ -505,8 +512,8 @@ function BrandHeader({
         <Search size={24} strokeWidth={1.8} />
       </button>
       <div className="sync-status">
-        <span className="sync-label">LAST SYNC</span>
-        <time dateTime={generatedAt || undefined}>{formatKst(generatedAt)}</time>
+        <span className="sync-label">Last Update</span>
+        <time dateTime={generatedAt || undefined}>{formatKstDate(generatedAt)}</time>
         <span className="status-dot" aria-label="데이터 동기화 완료" />
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
