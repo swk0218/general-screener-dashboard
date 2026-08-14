@@ -25,7 +25,9 @@ import {
   X,
 } from "lucide-react";
 import { decryptEnvelope } from "./crypto/envelope.js";
+import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
+import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
 import {
   getPerformanceState,
@@ -773,8 +775,8 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
           </div>
           <dl>
             <div><dt>RANK</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
-            <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
-            <div><dt>SCORE</dt><dd>{formatNumber(recommendation.score)}</dd></div>
+            <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
+            <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
             <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
             <div><dt>DATE</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
@@ -847,8 +849,8 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         <p>{recommendation.company_name || "회사명 미수록"}</p>
       </div>
       <dl className="detail-metrics">
-        <div><dt>SCORE</dt><dd>{formatNumber(recommendation.score)}</dd></div>
-        <div><dt>VERDICT</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
+        <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
+        <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
         <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
         {recommendation.sector ? <div><dt>SECTOR</dt><dd>{recommendation.sector}</dd></div> : null}
         {recommendation.confidence ? <div><dt>CONFIDENCE</dt><dd>{humanizeConfidence(recommendation.confidence)}</dd></div> : null}
@@ -1812,6 +1814,7 @@ export function App() {
   const [envelope, setEnvelope] = useState(null);
   const [envelopeError, setEnvelopeError] = useState("");
   const [payload, setPayload] = useState(null);
+  const [dashboardRevision, setDashboardRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1834,12 +1837,21 @@ export function App() {
 
   async function unlock(passphrase) {
     const decrypted = await decryptEnvelope(envelope, passphrase);
-    setPayload(assertDashboardPayload(decrypted));
+    const validated = assertDashboardPayload(decrypted);
+    setPayload(assertDashboardPayload(quarantineDashboardPayload(validated)));
   }
 
   return (
     <Theme theme={neutralTheme} mode="dark">
-      {payload ? <Dashboard payload={payload} onLock={() => setPayload(null)} /> : (
+      {payload ? (
+        <AppErrorBoundary
+          key={dashboardRevision}
+          onRetry={() => setDashboardRevision((current) => current + 1)}
+          onLock={() => setPayload(null)}
+        >
+          <Dashboard payload={payload} onLock={() => setPayload(null)} />
+        </AppErrorBoundary>
+      ) : (
         <UnlockScreen envelope={envelope} envelopeError={envelopeError} onUnlock={unlock} />
       )}
     </Theme>

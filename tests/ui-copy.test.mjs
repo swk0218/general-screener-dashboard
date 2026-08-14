@@ -4,6 +4,7 @@ import test from "node:test";
 
 const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
 const stylesSource = await readFile(new URL("../src/styles/terminal-v2.css", import.meta.url), "utf8");
+const errorBoundarySource = await readFile(new URL("../src/components/AppErrorBoundary.jsx", import.meta.url), "utf8");
 
 test("keeps the development password treatment and restrained benchmark celebration copy", () => {
   assert.match(appSource, /label="PASSWORD"/);
@@ -30,6 +31,15 @@ test("uses Korean candidate labels and long-horizon performance tabs", () => {
   assert.match(appSource, /return "관찰 후보"/);
   assert.match(appSource, /return "예비 후보"/);
   assert.match(appSource, /\["20D", "60D", "120D"\]/);
+  assert.match(appSource, /<dt>전략 점수<\/dt>/);
+  assert.match(appSource, /<dt>후보 상태<\/dt>/);
+});
+
+test("offers a recoverable render-error state without exposing internals", () => {
+  assert.match(appSource, /<AppErrorBoundary/);
+  assert.match(errorBoundarySource, /다시 시도/);
+  assert.match(errorBoundarySource, /잠금 화면으로/);
+  assert.doesNotMatch(errorBoundarySource, /error\.message/);
 });
 
 test("keeps reconstructed entry timing and removes noisy overview annotations", () => {

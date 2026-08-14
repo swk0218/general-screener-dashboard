@@ -202,6 +202,77 @@ dt,
   line-height: 1.45;
 }
 
+.runtime-error-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--gs-bg);
+}
+
+.runtime-error-panel {
+  width: min(100%, 620px);
+  padding: 32px;
+  border: 1px solid var(--gs-divider-strong);
+  background: var(--gs-surface);
+}
+
+.runtime-error-panel > p {
+  margin: 0 0 14px;
+  color: var(--gs-amber);
+  font: 600 10px/1 var(--gs-mono);
+  letter-spacing: .12em;
+}
+
+.runtime-error-panel h1 {
+  margin: 0;
+  color: var(--gs-text);
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.2;
+}
+
+.runtime-error-panel > span {
+  display: block;
+  margin-top: 14px;
+  color: var(--gs-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.runtime-error-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.runtime-error-actions button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--gs-divider-strong);
+  background: transparent;
+  color: var(--gs-text);
+  font: 600 12px/1 var(--gs-sans);
+  cursor: pointer;
+}
+
+.runtime-error-actions button.is-primary {
+  border-color: var(--gs-green);
+  background: var(--gs-green);
+  color: var(--gs-bg);
+}
+
+.runtime-error-actions button:focus-visible {
+  outline: 2px solid var(--gs-green);
+  outline-offset: 3px;
+}
+
+@media (max-width: 520px) {
+  .runtime-error-screen { padding: 16px; }
+  .runtime-error-panel { padding: 24px 20px; }
+  .runtime-error-actions { flex-direction: column; }
+  .runtime-error-actions button { width: 100%; }
+}
+
 .unlock-footnote {
   display: flex;
   align-items: center;

@@ -15,6 +15,12 @@ The browser never calls FMP. The deployable site contains the static app shell a
 
 ## Local use
 
+Node.js 24.x is required. Match the CI runtime before installing dependencies:
+
+```powershell
+node --version
+```
+
 ```powershell
 npm ci
 npm run dev
