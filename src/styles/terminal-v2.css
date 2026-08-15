@@ -2723,6 +2723,10 @@ input:focus-visible,
   font-weight: 700;
 }
 
+.benchmark-copy-result {
+  white-space: nowrap;
+}
+
 @media (min-width: 1181px) {
   .secondary-view,
   .overview-v2,

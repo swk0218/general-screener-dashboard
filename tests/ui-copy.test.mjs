@@ -16,6 +16,7 @@ test("keeps the development password treatment and restrained benchmark celebrat
   assert.doesNotMatch(appSource, /`\+\$\{\(value \* 100\)\.toFixed\(2\)\}%`/);
   assert.match(stylesSource, /\.benchmark-copy-value \{\s*font-weight: 700;/);
   assert.match(stylesSource, /\.benchmark-copy-prefix,\s*\.benchmark-copy-status \{\s*font-weight: 400;/);
+  assert.match(stylesSource, /\.benchmark-copy-result \{\s*white-space: nowrap;/);
   assert.match(stylesSource, /@media \(min-width: 1181px\)/);
 });
 
