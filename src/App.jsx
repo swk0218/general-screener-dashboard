@@ -1222,9 +1222,16 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
       rankDown,
     };
   });
-  const backcastPreview = (payload.performance_backcast?.aggregates || []).find((item) => (
-    item.strategy === "MLG" && String(item.horizon).toLowerCase() === "20d" && item.status === "RECONSTRUCTED"
-  )) || (payload.performance_backcast?.aggregates || [])[0] || null;
+  const backcastAggregates = payload.performance_backcast?.aggregates || [];
+  const backcastPreviews = Object.keys(STRATEGIES).map((strategy) => ({
+    strategy,
+    aggregate: backcastAggregates.find((item) => (
+      item.strategy === strategy
+      && String(item.horizon).toLowerCase() === "20d"
+      && item.status === "RECONSTRUCTED"
+    )) || null,
+  }));
+  const hasBackcastPreview = backcastPreviews.some((item) => item.aggregate);
   const benchmarkLabel = benchmarkDisplayName(payload.benchmark);
   return (
     <section className="secondary-view overview-view overview-v2">
@@ -1285,22 +1292,33 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
         </section>
 
         <section className="backcast-preview">
-          <header><h2>{backcastPreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{backcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
+          <header><h2>{hasBackcastPreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{hasBackcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
           <div className="backcast-preview-body">
-            {backcastPreview ? (
-              <>
-                <p className="backcast-comparison-line">
-                  <strong>{backcastPreview.strategy} {String(backcastPreview.horizon).toUpperCase()} <span className={returnTone(backcastPreview.equal_weight_return)}>{formatPercent(backcastPreview.equal_weight_return)}</span></strong>
-                  <span>vs</span>
-                  <strong>{benchmarkLabel} <span className={returnTone(backcastPreview.qqq_equal_weight_return)}>{formatPercent(backcastPreview.qqq_equal_weight_return)}</span></strong>
-                </p>
-                <p className={`backcast-outcome ${returnTone(backcastPreview.equal_weight_excess_return)}`}>
-                  <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={backcastPreview.equal_weight_excess_return} />
-                </p>
-                <span className="backcast-meta">완전 실행 {backcastPreview.run_count || "—"}회 · 종목 관측 {backcastPreview.underlying_signal_count || "—"}건</span>
-              </>
-            ) : <p>완전한 실행 단위의 가격 관측이 쌓이면 이곳에 비교 결과가 표시됩니다.</p>}
-            <button type="button" className="backcast-open" onClick={() => onPerformance(backcastPreview?.strategy || "MLG")}>성과 자세히 <ChevronRight size={16} /></button>
+            <div className="backcast-performance-list">
+              {backcastPreviews.map(({ strategy, aggregate }) => (
+                <section className="backcast-performance-item" key={strategy} aria-label={`${strategy} 20일 성과`}>
+                  {aggregate ? (
+                    <>
+                      <p className="backcast-comparison-line">
+                        <strong>{aggregate.strategy} {String(aggregate.horizon).toUpperCase()} <span className={returnTone(aggregate.equal_weight_return)}>{formatPercent(aggregate.equal_weight_return)}</span></strong>
+                        <span>vs</span>
+                        <strong>{benchmarkLabel} <span className={returnTone(aggregate.qqq_equal_weight_return)}>{formatPercent(aggregate.qqq_equal_weight_return)}</span></strong>
+                      </p>
+                      <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
+                        <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
+                      </p>
+                      <span className="backcast-meta">완전 실행 {aggregate.run_count || "—"}회 · 종목 관측 {aggregate.underlying_signal_count || "—"}건</span>
+                    </>
+                  ) : (
+                    <>
+                      <p className="backcast-comparison-line"><strong>{strategy} 20D</strong></p>
+                      <p className="backcast-pending">완전한 실행 단위의 가격 관측을 기다리고 있습니다.</p>
+                    </>
+                  )}
+                </section>
+              ))}
+            </div>
+            <button type="button" className="backcast-open" onClick={() => onPerformance("MLG")}>성과 자세히 <ChevronRight size={16} /></button>
           </div>
         </section>
       </div>

@@ -52,6 +52,15 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 
+test("shows matching MLG and TENX 20-day performance summaries on overview", () => {
+  assert.match(appSource, /const backcastPreviews = Object\.keys\(STRATEGIES\)\.map/);
+  assert.match(appSource, /item\.strategy === strategy/);
+  assert.match(appSource, /String\(item\.horizon\)\.toLowerCase\(\) === "20d"/);
+  assert.match(appSource, /className="backcast-performance-list"/);
+  assert.match(appSource, /key=\{strategy\}/);
+  assert.match(stylesSource, /\.backcast-performance-item \+ \.backcast-performance-item/);
+});
+
 test("uses concise Korean history, transition, and TENX method copy", () => {
   assert.match(appSource, /<h1>실행 기록<\/h1>/);
   assert.match(appSource, /return "신규 진입"/);

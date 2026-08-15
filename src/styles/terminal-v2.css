@@ -1205,6 +1205,20 @@ input:focus-visible,
   flex-direction: column;
 }
 
+.backcast-performance-list {
+  display: grid;
+}
+
+.backcast-performance-item {
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.backcast-performance-item + .backcast-performance-item {
+  padding-top: 16px;
+  border-top: 1px solid var(--gs-divider);
+}
+
 .backcast-comparison-line {
   display: flex;
   flex-wrap: wrap;
@@ -1227,6 +1241,12 @@ input:focus-visible,
 .backcast-meta {
   color: var(--gs-dim);
   font: 10px/1.4 var(--gs-mono);
+}
+
+.backcast-pending {
+  margin: 9px 0 0;
+  color: var(--gs-dim);
+  font: 11px/1.5 var(--gs-sans);
 }
 
 .backcast-open {
@@ -3064,7 +3084,7 @@ input:focus-visible,
   }
 
   .backcast-preview-body {
-    min-height: 236px;
+    min-height: 322px;
     padding: 18px 0 0;
   }
 
@@ -3073,8 +3093,8 @@ input:focus-visible,
   }
 
   .backcast-outcome {
-    margin-top: 16px !important;
-    font-size: clamp(22px, 2vw, 27px) !important;
+    margin-top: 10px !important;
+    font-size: clamp(19px, 1.65vw, 23px) !important;
   }
 
   .backcast-meta {
