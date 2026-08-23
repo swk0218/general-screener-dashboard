@@ -1523,7 +1523,7 @@ function MethodologyView({ benchmark, section, onSection }) {
                 <ol className="method-steps">
                   <li><b>1</b><div><strong>고성장 기대 섹터</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라를 우선 분석합니다.</span></div></li>
                   <li><b>2</b><div><strong>성장성과 지속성 검증</strong><span>성장 가속, 향후 지속성, 주당 총이익 품질, 비대칭성과 데이터 품질을 함께 평가해 분석 대상을 압축합니다.</span></div></li>
-                  <li><b>3</b><div><strong>데이터 검증</strong><span>점수에 쓰는 필수 FMP 값의 시점·기간·분기/누적·주식수 기준을 검사합니다. SEC가 없거나 직접 비교할 수 없고 유효한 연간 대체값이 있으면 경고를 남긴 뒤 순위 계산을 계속합니다.</span></div></li>
+                  <li><b>3</b><div><strong>데이터 검증</strong><span>점수에 쓰는 필수 FMP 값의 시점·기간·분기/누적·주식수 기준을 검사합니다. SEC 부재나 비교 불가만으로 제외하지 않습니다. 분기 OCF·FCF·SBC 대조만 미적용됐고 동일 FMP 연간 현금흐름 대체값이 점수 입력으로 선택됐음이 입증되면 경고 후 순위를 계산합니다.</span></div></li>
                   <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>성장성·비대칭성·생존력 점수를 합산해 상위 5종목을 선정합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
                 </ol>
               </section>
