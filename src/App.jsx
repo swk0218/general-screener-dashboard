@@ -1523,7 +1523,7 @@ function MethodologyView({ benchmark, section, onSection }) {
                 <ol className="method-steps">
                   <li><b>1</b><div><strong>고성장 기대 섹터</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라를 우선 분석합니다.</span></div></li>
                   <li><b>2</b><div><strong>성장성과 지속성 검증</strong><span>성장 가속, 향후 지속성, 주당 총이익 품질, 비대칭성과 데이터 품질을 함께 평가해 분석 대상을 압축합니다.</span></div></li>
-                  <li><b>3</b><div><strong>데이터 검증</strong><span>분기·연간 기준, 통화, 주식수와 출처 시점이 맞지 않으면 계산에서 제외하거나 보류합니다.</span></div></li>
+                  <li><b>3</b><div><strong>데이터 검증</strong><span>점수에 쓰는 필수 FMP 값의 시점·기간·분기/누적·주식수 기준을 검사합니다. SEC가 없거나 직접 비교할 수 없고 유효한 연간 대체값이 있으면 경고를 남긴 뒤 순위 계산을 계속합니다.</span></div></li>
                   <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>성장성·비대칭성·생존력 점수를 합산해 상위 5종목을 선정합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
                 </ol>
               </section>
@@ -1598,7 +1598,7 @@ function MethodologyView({ benchmark, section, onSection }) {
                 <h3>자동 업데이트 흐름</h3>
                 <ol className="method-steps operation-steps">
                   <li><b>1</b><div><strong>엔진 실행</strong><span>MLG와 TENX가 각자의 규칙으로 추천과 상세 근거를 생성합니다.</span></div></li>
-                  <li><b>2</b><div><strong>품질 게이트와 발송</strong><span>데이터·신호·보고서 품질 검증을 통과한 공식 실행만 Telegram과 운영 상태로 확정됩니다.</span></div></li>
+                  <li><b>2</b><div><strong>품질 게이트와 발송</strong><span>MLG는 데이터·신호·보고서 게이트를, TENX는 후보·보고서·증거·복구 가능성 계약을 통과해야 발송됩니다. TENX 데이터·신호 진단은 운영 관측으로 별도 보존합니다.</span></div></li>
                   <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 main에 누적하고, 종목과 {benchmarkLabel}의 20·60·120일 가격을 별도 작업이 보강합니다.</span></div></li>
                   <li><b>4</b><div><strong>암호화 게시</strong><span>게시기가 최신 이력으로 좁은 JSON을 만들고 AES-GCM 암호문만 프론트 저장소에 보냅니다.</span></div></li>
                   <li><b>5</b><div><strong>GitHub Pages 배포</strong><span>프론트 검증과 빌드를 통과하면 종목·이력·성과 화면이 함께 업데이트됩니다.</span></div></li>
