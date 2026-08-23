@@ -5,6 +5,14 @@ import test from "node:test";
 const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
 const stylesSource = await readFile(new URL("../src/styles/terminal-v2.css", import.meta.url), "utf8");
 const errorBoundarySource = await readFile(new URL("../src/components/AppErrorBoundary.jsx", import.meta.url), "utf8");
+const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const faviconSource = await readFile(new URL("../public/favicon.svg", import.meta.url), "utf8");
+
+test("ships a local favicon without a static-host root request", () => {
+  assert.match(indexSource, /rel="icon" href="\.\/favicon\.svg" type="image\/svg\+xml"/);
+  assert.match(faviconSource, /<svg[^>]+viewBox="0 0 64 64"/);
+  assert.match(faviconSource, /#45ff8a/);
+});
 
 test("keeps the development password treatment and restrained benchmark celebration copy", () => {
   assert.match(appSource, /label="PASSWORD"/);
