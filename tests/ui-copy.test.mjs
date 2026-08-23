@@ -68,6 +68,14 @@ test("uses concise Korean history, transition, and TENX method copy", () => {
   assert.match(appSource, /고성장 기대 섹터/);
   assert.match(appSource, /성장성과 지속성 검증/);
   assert.match(appSource, /종합 점수 상위 5종목/);
+  assert.match(appSource, /점수에 쓰는 필수 FMP 값의 시점·기간·분기\/누적·주식수 기준/);
+  assert.match(appSource, /SEC가 없거나 직접 비교할 수 없고 유효한 연간 대체값/);
+  assert.match(appSource, /TENX는 후보·보고서·증거·복구 가능성 계약을 통과해야 발송/);
+  assert.match(appSource, /TENX 데이터·신호 진단은 운영 관측으로 별도 보존/);
+  assert.doesNotMatch(
+    appSource,
+    /데이터·신호·보고서 품질 검증을 통과한 공식 실행만 Telegram/,
+  );
   assert.doesNotMatch(appSource, /Focused growth universe/);
   assert.doesNotMatch(appSource, /tenx_final_score/);
 });
