@@ -570,6 +570,39 @@ export function readableTenxText(value) {
     .replaceAll("주주귀속현금 아님", "설비·인수 지출 전 수치");
 }
 
+// Split stored display facts only: no arithmetic, assumptions, or rescoring.
+export function compactTenxFacts(detail) {
+  const growth = [];
+  const points = [];
+  for (const driver of detail.drivers || []) {
+    if (driver.code === "price_exposure") {
+      const matches = [...driver.value.matchAll(/(42GV|33GY|25GCV)\s+([\d.]+)점/g)];
+      if (matches.length === 3) {
+        for (const [, code, value] of matches) {
+          points.push({label: {"42GV": "성장 기여", "33GY": "가격 기여", "25GCV": "현금 기여"}[code], value: `${value}점`});
+        }
+        if (driver.value.includes("결측")) points.push({label: "자료 상태", value: "가격 자료 부족에 따른 기본값 적용"});
+      } else points.push({...driver, value: readableTenxText(driver.value), basis: null});
+    } else {
+      const text = readableTenxText(driver.value);
+      // Known metric clauses retain their original periods and denominators.
+      if (driver.code === "growth") {
+        const parts = text.split(";").map((value) => value.trim()).filter(Boolean);
+        growth.push(...parts.map((value) => {
+          const match = value.match(/^(연평균 (?:매출|매출총이익) 성장)\s+(.+)$/);
+          return match ? {label: match[1], value: match[2]} : {label: driver.label, value};
+        }));
+      } else if (driver.code === "per_share_growth") {
+        growth.push({label: "주당 성장 · 전년 대비", value: text.split(";").slice(0, 2).join(" · ")});
+      } else if (driver.code === "cash_support") {
+        growth.push({label: "조정 영업현금 / 매출총이익", value: text.replace(/^.*?\(2년 합계 참고값\)\s*/, "2년 합계 ").split(";")[0]});
+      } else growth.push({...driver, value: text, basis: null});
+    }
+  }
+  if (detail.catalyst) growth.push({label: "매출 전망 · 애널리스트 기준연도 대비", value: readableTenxText(detail.catalyst).replace(/\s*— 애널리스트 기준연도 대비 예상 매출 증가율$/, "")});
+  return {growth, points};
+}
+
 export function getRecommendationDetail(recommendation) {
   if (!recommendation) return null;
   const rich = recommendation.detail && typeof recommendation.detail === "object"

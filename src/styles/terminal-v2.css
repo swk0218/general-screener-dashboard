@@ -1069,6 +1069,30 @@ input:focus-visible,
   line-height: 1.6;
 }
 
+.overview-page-header h1 small {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gs-muted);
+}
+
+.dossier-v2.is-tenx .dossier-block {
+  min-height: 0;
+}
+
+.dossier-v2.is-tenx .evidence-list li {
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.2fr);
+  overflow-wrap: anywhere;
+}
+
+.tenx-score-formula {
+  border-top: 1px solid var(--gs-divider);
+  padding-top: 14px;
+  font-family: var(--gs-mono);
+  color: var(--gs-muted);
+  font-size: 12px;
+}
+
 .since-visit-footer {
   display: flex;
   justify-content: flex-end;

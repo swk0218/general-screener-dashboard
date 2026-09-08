@@ -11,6 +11,7 @@ import {
   getPreviousRecommendation,
   getRecommendationDetail,
   readableTenxText,
+  compactTenxFacts,
   getSymbolTimeline,
   getVerifiedAggregate,
   parseHashRoute,
@@ -20,6 +21,24 @@ import {
   serializeHashRoute,
   summarizeRunChanges,
 } from "../src/data/dashboard-model.js";
+
+test("compact TENX facts preserve stored points, denominator and missing-price status", () => {
+  const detail = {drivers: [
+    {code: "price_exposure", value: "V=0.935, α=0.25; 42GV 25.10점 / 33GY 9.61점 / 25GCV 10.27점; 가격입력 결측 사전값 적용"},
+    {code: "growth", value: "연간 CAGR +372.9%; GP CAGR +378.7%"},
+    {code: "cash_support", value: "운전자본·주식보상 조정 영업현금 / GP(2년 합계 참고값) +55.6%; 주주귀속현금 아님"},
+  ], catalyst: "FY2: 실제 기준 FY 대비 전망비율 +418.8% — 애널리스트 전망비율이며 회사 가이던스 아님"};
+  const before = structuredClone(detail);
+  const facts = compactTenxFacts(detail);
+  assert.deepEqual(detail, before);
+  assert.deepEqual(facts.points.slice(0, 3).map(row => row.value), ["25.10점", "9.61점", "10.27점"]);
+  assert.equal(facts.points[3].value, "가격 자료 부족에 따른 기본값 적용");
+  assert.equal(facts.growth[0].value, "+372.9%");
+  assert.equal(facts.growth[2].value, "2년 합계 +55.6%");
+  assert.match(facts.growth.at(-1).label, /애널리스트 기준연도 대비/);
+  assert.equal(facts.growth.at(-1).value, "다음 전망연도 +418.8%");
+  assert.equal(compactTenxFacts({drivers: [{code: "price_exposure", value: "자료 없음"}]}).points[0].value, "자료 없음");
+});
 
 test("TENX display translates stored contributions and cumulative forecasts without scoring", () => {
   assert.equal(readableTenxText("V=0.935, α=0.25; 42GV 25.10점 / 33GY 9.61점 / 25GCV 10.27점; V는 비용률 없는 가격부담 계수"),

@@ -37,6 +37,7 @@ import {
   getIndexedRunRecommendations,
   getRecommendationDetail,
   readableTenxText,
+  compactTenxFacts,
   getSymbolTimeline,
   getVerifiedAggregate,
   parseHashRoute,
@@ -52,7 +53,6 @@ const STRATEGIES = Object.freeze({
 });
 
 const HORIZONS = Object.freeze(["20D", "60D", "120D"]);
-const LAST_SEEN_STORAGE_KEY = "general-screener:last-seen-runs:v1";
 
 const RISK_LABELS = Object.freeze({
   "ENTRY TIMING WARNING": "진입 시점",
@@ -246,7 +246,7 @@ function routeDocumentTitle(route) {
 function verdictLabel(verdict) {
   const normalized = String(verdict || "").trim().toUpperCase();
   if (normalized === "PASS") return "핵심 후보";
-  if (normalized === "RELATIVE_TOP5") return "상위 관찰 후보";
+  if (normalized === "RELATIVE_TOP5") return "상위 후보";
   if (normalized === "WATCH" || normalized === "AUDIT") return "관찰 후보";
   if (normalized === "FAIL") return "예비 후보";
   return verdict || "—";
@@ -275,17 +275,9 @@ function getBackcastCell(backcast, strategy, horizon) {
   return { horizonStatus, aggregate, runSeries, signals };
 }
 
-function loadLastSeenRuns() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(LAST_SEEN_STORAGE_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 function verdictClass(verdict) {
   const normalized = String(verdict || "").toUpperCase();
+  if (normalized === "RELATIVE_TOP5") return "is-investable";
   if (normalized === "FAIL" || normalized.includes("탈락") || normalized.includes("제외")) return "is-negative";
   if (normalized.includes("관찰") || normalized === "WATCH" || normalized === "AUDIT") return "is-watch";
   if (normalized.includes("핵심") || normalized === "PASS") return "is-investable";
@@ -742,15 +734,17 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
   const detail = getRecommendationDetail(recommendation);
   const nativeTenx = recommendation.strategy === "TENX" && detail.scoreBreakdown?.score_name === "tenx_score";
   const summary = nativeTenx
-    ? "매출 성장 전망과 현재 가격, 영업현금 품질을 함께 평가한 상위 후보입니다. 5년 10배 수익을 보장하는 순위는 아닙니다."
+    ? "매출 성장 전망·현재 가격·영업현금 품질을 함께 평가한 상위 후보입니다."
     : detail.summary;
   const visibleDrivers = nativeTenx
     ? detail.drivers.map((item) => ({ ...item, basis: null, value: readableTenxText(item.value) }))
     : detail.drivers;
+  const tenxFacts = nativeTenx ? compactTenxFacts(detail) : null;
   const hasCurrentPrice = hasValue(recommendation.current_price);
   const displayCurrentPrice = hasCurrentPrice ? formatPrice(recommendation.current_price) : "업데이트 대기";
   const latestTimeline = timeline?.entries?.find((entry) => entry.recommendation) || null;
   const factItems = nativeTenx ? [
+    { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
     { label: "선정 시각", value: formatKst(run?.report_created_at) },
     { label: "선정 가격 기준", value: priceBasisLabel(recommendation.screening_price_basis) },
     { label: "최근 종가 기준일", value: recommendation.current_price_as_of },
@@ -783,7 +777,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 
   if (full) {
     return (
-      <article className="detail-dossier dossier-v2" aria-label={`${recommendation.symbol} 전체 상세`}>
+      <article className={`detail-dossier dossier-v2${nativeTenx ? " is-tenx" : ""}`} aria-label={`${recommendation.symbol} 전체 상세`}>
         <header className="dossier-hero">
           <div>
             <p>{strategy || recommendation.strategy} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
@@ -800,14 +794,17 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         </header>
         <div className="dossier-grid">
           <section className="dossier-block">
-            <h2>선정 요약</h2>
-            <p>{detail.hasRichDetail ? summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
-            {detail.catalyst ? <EvidenceList items={[{ label: nativeTenx ? "매출 전망" : "CATALYST", value: nativeTenx ? readableTenxText(detail.catalyst) : detail.catalyst }]} /> : null}
+            <h2>{nativeTenx ? "성장 · 현금 지표" : "선정 요약"}</h2>
+            {nativeTenx ? <EvidenceList items={tenxFacts.growth} /> : <>
+              <p>{detail.hasRichDetail ? summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
+              {detail.catalyst ? <EvidenceList items={[{ label: "CATALYST", value: detail.catalyst }]} /> : null}
+            </>}
           </section>
 
           <section className="dossier-block">
-            <h2>확인할 지표</h2>
-            <EvidenceList items={visibleDrivers.length ? visibleDrivers : knownFacts} />
+            <h2>{nativeTenx ? "배점 산정" : "확인할 지표"}</h2>
+            <EvidenceList items={nativeTenx ? tenxFacts.points : visibleDrivers.length ? visibleDrivers : knownFacts} />
+            {nativeTenx && tenxFacts.points.length >= 3 ? <p className="tenx-score-formula">42GV + 33GY + 25GCV</p> : null}
           </section>
 
           {detail.risks.length ? (
@@ -817,14 +814,9 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
             </section>
           ) : null}
 
-          {detail.scoreBreakdown?.dimensions?.length ? (
+          {!nativeTenx && detail.scoreBreakdown?.dimensions?.length ? (
             <section className="dossier-block">
-              {nativeTenx ? (
-                <details><summary>평가 지표 자세히 보기</summary>
-                  <p>각 지표는 0~1 범위입니다. 단순 합계가 최종 점수는 아니며, 실제 점수 기여는 위에 표시합니다.</p>
-                  <EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
-                </details>
-              ) : <><h2>점수 구성</h2><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} /></>}
+              <h2>점수 구성</h2><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
             </section>
           ) : null}
 
@@ -841,6 +833,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 
         <details className="provenance-details">
           <summary>근거 출처와 실행 계보</summary>
+          {nativeTenx ? <EvidenceList items={visibleDrivers} /> : null}
           <p>{detail.hasRichDetail
             ? detail.detailProvenance
               ? "보관된 compact audit 수치를 공개 규칙으로 구조화한 상세입니다."
@@ -1215,23 +1208,18 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   );
 }
 
-function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPerformance, onHistory }) {
+function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance, onHistory }) {
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
     const strategyRuns = index.runsByStrategy.get(strategy) || [];
     const run = strategyRuns[0] || null;
     const picks = run ? getIndexedRunRecommendations(index, strategy, run.run_id) : [];
-    const seenIndex = strategyRuns.findIndex((item) => String(item.run_id) === String(lastSeen?.[strategy]));
-    const comparisonRun = seenIndex > 0 ? strategyRuns[seenIndex]
-      : seenIndex === 0 ? strategyRuns[0]
-        : strategyRuns[1] || null;
-    const comparisonPicks = comparisonRun ? getIndexedRunRecommendations(index, strategy, comparisonRun.run_id) : [];
-    const currentBySymbol = new Map(picks.map((item) => [item.symbol, item]));
-    const previousBySymbol = new Map(comparisonPicks.map((item) => [item.symbol, item]));
-    const added = picks.filter((item) => !previousBySymbol.has(item.symbol)).map((item) => item.symbol);
-    const removed = comparisonPicks.filter((item) => !currentBySymbol.has(item.symbol)).map((item) => item.symbol);
-    const retained = picks.filter((item) => previousBySymbol.has(item.symbol));
-    const rankUp = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) > Number(item.recommendation_rank)).length;
-    const rankDown = retained.filter((item) => Number(previousBySymbol.get(item.symbol)?.recommendation_rank) < Number(item.recommendation_rank)).length;
+    const changes = getIndexedRunChanges(index, strategy, run?.run_id);
+    const added = changes?.added || [];
+    const removed = changes?.removed || [];
+    const retained = changes?.retained || [];
+    const retainedChanges = (changes?.transitions || []).filter((item) => item.status === "RETAINED");
+    const rankUp = retainedChanges.filter((item) => item.rankDelta > 0).length;
+    const rankDown = retainedChanges.filter((item) => item.rankDelta < 0).length;
     return {
       strategy,
       run,
@@ -1257,7 +1245,7 @@ function OverviewView({ payload, index, lastSeen, onStrategy, onOpenDetail, onPe
   return (
     <section className="secondary-view overview-view overview-v2">
       <header className="overview-page-header">
-        <h1>최근 변경 사항</h1>
+        <h1>최근 변경 사항 <small>직전 보고 대비</small></h1>
         <button type="button" className="overview-history-link" onClick={onHistory}>
           실행 기록 <ChevronRight size={16} aria-hidden="true" />
         </button>
@@ -1535,39 +1523,39 @@ function MethodologyView({ benchmark, section, onSection }) {
         {section === "tenx" ? (
           <>
             <section className="method-hero-card">
-              <div><p>TENX</p><h2>고성장 기회를 찾는 Top 5</h2><span>빠르게 커지는 사업 중 성장 전망·현재 가격·영업현금 품질이 매력적인 후보를 찾습니다.</span></div>
+              <div><p>TENX</p><h2>중소형 초고속 성장주 Top5</h2><span>성장 전망·현재 가격·영업현금 품질을 함께 평가합니다.</span></div>
               <dl><div><dt>시가총액</dt><dd>$2B–50B</dd></div><div><dt>정기 보고</dt><dd>화·금 오전 9시</dd></div><div><dt>공식 결과</dt><dd>Top 5</dd></div></dl>
             </section>
             <div className="method-content-grid">
               <section className="method-card is-wide">
                 <h3>선별 흐름</h3>
                 <ol className="method-steps">
-                  <li><b>1</b><div><strong>투자대상 범위 확인</strong><span>미국 상장 보통주에서 규모와 거래 조건을 확인합니다. ADR·리츠와 사전에 정한 일부 금융·원자재 등의 업종은 제외합니다. 기술주만의 별도 가점은 없습니다.</span></div></li>
-                  <li><b>2</b><div><strong>매출과 매출총이익의 동반 성장</strong><span>최대 최근 2년의 연평균 성장률이 각각 20% 이상이고, 최신 결산의 전년 대비 성장률도 각각 10% 이상이어야 합니다.</span></div></li>
-                  <li><b>3</b><div><strong>성장·가격·현금 함께 평가</strong><span>앞으로 두 연도의 매출 성장 전망, 그 사업 규모에 지불하는 가격, 운전자본과 주식보상을 조정한 영업현금을 하나의 점수로 평가합니다.</span></div></li>
-                  <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>같은 기준을 통과한 기업을 최종 점수 순으로 보고합니다. 주가가 변하면 가격 매력도도 반영되지만, 순위를 바꾸기 위한 별도 조정은 하지 않습니다.</span></div></li>
+                  <li><b>1</b><div><strong>투자대상 확인</strong><span>미국 보통주 · 시총 $2B–50B · 거래 조건 확인</span></div></li>
+                  <li><b>2</b><div><strong>동반 성장 확인</strong><span>매출·매출총이익 연평균 20% 이상, 최근 10% 이상</span></div></li>
+                  <li><b>3</b><div><strong>성장·가격·현금 평가</strong><span>두 연도 매출 전망과 가격 부담, 조정 영업현금 평가</span></div></li>
+                  <li><b>4</b><div><strong>상위 5종목 선정</strong><span>하나의 최종 점수로 정렬해 Top5 보고</span></div></li>
                 </ol>
               </section>
               <section className="method-card">
-                <h3>점수를 읽는 법</h3>
+                <h3>배점 산정</h3>
                 <dl className="method-weights">
                   <div><dt>성장 기여</dt><dd>최대 42점</dd></div><div><dt>가격 기여</dt><dd>최대 33점</dd></div>
                   <div><dt>현금 기여</dt><dd>최대 25점</dd></div>
                 </dl>
-                <p>서로 독립된 배점이 아닙니다. 성장 전망이 전체 평가를 지탱하고, 가격 부담은 성장·현금 기여에도 반영됩니다.</p>
-                <details><summary>상세 산식 보기 · V3.8</summary><p>42GV + 33GY + 25GCV</p><p>G: 연속 매출 성장 전망 · Y: 비용과 가격 대비 사업기여 · C: 조정 영업현금 품질 · V: 가격부담 반영 계수</p><p>V = 두 전망연도의 (1+B)의 −0.25승 평균. B는 전망 매출총이익 규모에 대비한 가격부담이며, 배율 20을 사용합니다.</p></details>
+                <p className="tenx-score-formula">42GV + 33GY + 25GCV</p>
+                <p>G 성장 전망 · Y 비용·가격 대비 사업기여<br />C 조정 영업현금 · V 가격부담 반영</p>
+                <p>V = 두 전망연도 (1+B)<sup>−0.25</sup>의 평균<br />B = 전망 매출총이익 대비 가격부담 ÷ 20</p>
               </section>
               <section className="method-card">
-                <h3>이 순위가 말하지 않는 것</h3>
+                <h3>평가 기준</h3>
                 <ul className="method-bullets">
-                  <li>점수는 상대평가입니다. 5년 10배 성공확률이나 목표주가가 아닙니다.</li>
-                  <li>매출 전망은 애널리스트 예상이며 확정 실적이 아닙니다.</li>
-                  <li>영업현금 품질만으로 설비투자 성과·인수 효과·미래 증자 부담을 모두 검증하지는 않습니다.</li>
-                  <li>{benchmarkLabel}은 TENX 점수 입력에 사용하지 않습니다.</li>
+                  <li>성장 이력: 최근 최대 2년 연평균 + 최신 전년 대비</li>
+                  <li>성장 전망: 애널리스트 매출 예상</li>
+                  <li>현금 품질: 운전자본·주식보상 조정 영업현금</li>
+                  <li>투자대상: ADR·리츠 및 지정 제외 업종 제외</li>
                 </ul>
               </section>
             </div>
-            <div className="method-note"><Badge variant="yellow" label="상위 관찰 후보" /><span>필요한 자료의 오류가 입증되면 정정하거나 평가에서 제외합니다. 미확인만으로 오류를 단정하지 않으며, 충분한 후보가 없으면 5개를 억지로 채우지 않습니다.</span></div>
           </>
         ) : null}
 
@@ -1701,7 +1689,6 @@ function Dashboard({ payload, onLock }) {
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
   const [previewSymbols, setPreviewSymbols] = useState({});
-  const [lastSeen, setLastSeen] = useState(loadLastSeenRuns);
   const mainRef = useRef(null);
   const previousRouteRef = useRef(null);
   const index = useMemo(() => createDashboardIndex(payload), [payload]);
@@ -1731,23 +1718,11 @@ function Dashboard({ payload, onLock }) {
     return () => cancelAnimationFrame(frame);
   }, [route, routeKey]);
 
-  const markStrategyRead = useCallback((nextStrategy, explicitRunId = null) => {
-    const latest = index.runsByStrategy.get(nextStrategy)?.[0];
-    if (!latest || (explicitRunId && String(explicitRunId) !== String(latest.run_id))) return;
-    setLastSeen((current) => {
-      if (String(current[nextStrategy]) === String(latest.run_id)) return current;
-      const next = { ...current, [nextStrategy]: String(latest.run_id) };
-      try { window.localStorage.setItem(LAST_SEEN_STORAGE_KEY, JSON.stringify(next)); } catch { /* local storage can be disabled */ }
-      return next;
-    });
-  }, [index]);
-
   const selectStrategy = useCallback((nextStrategy, runId = null) => {
     setGlobalQuery("");
     setSelectionQuery("");
-    markStrategyRead(nextStrategy, runId);
     navigate({ view: "selection", strategy: nextStrategy, runId });
-  }, [markStrategyRead, navigate]);
+  }, [navigate]);
 
   function navigateItem(id) {
     setGlobalQuery("");
@@ -1779,7 +1754,6 @@ function Dashboard({ payload, onLock }) {
       <OverviewView
         payload={payload}
         index={index}
-        lastSeen={lastSeen}
         onStrategy={selectStrategy}
         onOpenDetail={(nextStrategy, runId, symbol) => navigate({ view: "detail", strategy: nextStrategy, runId, symbol })}
         onHistory={() => navigate({ view: "history", strategy })}

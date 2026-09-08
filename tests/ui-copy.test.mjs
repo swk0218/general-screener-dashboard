@@ -35,6 +35,16 @@ test("colors only actual mobile overview entries and removals", () => {
   assert.match(stylesSource, /\.visit-changes dd\.is-removed\.has-change/);
 });
 
+test("overview uses official run transitions, never browser visit state", () => {
+  const overview = appSource.slice(appSource.indexOf("function OverviewView("), appSource.indexOf("function HistoryView("));
+  assert.match(overview, /getIndexedRunChanges\(index, strategy, run\?\.run_id\)/);
+  assert.match(overview, /item\.status === "RETAINED"/);
+  assert.match(overview, /item\.rankDelta > 0/);
+  assert.match(overview, /item\.rankDelta < 0/);
+  assert.match(overview, /직전 보고 대비/);
+  assert.doesNotMatch(appSource, /LAST_SEEN_STORAGE_KEY|markStrategyRead|loadLastSeenRuns|seenIndex/);
+});
+
 test("uses Korean candidate labels and long-horizon performance tabs", () => {
   assert.match(appSource, /return "핵심 후보"/);
   assert.match(appSource, /return "관찰 후보"/);
@@ -73,14 +83,15 @@ test("uses concise Korean history, transition, and TENX method copy", () => {
   assert.match(appSource, /<h1>실행 기록<\/h1>/);
   assert.match(appSource, /return "신규 진입"/);
   assert.match(appSource, /return "재진입"/);
-  assert.match(appSource, /투자대상 범위 확인/);
-  assert.match(appSource, /매출과 매출총이익의 동반 성장/);
-  assert.match(appSource, /종합 점수 상위 5종목/);
-  assert.match(appSource, /미확인만으로 오류를 단정하지 않으며/);
+  assert.match(appSource, /투자대상 확인/);
+  assert.match(appSource, /동반 성장 확인/);
+  assert.match(appSource, /상위 5종목 선정/);
   assert.match(appSource, /\$2B–50B/);
   assert.match(appSource, /42GV \+ 33GY \+ 25GCV/);
-  assert.match(appSource, /상세 산식 보기 · V3.8/);
-  assert.match(appSource, /상위 관찰 후보/);
+  assert.match(appSource, /배점 산정/);
+  assert.match(appSource, /중소형 초고속 성장주 Top5/);
+  assert.match(appSource, /if \(normalized === "RELATIVE_TOP5"\) return "is-investable"/);
+  assert.doesNotMatch(appSource, /상위 관찰 후보|점수를 읽는 법|이 순위가 말하지 않는 것|서로 독립된 배점이 아닙니다/);
   assert.match(appSource, /산식 변경/);
   assert.doesNotMatch(appSource, /Core v3\.1|path gap|약 45개|\$0\.25B–40B/);
   assert.match(appSource, /각 엔진의 검증을 통과한 결과만 발송/);
