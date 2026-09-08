@@ -46,6 +46,25 @@ test("accepts the dashboard v2 contract", () => {
   assert.equal(assertDashboardPayload(payload), payload);
 });
 
+test("accepts native TENX2 and immutable legacy TENX score names without conversion", () => {
+  for (const name of ["tenx_score", "tenx_final_score"]) {
+    const payload = validPayload();
+    payload.runs[0].strategy = "TENX";
+    const recommendation = payload.recommendations[0];
+    recommendation.strategy = "TENX";
+    recommendation.detail = validDetail();
+    recommendation.detail.risks = [];
+    recommendation.detail.score_breakdown.score_name = name;
+    assert.equal(assertDashboardPayload(payload), payload);
+    assert.equal(recommendation.detail.score_breakdown.score_name, name);
+    assert.equal(recommendation.detail.score_breakdown.total, recommendation.score);
+  }
+  const mlg = validPayload();
+  mlg.recommendations[0].detail = validDetail();
+  mlg.recommendations[0].detail.score_breakdown.score_name = "tenx_score";
+  assert.throws(() => assertDashboardPayload(mlg), /must be production_score/);
+});
+
 test("rejects recommendations that do not reference a run", () => {
   const payload = validPayload();
   payload.recommendations[0].run_id = "missing";

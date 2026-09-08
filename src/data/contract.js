@@ -278,9 +278,11 @@ function validateRecommendationDetail(detail, path, strategy) {
     `${path}.score_breakdown`,
   );
   requireText(detail.score_breakdown.score_name, `${path}.score_breakdown.score_name`);
-  const expectedScoreName = strategy === "MLG" ? "production_score" : "tenx_final_score";
-  if (detail.score_breakdown.score_name !== expectedScoreName) {
-    fail(`${path}.score_breakdown.score_name`, `must be ${expectedScoreName}`);
+  // Preserve archived TENX names; accept the native single-score TENX2 field
+  // without renaming history or calculating a second score in the frontend.
+  const expectedScoreNames = strategy === "MLG" ? ["production_score"] : ["tenx_final_score", "tenx_score"];
+  if (!expectedScoreNames.includes(detail.score_breakdown.score_name)) {
+    fail(`${path}.score_breakdown.score_name`, `must be ${expectedScoreNames.join(" or ")}`);
   }
   requireOptionalFinite(detail.score_breakdown.total, `${path}.score_breakdown.total`);
   if (detail.score_breakdown.aggregation !== "strategy_native_non_additive") {
