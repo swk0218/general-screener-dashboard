@@ -36,6 +36,7 @@ import {
   getIndexedRunChanges,
   getIndexedRunRecommendations,
   getRecommendationDetail,
+  readableTenxText,
   getSymbolTimeline,
   getVerifiedAggregate,
   parseHashRoute,
@@ -245,6 +246,7 @@ function routeDocumentTitle(route) {
 function verdictLabel(verdict) {
   const normalized = String(verdict || "").trim().toUpperCase();
   if (normalized === "PASS") return "핵심 후보";
+  if (normalized === "RELATIVE_TOP5") return "상위 관찰 후보";
   if (normalized === "WATCH" || normalized === "AUDIT") return "관찰 후보";
   if (normalized === "FAIL") return "예비 후보";
   return verdict || "—";
@@ -300,6 +302,7 @@ function transitionLabel(transition) {
   if (status === "NEW") return "신규 진입";
   if (status === "RE-ENTRY") return "재진입";
   if (status === "EXIT") return "제외";
+  if (transition?.scoreBasisChanged) return "산식 변경";
   return formatSigned(transition?.scoreDelta);
 }
 
@@ -722,7 +725,7 @@ function SymbolTimelineTable({ timeline, limit = 10 }) {
               <td>{entry.missingRunCount ? `${entry.missingRunCount} RUNS` : "—"}</td>
               <td>{entry.currentRank ?? "—"}</td>
               <td>{formatNumber(entry.currentScore)}</td>
-              <td>{entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
+              <td>{entry.scoreBasisChanged ? "산식 변경" : entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
               <td>{entry.status === "EXIT" ? "종료" : `${entry.streak}회`}</td>
             </tr>
           ))}
@@ -737,10 +740,24 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
     return <aside className="detail-panel empty-detail">종목을 선택하면 상세 근거가 표시됩니다.</aside>;
   }
   const detail = getRecommendationDetail(recommendation);
+  const nativeTenx = recommendation.strategy === "TENX" && detail.scoreBreakdown?.score_name === "tenx_score";
+  const summary = nativeTenx
+    ? "매출 성장 전망과 현재 가격, 영업현금 품질을 함께 평가한 상위 후보입니다. 5년 10배 수익을 보장하는 순위는 아닙니다."
+    : detail.summary;
+  const visibleDrivers = nativeTenx
+    ? detail.drivers.map((item) => ({ ...item, basis: null, value: readableTenxText(item.value) }))
+    : detail.drivers;
   const hasCurrentPrice = hasValue(recommendation.current_price);
   const displayCurrentPrice = hasCurrentPrice ? formatPrice(recommendation.current_price) : "업데이트 대기";
   const latestTimeline = timeline?.entries?.find((entry) => entry.recommendation) || null;
-  const factItems = [
+  const factItems = nativeTenx ? [
+    { label: "선정 시각", value: formatKst(run?.report_created_at) },
+    { label: "선정 가격 기준", value: priceBasisLabel(recommendation.screening_price_basis) },
+    { label: "최근 종가 기준일", value: recommendation.current_price_as_of },
+    { label: "업종", value: recommendation.industry },
+    { label: "선정 횟수", value: timeline?.selectedRunCount ? `${timeline.selectedRunCount}회` : null },
+    { label: "연속 선정", value: timeline?.currentStreak ? `${timeline.currentStreak}회` : null },
+  ] : [
     { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
     { label: "HEAT", value: HEAT_LABELS[detail.timing?.heat] || detail.timing?.heat, tone: detail.timing?.heat === "high" ? "amber" : null },
     { label: "WARNING", value: detail.timing?.warning, tone: detail.timing?.warning ? "negative" : null },
@@ -784,13 +801,13 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         <div className="dossier-grid">
           <section className="dossier-block">
             <h2>선정 요약</h2>
-            <p>{detail.hasRichDetail ? detail.summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
-            {detail.catalyst ? <EvidenceList items={[{ label: "CATALYST", value: detail.catalyst }]} /> : null}
+            <p>{detail.hasRichDetail ? summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
+            {detail.catalyst ? <EvidenceList items={[{ label: nativeTenx ? "매출 전망" : "CATALYST", value: nativeTenx ? readableTenxText(detail.catalyst) : detail.catalyst }]} /> : null}
           </section>
 
           <section className="dossier-block">
             <h2>확인할 지표</h2>
-            <EvidenceList items={detail.drivers.length ? detail.drivers : knownFacts} />
+            <EvidenceList items={visibleDrivers.length ? visibleDrivers : knownFacts} />
           </section>
 
           {detail.risks.length ? (
@@ -802,8 +819,12 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 
           {detail.scoreBreakdown?.dimensions?.length ? (
             <section className="dossier-block">
-              <h2>점수 구성</h2>
-              <EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
+              {nativeTenx ? (
+                <details><summary>평가 지표 자세히 보기</summary>
+                  <p>각 지표는 0~1 범위입니다. 단순 합계가 최종 점수는 아니며, 실제 점수 기여는 위에 표시합니다.</p>
+                  <EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
+                </details>
+              ) : <><h2>점수 구성</h2><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} /></>}
             </section>
           ) : null}
 
@@ -844,7 +865,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         <button type="button" className="detail-close" onClick={onClose} aria-label="상세 닫기" autoFocus><X size={20} /></button>
       ) : null}
       <div className="detail-heading">
-        <p className="detail-kicker">PREVIEW · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
+        <p className="detail-kicker">{nativeTenx ? "종목 요약" : "PREVIEW"} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
         <h2>{recommendation.symbol}</h2>
         <p>{recommendation.company_name || "회사명 미수록"}</p>
       </div>
@@ -852,12 +873,12 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
         <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
         <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
-        {recommendation.sector ? <div><dt>SECTOR</dt><dd>{recommendation.sector}</dd></div> : null}
+        {recommendation.sector ? <div><dt>{nativeTenx ? "분야" : "SECTOR"}</dt><dd>{recommendation.sector}</dd></div> : null}
         {recommendation.confidence ? <div><dt>CONFIDENCE</dt><dd>{humanizeConfidence(recommendation.confidence)}</dd></div> : null}
       </dl>
       <section className="detail-summary">
-        <h3>SUMMARY</h3>
-        <p>{detail.hasRichDetail ? detail.summary : `${formatDate(run?.report_date || run?.report_created_at)} 공식 실행 ${recommendation.recommendation_rank}위 · ${timeline?.selectedRunCount || 1}회 선정 기록`}</p>
+        <h3>{nativeTenx ? "선정 요약" : "SUMMARY"}</h3>
+        <p>{detail.hasRichDetail ? summary : `${formatDate(run?.report_date || run?.report_created_at)} 공식 실행 ${recommendation.recommendation_rank}위 · ${timeline?.selectedRunCount || 1}회 선정 기록`}</p>
       </section>
       <FactTape items={factItems.slice(0, 6)} />
       {!detail.hasRichDetail ? <div className="archive-notice"><strong>과거 기록</strong><p>이 실행에는 상세 설명이 없어 보관된 수치와 위험 신호만 표시합니다.</p></div> : null}
@@ -1514,38 +1535,39 @@ function MethodologyView({ benchmark, section, onSection }) {
         {section === "tenx" ? (
           <>
             <section className="method-hero-card">
-              <div><p>TENX</p><h2>텐베거 유망주 Top 5</h2><span>미국 상장 기술·첨단산업에서 5~10년 비대칭성이 있는 초기 성장 후보를 찾습니다.</span></div>
-              <dl><div><dt>시가총액</dt><dd>$0.25B–40B</dd></div><div><dt>집중 분석</dt><dd>약 45개</dd></div><div><dt>공식 결과</dt><dd>Top 5</dd></div></dl>
+              <div><p>TENX</p><h2>고성장 기회를 찾는 Top 5</h2><span>빠르게 커지는 사업 중 성장 전망·현재 가격·영업현금 품질이 매력적인 후보를 찾습니다.</span></div>
+              <dl><div><dt>시가총액</dt><dd>$2B–50B</dd></div><div><dt>정기 보고</dt><dd>화·금 오전 9시</dd></div><div><dt>공식 결과</dt><dd>Top 5</dd></div></dl>
             </section>
             <div className="method-content-grid">
               <section className="method-card is-wide">
                 <h3>선별 흐름</h3>
                 <ol className="method-steps">
-                  <li><b>1</b><div><strong>고성장 기대 섹터</strong><span>소프트웨어·데이터, 반도체·컴퓨트, 기술 플랫폼, 프런티어 기술, 디지털 인프라를 우선 분석합니다.</span></div></li>
-                  <li><b>2</b><div><strong>성장성과 지속성 검증</strong><span>성장 가속, 향후 지속성, 주당 총이익 품질, 비대칭성과 데이터 품질을 함께 평가해 분석 대상을 압축합니다.</span></div></li>
-                  <li><b>3</b><div><strong>데이터 검증</strong><span>점수에 쓰는 필수 FMP 값의 시점·기간·분기/누적·주식수 기준을 검사합니다. SEC 부재나 비교 불가만으로 제외하지 않습니다. 분기 OCF·FCF·SBC 대조만 미적용됐고 동일 FMP 연간 현금흐름 대체값이 점수 입력으로 선택됐음이 입증되면 경고 후 순위를 계산합니다.</span></div></li>
-                  <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>성장성·비대칭성·생존력 점수를 합산해 상위 5종목을 선정합니다. 사후 재순위나 대체 충원은 없습니다.</span></div></li>
+                  <li><b>1</b><div><strong>투자대상 범위 확인</strong><span>미국 상장 보통주에서 규모와 거래 조건을 확인합니다. ADR·리츠와 사전에 정한 일부 금융·원자재 등의 업종은 제외합니다. 기술주만의 별도 가점은 없습니다.</span></div></li>
+                  <li><b>2</b><div><strong>매출과 매출총이익의 동반 성장</strong><span>최대 최근 2년의 연평균 성장률이 각각 20% 이상이고, 최신 결산의 전년 대비 성장률도 각각 10% 이상이어야 합니다.</span></div></li>
+                  <li><b>3</b><div><strong>성장·가격·현금 함께 평가</strong><span>앞으로 두 연도의 매출 성장 전망, 그 사업 규모에 지불하는 가격, 운전자본과 주식보상을 조정한 영업현금을 하나의 점수로 평가합니다.</span></div></li>
+                  <li><b>4</b><div><strong>종합 점수 상위 5종목</strong><span>같은 기준을 통과한 기업을 최종 점수 순으로 보고합니다. 주가가 변하면 가격 매력도도 반영되지만, 순위를 바꾸기 위한 별도 조정은 하지 않습니다.</span></div></li>
                 </ol>
               </section>
               <section className="method-card">
-                <h3>Core v3.1 비중</h3>
+                <h3>점수를 읽는 법</h3>
                 <dl className="method-weights">
-                  <div><dt>초기 텐베거 비대칭성</dt><dd>30%</dd></div><div><dt>향후 성장 지속성</dt><dd>25%</dd></div>
-                  <div><dt>성장 가속</dt><dd>15%</dd></div><div><dt>주주 경제성</dt><dd>15%</dd></div><div><dt>생존·현금 전환</dt><dd>15%</dd></div>
-                  <div><dt>후보 자체 시장 확인</dt><dd>+3점</dd></div>
+                  <div><dt>성장 기여</dt><dd>최대 42점</dd></div><div><dt>가격 기여</dt><dd>최대 33점</dd></div>
+                  <div><dt>현금 기여</dt><dd>최대 25점</dd></div>
                 </dl>
+                <p>서로 독립된 배점이 아닙니다. 성장 전망이 전체 평가를 지탱하고, 가격 부담은 성장·현금 기여에도 반영됩니다.</p>
+                <details><summary>상세 산식 보기 · V3.8</summary><p>42GV + 33GY + 25GCV</p><p>G: 연속 매출 성장 전망 · Y: 비용과 가격 대비 사업기여 · C: 조정 영업현금 품질 · V: 가격부담 반영 계수</p><p>V = 두 전망연도의 (1+B)의 −0.25승 평균. B는 전망 매출총이익 규모에 대비한 가격부담이며, 배율 20을 사용합니다.</p></details>
               </section>
               <section className="method-card">
-                <h3>텐베거 경로</h3>
-                <p className="method-formula">목표 기업가치 ÷ 합리적 매출배수 → 필요한 5·7·10년 매출 CAGR</p>
+                <h3>이 순위가 말하지 않는 것</h3>
                 <ul className="method-bullets">
-                  <li>현재 시가총액의 10배를 목표값으로 둡니다.</li>
-                  <li>엔진이 지지하는 성장률과 필요한 성장률의 차이를 path gap으로 봅니다.</li>
+                  <li>점수는 상대평가입니다. 5년 10배 성공확률이나 목표주가가 아닙니다.</li>
+                  <li>매출 전망은 애널리스트 예상이며 확정 실적이 아닙니다.</li>
+                  <li>영업현금 품질만으로 설비투자 성과·인수 효과·미래 증자 부담을 모두 검증하지는 않습니다.</li>
                   <li>{benchmarkLabel}은 TENX 점수 입력에 사용하지 않습니다.</li>
                 </ul>
               </section>
             </div>
-            <div className="method-note"><Badge variant="green" label="핵심 후보" /><Badge variant="yellow" label="관찰 후보" /><Badge variant="red" label="예비 후보" /><span>공개 판정과 점수 순위는 별도로 계산합니다.</span></div>
+            <div className="method-note"><Badge variant="yellow" label="상위 관찰 후보" /><span>필요한 자료의 오류가 입증되면 정정하거나 평가에서 제외합니다. 미확인만으로 오류를 단정하지 않으며, 충분한 후보가 없으면 5개를 억지로 채우지 않습니다.</span></div>
           </>
         ) : null}
 
@@ -1598,9 +1620,9 @@ function MethodologyView({ benchmark, section, onSection }) {
                 <h3>자동 업데이트 흐름</h3>
                 <ol className="method-steps operation-steps">
                   <li><b>1</b><div><strong>엔진 실행</strong><span>MLG와 TENX가 각자의 규칙으로 추천과 상세 근거를 생성합니다.</span></div></li>
-                  <li><b>2</b><div><strong>품질 게이트와 발송</strong><span>MLG는 데이터·신호·보고서 게이트를, TENX는 후보·보고서·증거·복구 가능성 계약을 통과해야 발송됩니다. TENX 데이터·신호 진단은 운영 관측으로 별도 보존합니다.</span></div></li>
-                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 main에 누적하고, 종목과 {benchmarkLabel}의 20·60·120일 가격을 별도 작업이 보강합니다.</span></div></li>
-                  <li><b>4</b><div><strong>암호화 게시</strong><span>게시기가 최신 이력으로 좁은 JSON을 만들고 AES-GCM 암호문만 프론트 저장소에 보냅니다.</span></div></li>
+                  <li><b>2</b><div><strong>검증 후 보고</strong><span>각 엔진의 검증을 통과한 결과만 발송합니다. TENX는 저장된 자료로 같은 결과가 다시 계산되고 보고 내용과 일치하는지도 확인합니다.</span></div></li>
+                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 보관하고, 종목과 {benchmarkLabel}의 20·60·120일 가격을 별도 작업이 보강합니다.</span></div></li>
+                  <li><b>4</b><div><strong>안전하게 게시</strong><span>같은 공식 결과를 암호화해 대시보드에 전달합니다. 화면에서 점수를 다시 계산하거나 순위를 바꾸지 않습니다.</span></div></li>
                   <li><b>5</b><div><strong>GitHub Pages 배포</strong><span>프론트 검증과 빌드를 통과하면 종목·이력·성과 화면이 함께 업데이트됩니다.</span></div></li>
                 </ol>
               </section>
@@ -1615,7 +1637,7 @@ function MethodologyView({ benchmark, section, onSection }) {
               <section className="method-card">
                 <h3>실패 시 동작</h3>
                 <ul className="method-bullets">
-                  <li>수동 실행은 기본 dry-run이며 공식 이력에 넣지 않습니다.</li>
+                  <li>수동 점검은 기본적으로 발송하지 않습니다. TENX는 별도로 승인된 실제 보고만 공식 이력에 반영할 수 있습니다.</li>
                   <li>변환·암호화·검증이 실패하면 기존 배포 데이터를 유지합니다.</li>
                   <li>브라우저에는 API 키와 복호화 전 평문 데이터가 배포되지 않습니다.</li>
                 </ul>
@@ -1631,6 +1653,7 @@ function MethodologyView({ benchmark, section, onSection }) {
           <div><dt>공식 측정</dt><dd>실제 발송 또는 전달 결정 뒤 기록된 공개시각을 기준으로 계산합니다.</dd></div>
           <div><dt>과거 실행 역산</dt><dd>검증된 저장소 archive commit 이후 첫 정규장을 보수적 진입 시점으로 사용합니다.</dd></div>
           <div><dt>측정 대기</dt><dd>필요한 거래일이나 완전한 종목 집합이 아직 갖춰지지 않은 기간입니다.</dd></div>
+          <div><dt>TENX 과거 이력</dt><dd>이전 엔진의 결과도 당시 기록 그대로 남습니다. 과거 전체 성과를 현재 V3.8의 실적으로 해석하지 않습니다.</dd></div>
         </dl>
       </details>
     </section>

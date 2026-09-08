@@ -10,6 +10,7 @@ import {
   getPerformanceState,
   getPreviousRecommendation,
   getRecommendationDetail,
+  readableTenxText,
   getSymbolTimeline,
   getVerifiedAggregate,
   parseHashRoute,
@@ -19,6 +20,35 @@ import {
   serializeHashRoute,
   summarizeRunChanges,
 } from "../src/data/dashboard-model.js";
+
+test("TENX display translates stored contributions and cumulative forecasts without scoring", () => {
+  assert.equal(readableTenxText("V=0.935, α=0.25; 42GV 25.10점 / 33GY 9.61점 / 25GCV 10.27점; V는 비용률 없는 가격부담 계수"),
+    "성장 25.10점 / 가격 9.61점 / 현금 10.27점");
+  assert.equal(readableTenxText("FY2: 실제 기준 FY 대비 전망비율 +418.8% — 애널리스트 전망비율이며 회사 가이던스 아님"),
+    "다음 전망연도 +418.8% — 애널리스트 기준연도 대비 예상 매출 증가율");
+  assert.match(readableTenxText("V=1.000, α=0.25; 42GV 20.00점; V는 비용률 없는 가격부담 계수, G·C 원점수와 실제 기여를 구분; 가격입력 결측 사전값 적용"),
+    /성장 20\.00점; 가격 자료 부족에 따른 기본값 적용$/);
+});
+
+test("TENX does not subtract scores across engine definitions; same-definition and MLG remain comparable", () => {
+  for (const [strategy, oldName, expected] of [["TENX", "tenx_final_score", null], ["TENX", "tenx_score", -40], ["MLG", "legacy", -40]]) {
+    const payload = {
+      runs: [
+        { strategy, run_id: "1", report_created_at: "2026-09-01T00:00:00Z" },
+        { strategy, run_id: "2", report_created_at: "2026-09-08T00:00:00Z" },
+      ],
+      recommendations: [
+        { strategy, run_id: "1", symbol: "EXAMPLE", recommendation_rank: 2, score: 80, detail: { score_breakdown: { score_name: oldName } } },
+        { strategy, run_id: "2", symbol: "EXAMPLE", recommendation_rank: 1, score: 40, detail: { score_breakdown: { score_name: "tenx_score" } } },
+      ],
+    };
+    const before = JSON.stringify(payload);
+    const transition = getIndexedRunChanges(createDashboardIndex(payload), strategy, "2").transitions[0];
+    assert.equal(transition.scoreDelta, expected);
+    assert.equal(transition.rankDelta, 1);
+    assert.equal(JSON.stringify(payload), before);
+  }
+});
 
 test("round-trips screener and full detail hash routes", () => {
   const historical = { view: "selection", strategy: "TENX", runId: "run / 2" };

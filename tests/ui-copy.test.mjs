@@ -73,17 +73,19 @@ test("uses concise Korean history, transition, and TENX method copy", () => {
   assert.match(appSource, /<h1>실행 기록<\/h1>/);
   assert.match(appSource, /return "신규 진입"/);
   assert.match(appSource, /return "재진입"/);
-  assert.match(appSource, /고성장 기대 섹터/);
-  assert.match(appSource, /성장성과 지속성 검증/);
+  assert.match(appSource, /투자대상 범위 확인/);
+  assert.match(appSource, /매출과 매출총이익의 동반 성장/);
   assert.match(appSource, /종합 점수 상위 5종목/);
-  assert.match(appSource, /점수에 쓰는 필수 FMP 값의 시점·기간·분기\/누적·주식수 기준/);
-  assert.match(appSource, /SEC 부재나 비교 불가만으로 제외하지 않습니다/);
-  assert.match(
-    appSource,
-    /분기 OCF·FCF·SBC 대조만 미적용됐고 동일 FMP 연간 현금흐름 대체값이 점수 입력으로 선택됐음이 입증되면/,
-  );
-  assert.match(appSource, /TENX는 후보·보고서·증거·복구 가능성 계약을 통과해야 발송/);
-  assert.match(appSource, /TENX 데이터·신호 진단은 운영 관측으로 별도 보존/);
+  assert.match(appSource, /미확인만으로 오류를 단정하지 않으며/);
+  assert.match(appSource, /\$2B–50B/);
+  assert.match(appSource, /42GV \+ 33GY \+ 25GCV/);
+  assert.match(appSource, /상세 산식 보기 · V3.8/);
+  assert.match(appSource, /상위 관찰 후보/);
+  assert.match(appSource, /산식 변경/);
+  assert.doesNotMatch(appSource, /Core v3\.1|path gap|약 45개|\$0\.25B–40B/);
+  assert.match(appSource, /각 엔진의 검증을 통과한 결과만 발송/);
+  assert.match(appSource, /화면에서 점수를 다시 계산하거나 순위를 바꾸지 않습니다/);
+  assert.match(appSource, /과거 전체 성과를 현재 V3.8의 실적으로 해석하지 않습니다/);
   assert.doesNotMatch(
     appSource,
     /데이터·신호·보고서 품질 검증을 통과한 공식 실행만 Telegram/,

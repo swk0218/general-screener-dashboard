@@ -191,6 +191,9 @@ function makeTransition(status, run, recommendation, previousRecommendation, mis
   const currentScore = optionalNumber(recommendation?.score);
   const previousRank = optionalNumber(previousRecommendation?.recommendation_rank);
   const previousScore = optionalNumber(previousRecommendation?.score);
+  const scoreBasisChanged = run.strategy === "TENX" && Boolean(recommendation) && Boolean(previousRecommendation)
+    && recommendation?.detail?.score_breakdown?.score_name
+      !== previousRecommendation?.detail?.score_breakdown?.score_name;
   return Object.freeze({
     status,
     strategy: run.strategy,
@@ -206,7 +209,8 @@ function makeTransition(status, run, recommendation, previousRecommendation, mis
     previousRank,
     previousScore,
     rankDelta: currentRank === null || previousRank === null ? null : previousRank - currentRank,
-    scoreDelta: currentScore === null || previousScore === null ? null : currentScore - previousScore,
+    scoreDelta: scoreBasisChanged || currentScore === null || previousScore === null ? null : currentScore - previousScore,
+    scoreBasisChanged,
     missingRunCount,
     streak,
   });
@@ -547,6 +551,23 @@ function cleanEvidenceValue(value) {
   const segments = text.split("|").map((segment) => segment.trim()).filter(Boolean);
   const useful = segments.filter((segment) => !/\bN\/A\b/i.test(segment) && segment !== "—");
   return useful.length ? useful.join(" | ") : null;
+}
+
+// Display-only translations. Preserve stored numbers and never calculate scores here.
+export function readableTenxText(value) {
+  return String(value || "")
+    .replace(/^V=[^;]+; /, "")
+    .replace(/; V는 비용률 없는 가격부담 계수[^;]*/, "")
+    .replaceAll("가격입력 결측 사전값 적용", "가격 자료 부족에 따른 기본값 적용")
+    .replaceAll("42GV", "성장").replaceAll("33GY", "가격").replaceAll("25GCV", "현금")
+    .replaceAll("FY1: 실제 기준 FY 대비 전망비율", "첫 전망연도")
+    .replaceAll("FY2: 실제 기준 FY 대비 전망비율", "다음 전망연도")
+    .replaceAll("애널리스트 전망비율이며 회사 가이던스 아님", "애널리스트 기준연도 대비 예상 매출 증가율")
+    .replaceAll("연간 CAGR", "연평균 매출 성장")
+    .replaceAll("GP CAGR", "연평균 매출총이익 성장")
+    .replaceAll("주당 GP", "주당 매출총이익")
+    .replaceAll("/ GP", "/ 매출총이익")
+    .replaceAll("주주귀속현금 아님", "설비·인수 지출 전 수치");
 }
 
 export function getRecommendationDetail(recommendation) {
