@@ -433,6 +433,16 @@ export function searchHistoryRuns(index, { strategy = "ALL", query = "" } = {}) 
  * The dashboard uses this compact result set for its global security search,
  * while the history search remains run-oriented.
  */
+export function getSelectionContext(index, strategy, runId, symbol) {
+  const latestRun = index?.runsByStrategy.get(strategy)?.[0] || null;
+  const isCurrentlySelected = Boolean(latestRun && getIndexedRecommendation(index, strategy, latestRun.run_id, symbol));
+  return {
+    latestRun,
+    isHistorical: Boolean(latestRun && String(latestRun.run_id) !== String(runId)),
+    isCurrentlySelected,
+  };
+}
+
 export function searchSecurities(index, query, limit = 8) {
   if (!index?.runs) return EMPTY_LIST;
   const terms = String(query || "").trim().toUpperCase().split(/\s+/).filter(Boolean);
@@ -456,6 +466,8 @@ export function searchSecurities(index, query, limit = 8) {
       results.push(Object.freeze({
         strategy: run.strategy,
         runId: String(run.run_id),
+        reportCreatedAt: run.report_created_at,
+        isCurrentlySelected: getSelectionContext(index, run.strategy, run.run_id, symbol).isCurrentlySelected,
         reportDate: run.report_date || String(run.report_created_at || "").slice(0, 10),
         symbol,
         companyName: recommendation.company_name || null,
@@ -670,3 +682,4 @@ export function getRecommendationDetail(recommendation) {
     hasRichDetail: true,
   };
 }
+

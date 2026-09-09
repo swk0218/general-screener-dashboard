@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createDashboardIndex,
+  getSelectionContext,
   getEvidenceState,
   getIndexedRecommendation,
   getIndexedRunChanges,
@@ -345,4 +346,28 @@ test("searches the newest matching historical company name when the latest name 
   assert.deepEqual(searchSecurities(index, "alpha analytics").map((item) => (
     `${item.strategy}:${item.runId}:${item.symbol}`
   )), ["TENX:tenx-1:AAA", "MLG:run-2:AAA"]);
+});
+
+
+
+test("historical selection distinguishes same-day runs and current exclusion without mutating scores", () => {
+  const payload = { runs: [
+    { strategy: "TENX", run_id: "morning", report_created_at: "2026-09-08T01:00:00Z" },
+    { strategy: "TENX", run_id: "evening", report_created_at: "2026-09-08T12:00:00Z" },
+  ], recommendations: [
+    { strategy: "TENX", run_id: "morning", symbol: "OLD", recommendation_rank: 1, score: 55.54 },
+    { strategy: "TENX", run_id: "morning", symbol: "KEEP", recommendation_rank: 2, score: 50 },
+    { strategy: "TENX", run_id: "evening", symbol: "KEEP", recommendation_rank: 1, score: 44 },
+  ] };
+  const before = JSON.stringify(payload);
+  const index = createDashboardIndex(payload);
+  assert.equal(getSelectionContext(index, "TENX", "morning", "OLD").isHistorical, true);
+  assert.equal(getSelectionContext(index, "TENX", "morning", "OLD").isCurrentlySelected, false);
+  assert.equal(getSelectionContext(index, "TENX", "morning", "KEEP").isCurrentlySelected, true);
+  assert.equal(getSelectionContext(index, "TENX", "evening", "KEEP").isHistorical, false);
+  const old = searchSecurities(index, "OLD")[0];
+  assert.equal(old.isCurrentlySelected, false);
+  assert.equal(old.score, 55.54);
+  assert.equal(old.reportCreatedAt, "2026-09-08T01:00:00Z");
+  assert.equal(JSON.stringify(payload), before);
 });

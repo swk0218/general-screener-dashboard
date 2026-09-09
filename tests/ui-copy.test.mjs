@@ -19,7 +19,7 @@ test("keeps the development password treatment and restrained benchmark celebrat
   assert.match(appSource, /placeholder="\*\*\*\*\*\*\*\*"/);
   assert.doesNotMatch(appSource, /ENCRYPTED STATIC VAULT/);
   assert.match(appSource, /className="benchmark-copy-value"/);
-  assert.match(appSource, /"앞섰습니다" : "뒤쳐졌습니다"/);
+  assert.match(appSource, /"앞섰습니다" : "뒤처졌습니다"/);
   assert.doesNotMatch(appSource, /className="benchmark-copy-desktop"/);
   assert.doesNotMatch(appSource, /`\+\$\{\(value \* 100\)\.toFixed\(2\)\}%`/);
   assert.match(stylesSource, /\.benchmark-copy-value \{\s*font-weight: 700;/);
@@ -117,7 +117,7 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
 });
 
 test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
-  assert.match(appSource, /<span className="sync-label">Last Update<\/span>/);
+  assert.match(appSource, /<span className="sync-label">게시 갱신<\/span>/);
   assert.match(appSource, /formatKstDate\(generatedAt\)/);
   assert.doesNotMatch(appSource, /LAST SYNC/);
   assert.match(stylesSource, /--sidebar-width: 208px;/);
@@ -127,3 +127,4 @@ test("keeps desktop chrome compact and aligns the screener inspector grid", () =
   assert.match(stylesSource, /height: calc\(var\(--selection-heading-rail\) \+ var\(--selection-filter-rail\) \+ var\(--selection-column-rail\)\);/);
   assert.match(stylesSource, /grid-auto-rows: var\(--selection-row-rail\);/);
 });
+
