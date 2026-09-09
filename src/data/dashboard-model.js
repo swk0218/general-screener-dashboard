@@ -683,3 +683,8 @@ export function getRecommendationDetail(recommendation) {
   };
 }
 
+
+export function scoreBasisLabel(value) {
+  return { production_score: "MLG 산식", tenx_final_score: "이전 TENX 산식", tenx_score: "TENX 성장·가격·현금 산식" }[value] || "산식 미수록";
+}
+
