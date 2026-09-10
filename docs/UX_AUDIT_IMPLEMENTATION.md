@@ -12,7 +12,7 @@ Preserve Astryx neutral, the terminal palette, official rankings, original score
 | P2-03 | Label score change/enrollment separately from USD prices. |
 | P2-04 | Distinguish publication refresh, selection date, price date and archived price. |
 | P2-05 | Wrap all change tickers, separate new/re-entry counts, make individual tickers open details. Removed tickers open previous selection with historical warning. |
-| P2-06 | Shared metadata/label/body size roles (12/14/16px at default font setting), no 8–11px overrides; larger action targets. |
+| P2-06 | Role-based typography and larger action targets; bulk enlargement subsequently reversed per user visual review (see below). |
 | P2-07 | Label MLG coefficients and available ranges; TENX contributions show actual maximum allocation. No fabricated additive MLG score. |
 | P2-08 | Independent desktop detail columns, early risks, single mobile column and collapsed execution metadata. |
 | P2-09 | TENX historical-method scope appears by performance and overview cards. Version-separated performance is not fabricated from aggregate-only data. |
@@ -42,3 +42,9 @@ Preserve Astryx neutral, the terminal palette, official rankings, original score
 ## Explicit non-adoptions
 
 No arbitrary filters/sorts, wholesale redesign, new score calculations, guessed missing-price reasons, estimated observation dates or reconstructed engine-version performance. These either change the product's official-result purpose or need source data absent from the current payload.
+
+## Visual refinement after owner review
+
+The owner found that the broad typography enlargement and boxed change tickers degraded the original design. Restored the pre-enlargement type hierarchy and refined metadata/labels/body independently. Changed tickers remain clickable but now use unboxed text, preserving symbol boundaries when wrapping. Mobile company names return to a quiet single line, and explanatory Korean copy wraps at word boundaries. Search, origin return, historical context, chart containment and other functional improvements remain intact.
+
+Responsive Chrome with synthetic data: overview checked at 360/390/430/1280 CSS px without page overflow; mobile overview and detail screenshots inspected. Production build and asset verification passed. This supersedes the initial blanket typography rules, not the functional audit corrections.
