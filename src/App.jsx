@@ -601,6 +601,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
                 <button
                   type="button"
                   className="row-select-button"
+                  data-focus-key={`preview:${item.symbol}`}
                   aria-pressed={item.symbol === selectedSymbol}
                   aria-label={`${item.symbol}, ${item.company_name || "회사명 미수록"}, ${item.recommendation_rank}위, ${verdictLabel(item.verdict)}, 미리보기`}
                   onClick={() => onPreview(item.symbol)}
@@ -616,7 +617,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
                 {transitionLabel(transition)}
               </td>
               <td className="row-action-cell">
-                <button type="button" onClick={() => onOpenDetail(item.symbol)} aria-label={`${item.symbol}, ${item.company_name || "회사명 미수록"}, ${item.recommendation_rank}위, ${verdictLabel(item.verdict)}, 상세 보기`}>
+                <button type="button" data-focus-key={`detail:${item.symbol}`} onClick={() => onOpenDetail(item.symbol)} aria-label={`${item.symbol}, ${item.company_name || "회사명 미수록"}, ${item.recommendation_rank}위, ${verdictLabel(item.verdict)}, 상세 보기`}>
                   <ChevronRight size={17} aria-hidden="true" />
                 </button>
               </td>
@@ -632,6 +633,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
             <button
               type="button"
               className={item.symbol === selectedSymbol ? "is-selected" : ""}
+              data-focus-key={`mobile:${item.symbol}`}
               aria-current={item.symbol === selectedSymbol ? "true" : undefined}
               aria-label={`${item.symbol}, ${item.company_name || "회사명 미수록"}, ${item.recommendation_rank}위, ${verdictLabel(item.verdict)}, 상세 보기`}
               onClick={() => onOpenDetail(item.symbol)}
@@ -820,7 +822,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 
           {!nativeTenx && detail.scoreBreakdown?.dimensions?.length ? (
             <section className="dossier-block">
-              <h2>점수 구성</h2><p className="section-inline-note">항목별 계수이며 기여점수의 단순 합계가 아닙니다.</p><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: `${formatCompactNumber(item.value)} · 계수 범위 ${item.scale_min}–${item.scale_max}` }))} />
+              <h2>점수 구성</h2><p className="section-inline-note">항목별 계수이며 기여점수의 단순 합계가 아닙니다.</p><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: `${formatCompactNumber(item.value)} · 계수 범위 ${hasValue(item.scale_min) && hasValue(item.scale_max) ? `${item.scale_min}–${item.scale_max}` : "미수록"}` }))} />
             </section>
           ) : null}
 
@@ -836,7 +838,8 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         </details>
 
         <details className="provenance-details">
-          <summary>근거 출처와 실행 계보</summary>
+          <summary>원문·근거 출처와 실행 계보</summary>
+          {detail.summary ? <p className="source-summary">선정 요약 원문: {detail.summary}</p> : <p>이 실행에는 선정 요약 원문이 보관되어 있지 않습니다.</p>}
           {nativeTenx ? <EvidenceList items={visibleDrivers} /> : null}
           <p>{detail.hasRichDetail
             ? detail.detailProvenance
@@ -1022,7 +1025,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
         ) : (
           <div className="performance-empty">
             <strong>{strategy} {range} 성과는 아직 측정 중입니다.</strong>
-            <p>{expectedSignals}개 추천과 {benchmarkLabel}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
+            <p>완전 실행 {completeRuns}회 · {expectedSignals}개 추천과 {benchmarkLabel}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
             <p>현재 자료에는 관측일 미도래와 가격 결측의 구분이 제공되지 않습니다.</p>
           </div>
         )}
@@ -1242,6 +1245,9 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
       run,
       picks,
       added,
+      newSymbols: changes?.newSymbols || [],
+      reenteredSymbols: changes?.reenteredSymbols || [],
+      previousRunId: changes?.previousRunId,
       removed,
       retained,
       rankUp,
@@ -1271,17 +1277,24 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
       <section className="since-visit" aria-label="최근 실행 변화">
         <div className="visit-strategies">
           {latestRuns.map((item) => (
-            <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
-              <span className="visit-strategy-heading">
+            <section className="visit-strategy" key={item.strategy} aria-label={`${item.strategy} 변경 종목`}>
+              <button type="button" className="visit-strategy-heading" onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
                 <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
-                {item.run ? <small className="visit-updated-badge">{formatMonthDay(item.run.report_date || item.run.report_created_at)} Updated</small> : null}
-              </span>
+                {item.run ? <small className="visit-updated-badge">선정 {formatMonthDay(item.run.report_date || item.run.report_created_at)}</small> : null}
+              </button>
               <dl className="visit-changes">
-                <div><dt>새 진입</dt><dd className={`is-added${item.added.length ? " has-change" : ""}`}>{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
-                <div><dt>제외</dt><dd className={`is-removed${item.removed.length ? " has-change" : ""}`}>{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
-                <div><dt>유지 / 순위</dt><dd>{item.retained.length} · ↑{item.rankUp} ↓{item.rankDown}</dd></div>
+                {[
+                  ["새 진입", item.newSymbols, "is-added", item.run?.run_id],
+                  ["재진입", item.reenteredSymbols, "is-added", item.run?.run_id],
+                  ["제외", item.removed, "is-removed", item.previousRunId],
+                ].map(([label, symbols, tone, runId]) => (
+                  <div key={label}><dt>{label} {symbols.length}</dt><dd className={`${tone}${symbols.length ? " has-change" : ""}`}>
+                    {symbols.length ? symbols.map((symbol) => <button type="button" className="change-symbol" key={symbol} data-focus-key={`change:${item.strategy}:${symbol}`} aria-label={`${item.strategy} ${symbol} ${label} 상세`} onClick={() => onOpenDetail(item.strategy, runId, symbol)}>{symbol}</button>) : "없음"}
+                  </dd></div>
+                ))}
+                <div><dt>유지 {item.retained.length}</dt><dd>순위 상승 {item.rankUp} · 하락 {item.rankDown}</dd></div>
               </dl>
-            </button>
+            </section>
           ))}
         </div>
         <footer className="since-visit-footer">
@@ -1302,7 +1315,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                 <ol>
                   {item.picks.slice(0, 3).map((pick) => (
                     <li key={`${item.strategy}:${pick.run_id}:${pick.symbol}`}>
-                      <button type="button" onClick={() => onOpenDetail(item.strategy, item.run.run_id, pick.symbol)}>
+                      <button type="button" data-focus-key={`pick:${item.strategy}:${pick.symbol}`} onClick={() => onOpenDetail(item.strategy, item.run.run_id, pick.symbol)}>
                         <span>{String(pick.recommendation_rank).padStart(2, "0")}</span>
                         <strong>{pick.symbol}</strong>
                         <span className="mini-company">{pick.company_name || ""}</span>
@@ -1333,6 +1346,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                       <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
+                      <p className="performance-scope-note">실행별 20거래일 평균 · 비교 ETF: {payload.benchmark || "QQQ"}{strategy === "TENX" ? " · 이전 산식 포함" : ""}</p>
                       <span className="backcast-meta">완전 실행 {aggregate.run_count || "—"}회 · 종목 관측 {aggregate.underlying_signal_count || "—"}건</span>
                     </>
                   ) : (
@@ -1355,8 +1369,9 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
 function ChangeSummary({ summary }) {
   if (!summary || summary.isBaseline) return <span className="history-change is-baseline">기준 실행</span>;
   return (
-    <span className="history-change" aria-label={`신규 ${summary.added.length}, 제외 ${summary.removed.length}, 유지 ${summary.retained.length}`}>
-      <i className="is-added">신규 {summary.added.length}</i>
+    <span className="history-change" aria-label={`새 진입 ${summary.newSymbols.length}, 재진입 ${summary.reenteredSymbols.length}, 제외 ${summary.removed.length}, 유지 ${summary.retained.length}`}>
+      <i className="is-added">새 진입 {summary.newSymbols.length}</i>
+      {summary.reenteredSymbols.length ? <i className="is-added">재진입 {summary.reenteredSymbols.length}</i> : null}
       <i className="is-removed">제외 {summary.removed.length}</i>
       <i>유지 {summary.retained.length}</i>
     </span>
@@ -1403,6 +1418,7 @@ function HistoryView({ payload, index, onStrategy, filter, setFilter, historyQue
           width="100%"
           size="md"
         />
+        {filter !== "ALL" || historyQuery ? <button type="button" className="history-reset" onClick={() => { setFilter("ALL"); setHistoryQuery(""); }}>검색 초기화</button> : null}
         <p className="history-result-count" aria-live="polite">검색 결과 {filteredRuns.length}건</p>
         {!filteredRuns.length ? <div className="history-empty" role="status"><p>{filter === "ALL" ? "전체 전략" : filter}에서 {historyQuery.trim() ? `“${historyQuery.trim()}”와 일치하는` : "조건과 일치하는"} 실행 기록이 없습니다.</p>{filter !== "ALL" ? <button type="button" onClick={() => setFilter("ALL")}>전체 전략에서 검색</button> : null}<button type="button" onClick={() => { setFilter("ALL"); setHistoryQuery(""); }}>검색 초기화</button></div> : null}
       </div>
@@ -1446,8 +1462,7 @@ function HistoryView({ payload, index, onStrategy, filter, setFilter, historyQue
   );
 }
 
-function StandalonePerformanceView({ payload, strategy, onStrategy }) {
-  const [range, setRange] = useState("20D");
+function StandalonePerformanceView({ payload, strategy, onStrategy, range, setRange }) {
   return (
     <section className="secondary-view performance-view">
       <header>
@@ -1664,7 +1679,7 @@ function MethodologyView({ benchmark, section, onSection }) {
   );
 }
 
-function FullDetailView({ payload, index, route, onBack, onLatest }) {
+function FullDetailView({ payload, index, route, onBack, onLatest, backLabel = "목록으로" }) {
   const context = getSelectionContext(index, route.strategy, route.runId, route.symbol);
   const run = index.runByKey.get(`${route.strategy}:${route.runId}`) || null;
   const recommendation = getIndexedRecommendation(index, route.strategy, route.runId, route.symbol);
@@ -1676,7 +1691,7 @@ function FullDetailView({ payload, index, route, onBack, onLatest }) {
         <p>GENERAL / DETAIL</p>
         <h1>상세 기록을 찾을 수 없습니다.</h1>
         <span>URL의 실행 ID 또는 종목이 현재 보관 데이터에 없습니다.</span>
-        <button type="button" className="route-back" onClick={onBack}><ArrowLeft size={17} /> 목록으로</button>
+        <button type="button" className="route-back" onClick={onBack}><ArrowLeft size={17} /> {backLabel}</button>
       </section>
     );
   }
@@ -1684,7 +1699,7 @@ function FullDetailView({ payload, index, route, onBack, onLatest }) {
   return (
     <section className="full-detail-view">
       <header className="full-detail-header">
-        <button type="button" className="route-back" onClick={onBack}><ArrowLeft size={17} /> 목록으로</button>
+        <button type="button" className="route-back" onClick={onBack}><ArrowLeft size={17} /> {backLabel}</button>
         <div>
           <p>{route.strategy} / RUN {route.runId}</p>
           <span>{formatKst(run.report_created_at)} · {STRATEGIES[route.strategy].label}</span>
@@ -1709,6 +1724,8 @@ export function Dashboard({ payload, onLock }) {
   const [selectionQueries, setSelectionQueries] = useState({});
   const [historyFilter, setHistoryFilter] = useState("ALL");
   const [historyQuery, setHistoryQuery] = useState("");
+  const [performanceRange, setPerformanceRange] = useState("20D");
+  const detailOriginsRef = useRef(new Map());
   const positionsRef = useRef(new Map());
   const focusTargetsRef = useRef(new Map());
   const [previewSymbols, setPreviewSymbols] = useState({});
@@ -1770,14 +1787,15 @@ export function Dashboard({ payload, onLock }) {
     navigate({ view: id, strategy });
   }
 
+  function openDetail(nextStrategy, runId, symbol) {
+    const detailRoute = { view: "detail", strategy: nextStrategy, runId, symbol };
+    if (route.view !== "detail") detailOriginsRef.current.set(serializeHashRoute(detailRoute), route);
+    navigate(detailRoute);
+  }
+
   function openSearchResult(result) {
     setGlobalQuery("");
-    navigate({
-      view: "detail",
-      strategy: result.strategy,
-      runId: result.runId,
-      symbol: result.symbol,
-    });
+    openDetail(result.strategy, result.runId, result.symbol);
   }
 
   let content;
@@ -1787,7 +1805,7 @@ export function Dashboard({ payload, onLock }) {
         payload={payload}
         index={index}
         onStrategy={selectStrategy}
-        onOpenDetail={(nextStrategy, runId, symbol) => navigate({ view: "detail", strategy: nextStrategy, runId, symbol })}
+        onOpenDetail={openDetail}
         onHistory={() => navigate({ view: "history", strategy })}
         onPerformance={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
       />
@@ -1797,6 +1815,8 @@ export function Dashboard({ payload, onLock }) {
   } else if (route.view === "performance") {
     content = (
       <StandalonePerformanceView
+        range={performanceRange}
+        setRange={setPerformanceRange}
         payload={payload}
         strategy={strategy}
         onStrategy={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
@@ -1816,7 +1836,8 @@ export function Dashboard({ payload, onLock }) {
         payload={payload}
         index={index}
         route={route}
-        onBack={() => navigate({ view: "selection", strategy, runId: route.runId })}
+        backLabel={detailOriginsRef.current.get(serializeHashRoute(route))?.view === "overview" ? "변경 화면으로" : "목록으로"}
+        onBack={() => navigate(detailOriginsRef.current.get(serializeHashRoute(route)) || { view: "selection", strategy, runId: route.runId })}
         onLatest={() => selectStrategy(strategy)}
       />
     );
@@ -1831,7 +1852,7 @@ export function Dashboard({ payload, onLock }) {
         selectedRunId={route.runId}
         selectedSymbol={previewSymbols[strategy] || null}
         onSelectSymbol={(symbol) => setPreviewSymbols((current) => ({ ...current, [strategy]: symbol }))}
-        onOpenDetail={(runId, symbol) => navigate({ view: "detail", strategy, runId, symbol })}
+        onOpenDetail={(runId, symbol) => openDetail(strategy, runId, symbol)}
         onLatest={() => selectStrategy(strategy)}
         onStrategy={selectStrategy}
       />
@@ -1840,7 +1861,7 @@ export function Dashboard({ payload, onLock }) {
 
   return (
     <div className={`app-shell view-${route.view}`}>
-      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
+      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); mainRef.current?.focus(); }}>본문으로 건너뛰기</a>
       <BrandHeader
         activeView={route.view}
         strategy={strategy}

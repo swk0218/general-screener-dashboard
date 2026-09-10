@@ -69,14 +69,14 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
         <select id={`${titleId}-run`} value={String(selectedPoint.run_id)} onChange={(event) => setSelectedRun(event.target.value)}>
           {chart.sorted.map((point) => <option key={point.run_id} value={String(point.run_id)}>{point.report_date} · {point.run_id}</option>)}
         </select>
-        <p aria-live="polite">{strategy} {formatPercent(finite(selectedPoint.strategy_return))} · {benchmark} {formatPercent(finite(selectedPoint.qqq_return))}</p>
+        <p aria-live="polite">{strategy} {formatPercent(finite(selectedPoint.strategy_return))} · {benchmark} {formatPercent(finite(selectedPoint.qqq_return))} · 초과 {(finite(selectedPoint.excess_return) * 100).toFixed(2)}%p</p>
       </div>
       <div className="return-plot-shell">
       <svg className="return-fixed-axis" viewBox={`0 0 ${MARGIN.left} ${HEIGHT}`} aria-hidden="true"><g className="return-chart-grid">{chart.ticks.map((tick) => <text key={tick} x={MARGIN.left - 8} y={chart.yFor(tick) + 4} textAnchor="end">{(tick * 100).toFixed(1)}%</text>)}</g></svg>
       <div className="return-plot-scroll" tabIndex={0} role="region" aria-label="실행별 차트. 좌우로 스크롤하여 전체 기간 확인">
       <svg
         viewBox={`0 0 ${chart.width} ${HEIGHT}`}
-        role="img"
+        role="group"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         style={{ width: `${chart.width}px`, height: `${HEIGHT}px` }}
@@ -104,7 +104,12 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           const strategyY = chart.yFor(strategyValue);
           const benchmarkY = chart.yFor(qqqValue);
           return (
-            <g key={`${point.run_id}:${point.report_date}`}>
+            <g key={`${point.run_id}:${point.report_date}`} role="button" tabIndex={0}
+              aria-label={`${point.report_date} ${strategy} ${formatPercent(strategyValue)}, ${benchmark} ${formatPercent(qqqValue)}`}
+              aria-pressed={String(selectedPoint.run_id) === String(point.run_id)}
+              onClick={() => setSelectedRun(String(point.run_id))}
+              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedRun(String(point.run_id)); } }}>
+              <rect x={x - 42} y={MARGIN.top} width={84} height={HEIGHT - MARGIN.top} fill="transparent" />
               <text className="return-date-label" x={x} y={HEIGHT - 14} textAnchor="middle">
                 {compactDate(point.report_date)}
               </text>

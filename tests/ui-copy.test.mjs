@@ -29,8 +29,9 @@ test("keeps the development password treatment and restrained benchmark celebrat
 });
 
 test("colors only actual mobile overview entries and removals", () => {
-  assert.match(appSource, /className=\{`is-added\$\{item\.added\.length \? " has-change" : ""\}`\}/);
-  assert.match(appSource, /className=\{`is-removed\$\{item\.removed\.length \? " has-change" : ""\}`\}/);
+  assert.match(appSource, /symbols.length \? " has-change" : ""/);
+  assert.match(appSource, /\["새 진입", item.newSymbols, "is-added"/);
+  assert.match(appSource, /\["제외", item.removed, "is-removed"/);
   assert.match(stylesSource, /\.visit-changes dd\.is-added\.has-change/);
   assert.match(stylesSource, /\.visit-changes dd\.is-removed\.has-change/);
 });
@@ -66,7 +67,7 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.match(appSource, /formatPercentPoints\(item\.excess_return\)/);
   assert.match(appSource, /스크리너 성과/);
   assert.match(appSource, /formatMonthDay\(item\.run\.report_date \|\| item\.run\.report_created_at\)/);
-  assert.match(appSource, /Updated<\/small>/);
+  assert.match(appSource, /선정 \{formatMonthDay/);
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 
