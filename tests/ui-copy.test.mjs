@@ -70,10 +70,11 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 
-test("shows matching MLG and TENX 20-day performance summaries on overview", () => {
-  assert.match(appSource, /const backcastPreviews = Object\.keys\(STRATEGIES\)\.map/);
-  assert.match(appSource, /item\.strategy === strategy/);
-  assert.match(appSource, /String\(item\.horizon\)\.toLowerCase\(\) === "20d"/);
+test("shows matching unified MLG and TENX 20-day performance summaries on overview", () => {
+  assert.match(appSource, /const performancePreviews = Object\.keys\(STRATEGIES\)\.map/);
+  assert.match(appSource, /getUnifiedPerformanceCell\(/);
+  assert.match(appSource, /payload\.performance_backcast/);
+  assert.match(appSource, /"20D"/);
   assert.match(appSource, /className="backcast-performance-list"/);
   assert.match(appSource, /key=\{strategy\}/);
   assert.match(stylesSource, /\.backcast-performance-item \+ \.backcast-performance-item/);
