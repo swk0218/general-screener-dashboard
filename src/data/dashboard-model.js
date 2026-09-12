@@ -153,6 +153,139 @@ export function getVerifiedAggregate(performance, strategy, horizon) {
   ) || null;
 }
 
+
+function performanceCellRows(container, strategy, horizon, status) {
+  const normalized = String(horizon).toLowerCase();
+  return (container || []).filter(
+    (item) => item.strategy === strategy
+      && String(item.horizon).toLowerCase() === normalized
+      && item.status === status,
+  );
+}
+
+function keyedUnion(olderRows, newerRows, keyFor) {
+  const rows = new Map();
+  olderRows.forEach((row) => rows.set(keyFor(row), row));
+  newerRows.forEach((row) => rows.set(keyFor(row), row));
+  return [...rows.values()];
+}
+
+function mean(values) {
+  return values.reduce((total, value) => total + Number(value), 0) / values.length;
+}
+
+/**
+ * Reconciles the disjoint repository-bound and verified performance histories.
+ * Verified rows win if the same run is ever present in both evidence tiers.
+ * TENX deliberately excludes reconstructed history: its benchmark restarts at TENX2.
+ */
+export function getUnifiedPerformanceCell(performance, backcast, strategy, horizon) {
+  const normalized = String(horizon).toLowerCase();
+  const officialAggregate = getVerifiedAggregate(performance, strategy, normalized);
+  const officialRuns = officialAggregate
+    ? performanceCellRows(performance?.run_series, strategy, normalized, "VERIFIED")
+    : [];
+  const officialSignals = officialAggregate
+    ? performanceCellRows(performance?.signals, strategy, normalized, "VERIFIED")
+    : [];
+  const includeBackcast = strategy !== "TENX";
+  const reconstructedAggregate = includeBackcast
+    ? (backcast?.aggregates || []).find(
+      (item) => item.strategy === strategy
+        && String(item.horizon).toLowerCase() === normalized
+        && item.status === "RECONSTRUCTED",
+    ) || null
+    : null;
+  const reconstructedRuns = reconstructedAggregate
+    ? performanceCellRows(backcast?.run_series, strategy, normalized, "RECONSTRUCTED")
+    : [];
+  const reconstructedSignals = reconstructedAggregate
+    ? performanceCellRows(backcast?.signals, strategy, normalized, "RECONSTRUCTED")
+    : [];
+
+  const runSeries = keyedUnion(
+    reconstructedRuns,
+    officialRuns,
+    (row) => String(row.run_id),
+  ).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
+  const signals = keyedUnion(
+    reconstructedSignals,
+    officialSignals,
+    (row) => String(row.run_id) + ":" + String(row.signal_id),
+  );
+  const source = officialRuns.length && reconstructedRuns.length
+    ? "MIXED"
+    : officialRuns.length
+      ? "VERIFIED"
+      : reconstructedRuns.length
+        ? "RECONSTRUCTED"
+        : null;
+  const officialStatus = (performance?.horizon_statuses || []).find(
+    (item) => item.strategy === strategy
+      && String(item.horizon).toLowerCase() === normalized,
+  ) || null;
+  const reconstructedStatus = includeBackcast
+    ? (backcast?.horizon_statuses || []).find(
+      (item) => item.strategy === strategy
+        && String(item.horizon).toLowerCase() === normalized,
+    ) || null
+    : null;
+
+  if (!runSeries.length) {
+    return {
+      horizonStatus: officialStatus || reconstructedStatus,
+      aggregate: null,
+      runSeries,
+      signals,
+      source: null,
+    };
+  }
+
+  const measurementSessions = [
+    officialAggregate?.measurement_session_max,
+    reconstructedAggregate?.measurement_session_max,
+    ...runSeries.map((row) => row.measurement_session),
+  ].filter(Boolean);
+  const underlyingSignalCount = signals.length
+    || runSeries.reduce((total, row) => total + Number(row.signal_count || 0), 0);
+  const aggregate = {
+    strategy,
+    horizon: normalized,
+    equal_weight_return: mean(runSeries.map((row) => row.strategy_return)),
+    qqq_equal_weight_return: mean(runSeries.map((row) => row.qqq_return)),
+    equal_weight_excess_return: mean(runSeries.map((row) => row.excess_return)),
+    count: runSeries.length,
+    run_count: runSeries.length,
+    underlying_signal_count: underlyingSignalCount,
+    portfolio_view: officialAggregate?.portfolio_view
+      || reconstructedAggregate?.portfolio_view
+      || "run_equal_weight",
+    qqq_win_rate: mean(runSeries.map((row) => Number(row.excess_return) > 0 ? 1 : 0)),
+    positive_rate: mean(runSeries.map((row) => Number(row.strategy_return) > 0 ? 1 : 0)),
+    measurement_session_max: measurementSessions.sort().at(-1) || null,
+    status: source,
+  };
+  return {
+    horizonStatus: {
+      strategy,
+      horizon: normalized,
+      status: source,
+      complete_run_count: runSeries.length,
+      underlying_signal_count: underlyingSignalCount,
+      measurement_session_max: aggregate.measurement_session_max,
+      reason_code: source === "MIXED"
+        ? "VERIFIED_AND_RECONSTRUCTED_RUNS_AVAILABLE"
+        : source === "VERIFIED"
+          ? officialStatus?.reason_code
+          : reconstructedStatus?.reason_code,
+    },
+    aggregate,
+    runSeries,
+    signals,
+    source,
+  };
+}
+
 function runTimestamp(run) {
   const value = Date.parse(run?.report_created_at || run?.report_date || "");
   return Number.isFinite(value) ? value : 0;

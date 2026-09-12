@@ -39,7 +39,7 @@ import {
   readableTenxText,
   compactTenxFacts,
   getSymbolTimeline,
-  getVerifiedAggregate,
+  getUnifiedPerformanceCell,
   parseHashRoute,
   resolveSelectedRun,
   searchHistoryRuns,
@@ -250,29 +250,6 @@ function verdictLabel(verdict) {
   if (normalized === "WATCH" || normalized === "AUDIT") return "관찰 후보";
   if (normalized === "FAIL") return "예비 후보";
   return verdict || "—";
-}
-
-function getBackcastCell(backcast, strategy, horizon) {
-  const normalized = String(horizon).toLowerCase();
-  const horizonStatus = (backcast?.horizon_statuses || []).find(
-    (item) => item.strategy === strategy && String(item.horizon).toLowerCase() === normalized,
-  );
-  const aggregate = (backcast?.aggregates || []).find(
-    (item) => item.strategy === strategy
-      && String(item.horizon).toLowerCase() === normalized
-      && item.status === "RECONSTRUCTED",
-  );
-  const runSeries = (backcast?.run_series || [])
-    .filter((item) => item.strategy === strategy
-      && String(item.horizon).toLowerCase() === normalized
-      && item.status === "RECONSTRUCTED")
-    .sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
-  const signals = (backcast?.signals || []).filter(
-    (item) => item.strategy === strategy
-      && String(item.horizon).toLowerCase() === normalized
-      && item.status === "RECONSTRUCTED",
-  );
-  return { horizonStatus, aggregate, runSeries, signals };
 }
 
 function verdictClass(verdict) {
@@ -888,38 +865,33 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
   const benchmarkLabel = benchmarkDisplayName(benchmark);
   const officialEvidence = getPerformanceState(performance, evidenceStatus);
-  const verifiedAggregate = getVerifiedAggregate(performance, strategy, range);
-  const reconstructed = getBackcastCell(backcast, strategy, range);
-  const aggregate = verifiedAggregate || reconstructed.aggregate;
-  const source = verifiedAggregate ? "VERIFIED" : reconstructed.aggregate ? "RECONSTRUCTED" : null;
-  const selectedOfficialStatus = officialEvidence.horizonStatuses.find(
-    (item) => item.strategy === strategy && String(item.horizon).toUpperCase() === range,
-  );
-  const runSeries = source === "VERIFIED"
-    ? (performance?.run_series || []).filter((item) => (
-      item.strategy === strategy && String(item.horizon).toUpperCase() === range && item.status === "VERIFIED"
-    )).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)))
-    : reconstructed.runSeries;
-  const signals = source === "VERIFIED"
-    ? (performance?.signals || []).filter((item) => (
-      item.strategy === strategy && String(item.horizon).toUpperCase() === range && item.status === "VERIFIED"
-    ))
-    : reconstructed.signals;
-  const selectedStatus = source === "VERIFIED" ? selectedOfficialStatus : reconstructed.horizonStatus;
+  const cell = getUnifiedPerformanceCell(performance, backcast, strategy, range);
+  const { aggregate, runSeries, signals, source } = cell;
+  const selectedStatus = cell.horizonStatus;
   const expectedSignals = strategy === "MLG" ? 10 : 5;
   const completeRuns = Number(selectedStatus?.complete_run_count ?? aggregate?.run_count ?? runSeries.length ?? 0);
   const strategyReturn = Number(aggregate?.equal_weight_return);
   const benchmarkReturn = Number(aggregate?.qqq_equal_weight_return);
   const excessReturn = Number(aggregate?.equal_weight_excess_return);
   const benchmarkWinCount = runSeries.filter((item) => Number(item.excess_return) > 0).length;
-  const sourceLabel = source === "VERIFIED" ? "공식 측정" : source === "RECONSTRUCTED" ? "과거 실행 역산" : "측정 대기";
-  const sourceVariant = source === "VERIFIED" ? "green" : source === "RECONSTRUCTED" ? "cyan" : "neutral";
-  const entryBasisLabel = source === "VERIFIED"
-    ? "공식 공개 이후 첫 정규장"
-    : "저장소 확정 이후 첫 정규장(역산)";
-  const horizonBasisCopy = source === "RECONSTRUCTED"
-    ? `저장소 확정 이후 첫 정규장부터 ${range.replace("D", "거래일")} 동일가중 참고 성과`
-    : `공식 추천 공개 이후 ${range.replace("D", "거래일")} 동일가중 성과`;
+  const sourceLabel = source === "MIXED"
+    ? "통합 실행 이력"
+    : source === "VERIFIED"
+      ? "공식 측정"
+      : source === "RECONSTRUCTED"
+        ? "과거 실행 역산"
+        : "측정 대기";
+  const sourceVariant = source === "VERIFIED" ? "green" : ["MIXED", "RECONSTRUCTED"].includes(source) ? "cyan" : "neutral";
+  const entryBasisLabel = source === "MIXED"
+    ? "각 실행의 공식 공개 또는 저장소 확정 이후 첫 정규장"
+    : source === "VERIFIED"
+      ? "공식 공개 이후 첫 정규장"
+      : "저장소 확정 이후 첫 정규장(역산)";
+  const horizonBasisCopy = source === "MIXED"
+    ? `공식·역산 실행을 합친 ${range.replace("D", "거래일")} 동일가중 성과`
+    : source === "RECONSTRUCTED"
+      ? `저장소 확정 이후 첫 정규장부터 ${range.replace("D", "거래일")} 동일가중 참고 성과`
+      : `공식 추천 공개 이후 ${range.replace("D", "거래일")} 동일가중 성과`;
   return (
     <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
       <header className="performance-panel-header">
@@ -976,7 +948,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
             </div>
 
             <details className="signals-details">
-              <summary>{source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <small>· 진입 기준 {entryBasisLabel}</small></summary>
+              <summary>{source === "MIXED" ? "통합" : source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <small>· 진입 기준 {entryBasisLabel}</small></summary>
               {signals.length ? (
                 <div className="signals-table-wrap">
                   <table>
@@ -1000,7 +972,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
                   <div><dt>현재 표시</dt><dd>{sourceLabel}</dd></div>
                   <div><dt>공식 성과 상태</dt><dd>{officialEvidence.level}</dd></div>
                   <div><dt>최신 측정일</dt><dd>{aggregate.measurement_session_max || "—"}</dd></div>
-                  <div><dt>근거 코드</dt><dd>{source === "RECONSTRUCTED" ? "REPOSITORY-BOUND" : officialEvidence.reason}</dd></div>
+                  <div><dt>근거 코드</dt><dd>{source === "MIXED" ? "VERIFIED + REPOSITORY-BOUND" : source === "RECONSTRUCTED" ? "REPOSITORY-BOUND" : officialEvidence.reason}</dd></div>
                 </dl>
               </div>
             </details>
@@ -1231,16 +1203,16 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
       rankDown,
     };
   });
-  const backcastAggregates = payload.performance_backcast?.aggregates || [];
-  const backcastPreviews = Object.keys(STRATEGIES).map((strategy) => ({
+  const performancePreviews = Object.keys(STRATEGIES).map((strategy) => ({
     strategy,
-    aggregate: backcastAggregates.find((item) => (
-      item.strategy === strategy
-      && String(item.horizon).toLowerCase() === "20d"
-      && item.status === "RECONSTRUCTED"
-    )) || null,
+    cell: getUnifiedPerformanceCell(
+      payload.performance,
+      payload.performance_backcast,
+      strategy,
+      "20D",
+    ),
   }));
-  const hasBackcastPreview = backcastPreviews.some((item) => item.aggregate);
+  const hasPerformancePreview = performancePreviews.some((item) => item.cell.aggregate);
   const benchmarkLabel = benchmarkDisplayName(payload.benchmark);
   return (
     <section className="secondary-view overview-view overview-v2">
@@ -1301,10 +1273,12 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
         </section>
 
         <section className="backcast-preview">
-          <header><h2>{hasBackcastPreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{hasBackcastPreview ? <Badge variant="cyan" label="과거 실행 역산" /> : null}</header>
+          <header><h2>{hasPerformancePreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{hasPerformancePreview ? <Badge variant="cyan" label="통합 실행 이력" /> : null}</header>
           <div className="backcast-preview-body">
             <div className="backcast-performance-list">
-              {backcastPreviews.map(({ strategy, aggregate }) => (
+              {performancePreviews.map(({ strategy, cell }) => {
+                const { aggregate } = cell;
+                return (
                 <section className="backcast-performance-item" key={strategy} aria-label={`${strategy} 20일 성과`}>
                   {aggregate ? (
                     <>
@@ -1325,7 +1299,8 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                     </>
                   )}
                 </section>
-              ))}
+                );
+              })}
             </div>
             <button type="button" className="backcast-open" onClick={() => onPerformance("MLG")}>성과 자세히 <ChevronRight size={16} /></button>
           </div>
