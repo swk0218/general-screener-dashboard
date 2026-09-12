@@ -13,6 +13,7 @@ import {
   readableTenxText,
   compactTenxFacts,
   getSymbolTimeline,
+  getUnifiedPerformanceCell,
   getVerifiedAggregate,
   parseHashRoute,
   resolveSelectedRun,
@@ -124,6 +125,122 @@ test("keeps legacy performance contracts on HOLD and exposes VERIFIED exact aggr
   assert.equal(getVerifiedAggregate(exact, "MLG", "5D")?.equal_weight_return, 0.1);
   assert.equal(getVerifiedAggregate(exact, "MLG", "10D"), null);
 });
+
+
+test("unifies 11 reconstructed and 2 verified MLG runs into one 13-run benchmark", () => {
+  const reconstructedRuns = Array.from({ length: 11 }, (_, index) => ({
+    strategy: "MLG",
+    run_id: "legacy-" + index,
+    report_date: "2026-07-" + String(index + 1).padStart(2, "0"),
+    horizon: "20d",
+    strategy_return: 0.01,
+    qqq_return: 0.005,
+    excess_return: 0.005,
+    signal_count: 10,
+    status: "RECONSTRUCTED",
+  }));
+  const verifiedRuns = Array.from({ length: 2 }, (_, index) => ({
+    strategy: "MLG",
+    run_id: "verified-" + index,
+    report_date: "2026-08-0" + (index + 1),
+    horizon: "20d",
+    strategy_return: 0.10,
+    qqq_return: 0.02,
+    excess_return: 0.08,
+    signal_count: 10,
+    status: "VERIFIED",
+  }));
+  const performance = {
+    status: "PARTIAL",
+    horizon_statuses: [{ strategy: "MLG", horizon: "20d", status: "VERIFIED" }],
+    aggregates: [{
+      strategy: "MLG",
+      horizon: "20d",
+      status: "VERIFIED",
+      portfolio_view: "run_equal_weight",
+    }],
+    run_series: verifiedRuns,
+    signals: [],
+  };
+  const backcast = {
+    horizon_statuses: [{ strategy: "MLG", horizon: "20d", status: "RECONSTRUCTED" }],
+    aggregates: [{
+      strategy: "MLG",
+      horizon: "20d",
+      status: "RECONSTRUCTED",
+      portfolio_view: "run_equal_weight",
+    }],
+    run_series: reconstructedRuns,
+    signals: [],
+  };
+
+  const cell = getUnifiedPerformanceCell(performance, backcast, "MLG", "20D");
+  assert.equal(cell.source, "MIXED");
+  assert.equal(cell.runSeries.length, 13);
+  assert.equal(cell.aggregate.run_count, 13);
+  assert.equal(cell.aggregate.underlying_signal_count, 130);
+  assert.equal(cell.horizonStatus.complete_run_count, 13);
+  assert.ok(Math.abs(cell.aggregate.equal_weight_return - (0.31 / 13)) < 1e-12);
+});
+
+test("TENX benchmark ignores reconstructed pre-TENX2 history and starts empty", () => {
+  const oldBackcast = {
+    horizon_statuses: [{ strategy: "TENX", horizon: "20d", status: "RECONSTRUCTED" }],
+    aggregates: [{ strategy: "TENX", horizon: "20d", status: "RECONSTRUCTED" }],
+    run_series: [{
+      strategy: "TENX",
+      run_id: "old-engine",
+      report_date: "2026-07-01",
+      horizon: "20d",
+      strategy_return: 0.30,
+      qqq_return: 0.01,
+      excess_return: 0.29,
+      signal_count: 5,
+      status: "RECONSTRUCTED",
+    }],
+    signals: [],
+  };
+  const pending = {
+    status: "PENDING",
+    horizon_statuses: [{ strategy: "TENX", horizon: "20d", status: "PENDING" }],
+    aggregates: [],
+    run_series: [],
+    signals: [],
+  };
+  assert.equal(
+    getUnifiedPerformanceCell(pending, oldBackcast, "TENX", "20D").aggregate,
+    null,
+  );
+
+  const tenx2Run = {
+    strategy: "TENX",
+    run_id: "tenx2",
+    report_date: "2026-09-08",
+    horizon: "20d",
+    strategy_return: 0.08,
+    qqq_return: 0.02,
+    excess_return: 0.06,
+    signal_count: 5,
+    status: "VERIFIED",
+  };
+  const measured = {
+    status: "PARTIAL",
+    horizon_statuses: [{ strategy: "TENX", horizon: "20d", status: "VERIFIED" }],
+    aggregates: [{
+      strategy: "TENX",
+      horizon: "20d",
+      status: "VERIFIED",
+      portfolio_view: "run_equal_weight",
+    }],
+    run_series: [tenx2Run],
+    signals: [],
+  };
+  const cell = getUnifiedPerformanceCell(measured, oldBackcast, "TENX", "20D");
+  assert.equal(cell.source, "VERIFIED");
+  assert.deepEqual(cell.runSeries.map((row) => row.run_id), ["tenx2"]);
+  assert.equal(cell.aggregate.run_count, 1);
+});
+
 
 test("summarizes additions, exits, and retained symbols against the prior run", () => {
   const runs = [
