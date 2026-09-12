@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 
 const WIDTH = 900;
 const HEIGHT = 300;
@@ -18,6 +18,7 @@ function compactDate(value) {
 }
 
 export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ", horizon }) {
+  const [selectedRun, setSelectedRun] = useState(null);
   const titleId = useId();
   const descriptionId = useId();
   const chart = useMemo(() => {
@@ -28,7 +29,8 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
     const span = Math.max(0.02, rawMax - rawMin);
     const min = rawMin - span * 0.16;
     const max = rawMax + span * 0.16;
-    const innerWidth = WIDTH - MARGIN.left - MARGIN.right;
+    const width = Math.max(WIDTH, sorted.length * 92);
+    const innerWidth = width - MARGIN.left - MARGIN.right;
     const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
     const groupWidth = innerWidth / Math.max(1, sorted.length);
     const barWidth = Math.min(28, groupWidth * 0.3);
@@ -37,6 +39,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
     const ticks = Array.from({ length: 5 }, (_, index) => min + (max - min) * index / 4).reverse();
     return {
       sorted,
+      width,
       xFor,
       yFor,
       ticks,
@@ -47,6 +50,8 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
   if (!chart.sorted.length) {
     return <div className="return-chart-empty">이 기간은 완전한 실행 단위 역산값이 아직 없습니다.</div>;
   }
+
+  const selectedPoint = chart.sorted.find((point) => String(point.run_id) === selectedRun) || chart.sorted.at(-1);
 
   return (
     <figure className="return-chart" aria-labelledby={titleId} aria-describedby={descriptionId}>
@@ -59,25 +64,35 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
         <span><i className="is-benchmark" />{benchmark}</span>
         <span><i className="is-zero" />0%</span>
       </div>
+      <div className="return-chart-selection">
+        <label htmlFor={`${titleId}-run`}>실행일</label>
+        <select id={`${titleId}-run`} value={String(selectedPoint.run_id)} onChange={(event) => setSelectedRun(event.target.value)}>
+          {chart.sorted.map((point) => <option key={point.run_id} value={String(point.run_id)}>{point.report_date} · {point.run_id}</option>)}
+        </select>
+        <p aria-live="polite">{strategy} {formatPercent(finite(selectedPoint.strategy_return))} · {benchmark} {formatPercent(finite(selectedPoint.qqq_return))} · 초과 {(finite(selectedPoint.excess_return) * 100).toFixed(2)}%p</p>
+      </div>
+      <div className="return-plot-shell">
+      <svg className="return-fixed-axis" viewBox={`0 0 ${MARGIN.left} ${HEIGHT}`} aria-hidden="true"><g className="return-chart-grid">{chart.ticks.map((tick) => <text key={tick} x={MARGIN.left - 8} y={chart.yFor(tick) + 4} textAnchor="end">{(tick * 100).toFixed(1)}%</text>)}</g></svg>
+      <div className="return-plot-scroll" tabIndex={0} role="region" aria-label="실행별 차트. 좌우로 스크롤하여 전체 기간 확인">
       <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        role="img"
+        viewBox={`0 0 ${chart.width} ${HEIGHT}`}
+        role="group"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        style={{ minWidth: `${Math.max(280, chart.sorted.length * 92)}px` }}
+        style={{ width: `${chart.width}px`, height: `${HEIGHT}px` }}
       >
         <g className="return-chart-grid">
           {chart.ticks.map((tick) => (
             <g key={tick}>
-              <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={chart.yFor(tick)} y2={chart.yFor(tick)} />
-              <text x={MARGIN.left - 10} y={chart.yFor(tick) + 4} textAnchor="end">{(tick * 100).toFixed(1)}%</text>
+              <line x1={MARGIN.left} x2={chart.width - MARGIN.right} y1={chart.yFor(tick)} y2={chart.yFor(tick)} />
+
             </g>
           ))}
         </g>
         <line
           className="return-zero-line"
           x1={MARGIN.left}
-          x2={WIDTH - MARGIN.right}
+          x2={chart.width - MARGIN.right}
           y1={chart.yFor(0)}
           y2={chart.yFor(0)}
         />
@@ -89,7 +104,12 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           const strategyY = chart.yFor(strategyValue);
           const benchmarkY = chart.yFor(qqqValue);
           return (
-            <g key={`${point.run_id}:${point.report_date}`}>
+            <g key={`${point.run_id}:${point.report_date}`} role="button" tabIndex={0}
+              aria-label={`${point.report_date} ${strategy} ${formatPercent(strategyValue)}, ${benchmark} ${formatPercent(qqqValue)}`}
+              aria-pressed={String(selectedPoint.run_id) === String(point.run_id)}
+              onClick={() => setSelectedRun(String(point.run_id))}
+              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedRun(String(point.run_id)); } }}>
+              <rect x={x - 42} y={MARGIN.top} width={84} height={HEIGHT - MARGIN.top} fill="transparent" />
               <text className="return-date-label" x={x} y={HEIGHT - 14} textAnchor="middle">
                 {compactDate(point.report_date)}
               </text>
@@ -117,6 +137,9 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           );
         })}
       </svg>
+      </div>
+      </div>
     </figure>
   );
 }
+

@@ -3829,3 +3829,182 @@ input:focus-visible,
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
+
+
+/* Audit refinements: preserve the terminal palette and make primary data readable. */
+:root {
+  --gs-meta-size: 0.6875rem;
+  --gs-label-size: 0.75rem;
+  --gs-body-size: 0.875rem;
+}
+.global-search-results { overflow-x: hidden; }
+.global-search-results > button {
+  grid-template-columns: auto minmax(0, 1fr) 18px;
+  gap: 6px 10px;
+  min-height: 76px;
+}
+.global-search-symbol { grid-area: 1 / 1; }
+.global-search-company { grid-area: 1 / 2; }
+.global-search-context { grid-area: 2 / 1 / 3 / 3; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+.global-search-context strong { display: block; font-size: var(--gs-label-size); }
+.global-search-results > button > svg { grid-area: 1 / 3 / 3 / 4; }
+.visit-changes dd { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.7; }
+.visit-strategy { height: auto; }
+.history-empty { margin: 0; padding: 8px 0; grid-column: 1 / -1; }
+.history-empty p { margin: 0 0 8px; color: var(--gs-muted); }
+.history-empty button { margin: 0 10px 6px 0; min-height: 40px; padding: 8px 12px; background: var(--gs-selected); color: var(--gs-text); border: 1px solid var(--gs-divider-strong); }
+.history-controls:has(.history-empty) { row-gap: 8px; }
+.detail-history-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.detail-history-banner p { margin: 4px 0; font-size: var(--gs-label-size); }
+.dossier-grid { align-items: start; }
+.dossier-block { min-height: 0; height: auto; }
+.dossier-v2 .dossier-hero dt, .detail-metrics dt, .fact-tape dt,
+.performance-kpis dt, .run-provenance, .metric-as-of, .section-inline-note,
+.return-chart figcaption > span:last-child, .return-chart-legend { font-size: var(--gs-label-size); }
+.dossier-block p, .detail-summary p, .evidence-list, .risk-list,
+.method-panel p, .method-panel li { font-family: var(--gs-sans); font-size: var(--gs-body-size); line-height: 1.7; }
+.dossier-facts > summary { cursor: pointer; min-height: 44px; padding: 14px 18px; font-size: 14px; }
+.fact-tape dd { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.mini-strategy-card > header button, .since-visit-footer button, .backcast-open,
+.overview-history-link, .detail-open-full { min-height: 40px; padding-block: 10px; font-size: var(--gs-label-size); }
+.top-search input:focus, .table-search input:focus, .history-controls input:focus { outline: none !important; box-shadow: none !important; }
+.top-search:focus-within, .table-search:focus-within, .history-controls:has(input:focus-visible) { outline: 2px solid var(--gs-green); outline-offset: 2px; }
+.performance-panel-v2 > div[role="region"] { grid-template-columns: minmax(0, 1fr); }
+.return-chart, .performance-table-wrap { grid-column: 1 / -1; min-width: 0; border-right: 0; }
+.return-chart { overflow: visible; padding: 20px 0 8px; }
+.return-plot-shell { display: grid; grid-template-columns: 58px minmax(0, 1fr); }
+.return-plot-shell > .return-fixed-axis { width: 58px; height: 300px; max-height: none; overflow: hidden; background: var(--gs-bg); }
+.return-plot-scroll { min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.return-plot-scroll > svg { display: block; max-width: none; max-height: none; margin-left: -58px; overflow: hidden; }
+.return-chart-selection { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 12px 0; font-size: 12px; }
+.return-chart-selection select { min-width: 0; max-width: 100%; min-height: 40px; padding: 8px; background: var(--gs-surface); color: var(--gs-text); border: 1px solid var(--gs-divider-strong); font: inherit; }
+.return-chart-selection p { margin: 0; color: var(--gs-text); overflow-wrap: anywhere; }
+.performance-scope-note { color: var(--gs-muted); font: 12px/1.7 var(--gs-sans); margin: 12px 0; }
+.performance-run-table { height: auto; font-size: 12px; }
+.performance-run-table th, .performance-run-table td { overflow-wrap: anywhere; }
+.performance-mobile-runs { display: none; }
+@media (max-width: 720px) {
+  .visit-changes { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .visit-changes > div { display: grid; grid-template-columns: 75px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+  .visit-changes dt, .visit-changes dd { margin: 0; font-size: 12px; }
+  .mini-strategy-card li button { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 5px 10px; min-height: 72px; padding: 12px; }
+  .mini-strategy-card li button > span:first-child { grid-area: 1 / 1 / 3 / 2; }
+  .mini-strategy-card li button > strong { grid-area: 1 / 2; font-size: 14px; }
+  .mini-strategy-card li button > .mini-company { display: block; grid-area: 2 / 2; font-size: 12px; }
+  .mini-strategy-card li button > span:nth-child(4) { grid-area: 2 / 3; font-size: var(--gs-meta-size); }
+  .mini-strategy-card li button > b { grid-area: 1 / 3; font-size: 14px; }
+  .run-header .run-date { display: block; font-size: 12px; color: var(--gs-muted); margin-top: 6px; }
+  .full-detail-header { position: sticky; top: var(--topbar-height); z-index: 15; background: var(--gs-bg); padding: 8px 0; min-height: 48px; }
+  .full-detail-header > div p { display: none; }
+  .full-detail-header > div span { font-size: var(--gs-meta-size); line-height: 1.4; }
+  .dossier-v2 .dossier-hero > div { min-height: 0; padding: 14px; }
+  .dossier-v2 .dossier-hero h1 { margin: 4px 0; font-size: 30px; }
+  .dossier-v2 .dossier-hero dl > div { min-height: 64px; padding: 10px 12px; }
+  .dossier-v2 .dossier-hero dl > div:last-child { min-height: 0; display: flex; gap: 12px; align-items: baseline; }
+  .dossier-v2 .dossier-hero dl > div:last-child dd { font-size: 14px; }
+  .dossier-v2 .dossier-hero dd { font-size: 18px; }
+  .dossier-v2 .dossier-hero .metric-as-of { font-size: var(--gs-meta-size); }
+  .performance-table-wrap { display: none; }
+  .performance-mobile-runs { display: block; }
+  .performance-mobile-runs details { border-bottom: 1px solid var(--gs-divider); }
+  .performance-mobile-runs summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 8px; padding: 14px 10px; min-height: 64px; cursor: pointer; font-size: 14px; }
+  .performance-mobile-runs summary::-webkit-details-marker { display: none; }
+  .performance-mobile-runs summary > span:nth-child(2) { text-align: right; font-weight: 600; }
+  .performance-mobile-runs small { display: block; color: var(--gs-muted); font-size: var(--gs-meta-size); font-weight: 400; }
+  .performance-mobile-runs details[open] summary svg { transform: rotate(90deg); }
+  .performance-mobile-runs dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 12px 16px; margin: 0; }
+  .performance-mobile-runs dt { color: var(--gs-muted); font-size: 12px; }
+  .performance-mobile-runs dd { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+  .return-chart-selection { padding-inline: 8px; }
+  .performance-result-copy h3 { font-size: 25px; }
+  .history-controls { margin-top: 12px; }
+  .history-result-count { margin: 4px 0; }
+}
+
+/* Complete audit: readable labels and consistent task-sized controls. */
+.visit-strategy { cursor: default; text-align: left; }
+.visit-strategy-heading { width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--gs-text); text-align: left; cursor: pointer; flex-wrap: wrap; }
+.visit-changes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.visit-changes dt { font: 400 var(--gs-meta-size)/1.5 var(--gs-sans); }
+.visit-changes dd { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; font-size: var(--gs-label-size); }
+.change-symbol { padding: 4px 2px; min-height: 32px; min-width: 32px; background: transparent; border: 0; border-radius: 0; color: inherit; font: 500 var(--gs-label-size)/1.5 var(--gs-mono); white-space: nowrap; cursor: pointer; }
+.change-symbol:hover { text-decoration: underline; text-underline-offset: 4px; }
+.history-reset { min-height: 44px; padding: 8px 12px; border: 1px solid var(--gs-divider-strong); background: transparent; color: var(--gs-text); font: 500 var(--gs-label-size)/1.5 var(--gs-sans); cursor: pointer; }
+.history-change { flex-wrap: wrap; }
+.dossier-grid { display: block; columns: 2; column-gap: 24px; }
+.dossier-grid > .dossier-block { break-inside: avoid; margin-bottom: 24px; }
+.dossier-grid > .is-wide { column-span: all; }
+.method-panel :is(p, li, article > span, .method-hero-card > div > span),
+.dossier-block :is(p, li), .detail-summary p { font-family: var(--gs-sans); font-size: var(--gs-body-size); line-height: 1.65; }
+.method-panel :is(dt, summary, th), .mobile-security small, .mini-company { font-family: var(--gs-sans); font-size: var(--gs-label-size); line-height: 1.6; }
+.method-panel :is(dd, td) { font-size: var(--gs-label-size); line-height: 1.65; overflow-wrap: anywhere; }
+.app-shell :is(.run-provenance, .backcast-meta, .performance-scope-note, .global-search-context, .metric-as-of) { font-size: var(--gs-meta-size); line-height: 1.6; color: var(--gs-muted); }
+.app-shell :is(.route-back, .row-action-cell button, .overview-history-link, .detail-open-full, summary) { min-height: 44px; }
+.row-action-cell button { min-width: 44px; }
+.return-chart-selection { font-size: var(--gs-label-size); }
+.return-plot-scroll [role="button"] { cursor: pointer; }
+.return-plot-scroll [role="button"][aria-pressed="true"] .return-bar { stroke: var(--gs-text); stroke-width: 2; }
+.return-plot-scroll [role="button"]:focus-visible { outline: none; }
+.return-plot-scroll [role="button"]:focus-visible .return-bar { stroke: var(--gs-green); stroke-width: 3; }
+.app-shell button:focus-visible, .app-shell summary:focus-visible, .return-plot-scroll:focus-visible { outline: 2px solid var(--gs-green); outline-offset: 3px; }
+@media (max-width: 1024px) {
+  .dossier-grid { columns: 1; }
+}
+@media (max-width: 720px) {
+  .visit-changes { grid-template-columns: minmax(0, 1fr); }
+  .visit-changes > div { grid-template-columns: 80px minmax(0, 1fr); }
+  .visit-strategy-heading { gap: 8px; height: auto; }
+  .mini-strategy-card li button { grid-template-columns: 24px minmax(0, 1fr) minmax(64px, auto); }
+  .mini-strategy-card li button > .mini-company { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-strategy-card li button > span:nth-child(4) { font-size: var(--gs-meta-size); white-space: normal; text-align: right; }
+  .full-detail-header { gap: 8px; align-items: center; }
+  .full-detail-header > div { min-width: 0; }
+  .full-detail-header .route-back { flex-shrink: 0; }
+  .dossier-v2 .dossier-hero dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .method-panel :is(p, li) { overflow-wrap: anywhere; }
+  .top-search input, .selection-filter input, .history-controls input { font-size: 1rem; }
+  .global-search-results { max-height: min(480px, calc(100dvh - var(--topbar-height) - 80px)); }
+}
+.full-detail-view .detail-history-banner { margin-inline: 0; width: auto; padding: 16px; }
+@media (max-width: 720px) {
+  .visit-strategy-heading { min-height: 32px; margin-bottom: 8px; }
+  .visit-strategy-heading:focus-visible { outline-offset: 2px; }
+}
+
+/* Restore the established visual hierarchy without removing navigation fixes. */
+.visit-changes > div { min-width: 0; }
+.visit-changes dd { font-weight: 400; }
+.visit-strategy-heading { min-height: 32px; }
+.history-reset { justify-self: end; min-height: 32px; padding: 4px 0; border: 0; color: var(--gs-muted); font-size: 11px; }
+.history-reset:hover { color: var(--gs-text); text-decoration: underline; }
+.history-result-count { font-size: 11px; }
+.dossier-v2 .dossier-hero dt, .detail-metrics dt, .fact-tape dt,
+.performance-kpis dt, .section-inline-note { font-size: 11px; font-weight: 400; }
+.dossier-block :is(p, li), .detail-summary p, .method-panel :is(p, li),
+.performance-controls p, .performance-scope-note { word-break: keep-all; overflow-wrap: break-word; }
+.method-panel :is(dt, th) { font-size: 11px; color: var(--gs-muted); }
+.method-panel :is(summary, dd, td) { font-size: 13px; }
+.method-panel .method-hero-card > div > span { font-size: 13px; line-height: 1.7; }
+.detail-history-banner p { font-size: 11px; line-height: 1.6; }
+.detail-history-banner strong { font-size: 12px; }
+.global-search-context strong { font-size: 11px; font-weight: 500; }
+.return-chart-selection { font-size: 12px; }
+.return-chart figcaption > span:last-child { font-size: 11px; }
+@media (max-width: 720px) {
+  .visit-changes { gap: 6px; }
+  .visit-changes > div { grid-template-columns: 66px minmax(0, 1fr); align-items: center; }
+  .visit-changes dt { font-size: 11px; }
+  .visit-changes dd { font-size: 12px; min-height: 28px; line-height: 1.5; }
+  .visit-changes .change-symbol { font-size: 12px; }
+  .visit-strategy-heading small { font-size: 10px; }
+  .mini-strategy-card li button { min-height: 64px; padding: 10px 8px; row-gap: 3px; }
+  .mini-strategy-card li button > span:nth-child(4) { font-size: 10px; white-space: nowrap; }
+  .mobile-security small { font-size: 11px; }
+  .mobile-numbers small { font-size: 10px; font-weight: 400; }
+  .performance-scope-note, .performance-controls p { font-size: 11px; line-height: 1.6; }
+  .full-detail-header > div span { font-size: 10px; word-break: keep-all; overflow-wrap: break-word; }
+  .dossier-v2 .dossier-hero .metric-as-of { font-size: 10px; }
+  .methodology-view > header > span { font-size: 12px; word-break: keep-all; }
+  .benchmark-copy-result { white-space: normal; }
+  .benchmark-copy-value, .benchmark-copy-status { white-space: nowrap; }
+}

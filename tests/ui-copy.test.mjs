@@ -19,7 +19,7 @@ test("keeps the development password treatment and restrained benchmark celebrat
   assert.match(appSource, /placeholder="\*\*\*\*\*\*\*\*"/);
   assert.doesNotMatch(appSource, /ENCRYPTED STATIC VAULT/);
   assert.match(appSource, /className="benchmark-copy-value"/);
-  assert.match(appSource, /"앞섰습니다" : "뒤쳐졌습니다"/);
+  assert.match(appSource, /"앞섰습니다" : "뒤처졌습니다"/);
   assert.doesNotMatch(appSource, /className="benchmark-copy-desktop"/);
   assert.doesNotMatch(appSource, /`\+\$\{\(value \* 100\)\.toFixed\(2\)\}%`/);
   assert.match(stylesSource, /\.benchmark-copy-value \{\s*font-weight: 700;/);
@@ -29,8 +29,9 @@ test("keeps the development password treatment and restrained benchmark celebrat
 });
 
 test("colors only actual mobile overview entries and removals", () => {
-  assert.match(appSource, /className=\{`is-added\$\{item\.added\.length \? " has-change" : ""\}`\}/);
-  assert.match(appSource, /className=\{`is-removed\$\{item\.removed\.length \? " has-change" : ""\}`\}/);
+  assert.match(appSource, /symbols.length \? " has-change" : ""/);
+  assert.match(appSource, /\["새 진입", item.newSymbols, "is-added"/);
+  assert.match(appSource, /\["제외", item.removed, "is-removed"/);
   assert.match(stylesSource, /\.visit-changes dd\.is-added\.has-change/);
   assert.match(stylesSource, /\.visit-changes dd\.is-removed\.has-change/);
 });
@@ -66,7 +67,7 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.match(appSource, /formatPercentPoints\(item\.excess_return\)/);
   assert.match(appSource, /스크리너 성과/);
   assert.match(appSource, /formatMonthDay\(item\.run\.report_date \|\| item\.run\.report_created_at\)/);
-  assert.match(appSource, /Updated<\/small>/);
+  assert.match(appSource, /선정 \{formatMonthDay/);
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 
@@ -118,7 +119,7 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
 });
 
 test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
-  assert.match(appSource, /<span className="sync-label">Last Update<\/span>/);
+  assert.match(appSource, /<span className="sync-label">게시 갱신<\/span>/);
   assert.match(appSource, /formatKstDate\(generatedAt\)/);
   assert.doesNotMatch(appSource, /LAST SYNC/);
   assert.match(stylesSource, /--sidebar-width: 208px;/);
@@ -128,3 +129,4 @@ test("keeps desktop chrome compact and aligns the screener inspector grid", () =
   assert.match(stylesSource, /height: calc\(var\(--selection-heading-rail\) \+ var\(--selection-filter-rail\) \+ var\(--selection-column-rail\)\);/);
   assert.match(stylesSource, /grid-auto-rows: var\(--selection-row-rail\);/);
 });
+
