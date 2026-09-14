@@ -603,6 +603,8 @@ dt,
 
 .return-chart {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
   padding: 16px 16px 4px;
   border-bottom: 1px solid var(--gs-divider);
 }
@@ -617,17 +619,17 @@ dt,
 
 .return-chart figcaption > span:first-child { color: var(--gs-text); font-size: 12px; font-weight: 600; }
 .return-chart figcaption > span:last-child { color: var(--gs-dim); font-size: 9px; }
-.return-chart svg { display: block; width: 100%; height: auto; max-height: 330px; overflow: visible; }
+.return-chart svg { display: block; width: 100%; max-width: 100%; height: auto; overflow: hidden; }
 .return-chart-grid line { stroke: var(--gs-divider); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .return-chart-grid text,
 .return-date-label { fill: var(--gs-dim); font: 10px var(--gs-mono); }
 .return-zero-line { stroke: var(--gs-divider-strong); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 .return-series { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.return-series.is-strategy { stroke: var(--gs-cyan); }
-.return-series.is-benchmark { stroke: var(--gs-muted); }
+.return-series.is-strategy { stroke: var(--gs-green); }
+.return-series.is-benchmark { stroke: var(--gs-cyan); stroke-dasharray: 5 3; }
 .return-point { stroke: var(--gs-bg); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.return-point.is-strategy { fill: var(--gs-cyan); }
-.return-point.is-benchmark { fill: var(--gs-muted); }
+.return-point.is-strategy { fill: var(--gs-green); }
+.return-point.is-benchmark { fill: var(--gs-cyan); }
 .return-point:focus { outline: none; stroke: var(--gs-amber); stroke-width: 3; }
 
 .return-chart-legend {
@@ -1428,11 +1430,6 @@ input:focus-visible,
   font: 600 19px/1.2 var(--gs-mono);
 }
 
-.return-series,
-.return-point {
-  display: none;
-}
-
 .return-bar {
   shape-rendering: crispEdges;
 }
@@ -1447,7 +1444,7 @@ input:focus-visible,
 }
 
 .return-chart-legend i {
-  height: 7px;
+  height: 2px;
 }
 
 .return-chart-legend i.is-strategy {
@@ -3596,10 +3593,6 @@ input:focus-visible,
   .return-chart figcaption > span:last-child,
   .return-chart-legend {
     font-size: 10px;
-  }
-
-  .return-chart svg {
-    max-height: 250px;
   }
 
   .performance-table-wrap {
