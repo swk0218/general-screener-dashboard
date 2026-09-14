@@ -548,10 +548,27 @@ export function getSymbolTimeline(index, strategy, symbol) {
   });
 }
 
+export function securitySearchTerms(query) {
+  return String(query || "").normalize("NFKC").trim().toUpperCase().split(/\s+/).map((term) => term.replace(/^\$/, "")).filter(Boolean);
+}
+
+// Explain a run search hit with the actual security, including exit-only records.
+export function getHistorySearchMatches(index, run, query) {
+  const terms = securitySearchTerms(query);
+  if (!terms.length) return EMPTY_LIST;
+  const transitions = getIndexedRunChanges(index, run.strategy, run.run_id)?.transitions || [];
+  const metadata = `${run.strategy} ${run.run_id} ${run.report_date || ""} ${run.report_created_at || ""}`.toUpperCase();
+  return transitions.filter((item) => {
+    const security = `${item.symbol} ${item.companyName || ""}`.toUpperCase();
+    const haystack = `${security} ${metadata} ${item.status}`;
+    return terms.some((term) => security.includes(term)) && terms.every((term) => haystack.includes(term));
+  });
+}
+
 export function searchHistoryRuns(index, { strategy = "ALL", query = "" } = {}) {
   if (!index?.runs) return EMPTY_LIST;
   const normalizedStrategy = String(strategy || "ALL").toUpperCase();
-  const terms = String(query || "").trim().toUpperCase().split(/\s+/).filter(Boolean);
+  const terms = securitySearchTerms(query);
   if (normalizedStrategy === "ALL" && !terms.length) return index.runs;
   return index.runs.filter((run) => {
     if (normalizedStrategy !== "ALL" && run.strategy !== normalizedStrategy) return false;

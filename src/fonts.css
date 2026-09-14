@@ -1,10 +1,11 @@
-/* Full Korean subset, WOFF2 only: seven files instead of hundreds of split WOFF/WOFF2 assets. */
+/* Self-hosted Plex assets keep font loading inside the app root, including linked-dependency worktrees.
+   Full Korean subset, WOFF2 only: seven files. OFL licenses are alongside the fonts. */
 @font-face {
   font-family: "IBM Plex Sans KR";
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("../node_modules/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-400-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-sans-kr-korean-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -12,7 +13,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 500;
-  src: url("../node_modules/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-500-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-sans-kr-korean-500-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -20,7 +21,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 600;
-  src: url("../node_modules/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-600-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-sans-kr-korean-600-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -28,7 +29,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 700;
-  src: url("../node_modules/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-700-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-sans-kr-korean-700-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -36,7 +37,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -44,7 +45,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 500;
-  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -52,5 +53,5 @@
   font-style: normal;
   font-display: swap;
   font-weight: 600;
-  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+  src: url("./assets/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
 }

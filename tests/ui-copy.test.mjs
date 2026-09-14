@@ -6,12 +6,32 @@ const appSource = await readFile(new URL("../src/App.jsx", import.meta.url), "ut
 const stylesSource = await readFile(new URL("../src/styles/terminal-v2.css", import.meta.url), "utf8");
 const errorBoundarySource = await readFile(new URL("../src/components/AppErrorBoundary.jsx", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
-const faviconSource = await readFile(new URL("../public/favicon.svg", import.meta.url), "utf8");
 
-test("ships a local favicon without a static-host root request", () => {
-  assert.match(indexSource, /rel="icon" href="\.\/favicon\.svg" type="image\/svg\+xml"/);
-  assert.match(faviconSource, /<svg[^>]+viewBox="0 0 64 64"/);
-  assert.match(faviconSource, /#45ff8a/);
+test("ships install icons with valid sizes and subdirectory-safe paths", async () => {
+  assert.match(indexSource, /rel="icon" href="\.\/favicon\.ico"/);
+  assert.match(indexSource, /rel="apple-touch-icon" href="\.\/icons\/screener-180\.png"/);
+  assert.match(indexSource, /rel="manifest" href="\.\/manifest\.webmanifest"/);
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.scope, "./");
+  assert.equal(manifest.start_url, "./#/overview");
+  assert.ok(manifest.icons.some(icon => icon.purpose === "maskable"));
+  for (const icon of [...manifest.icons, {src:"./icons/screener-180.png",sizes:"180x180"}, {src:"./icons/screener-32.png",sizes:"32x32"}]) {
+    assert.ok(icon.src.startsWith("./icons/"));
+    const bytes = await readFile(new URL(`../public/${icon.src}`, import.meta.url));
+    assert.equal(bytes.subarray(1,4).toString(), "PNG");
+    assert.equal(`${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)}`, icon.sizes);
+  }
+});
+
+test("font assets are real WOFF2 files inside the app instead of linked dependency paths", async () => {
+  const css = await readFile(new URL("../src/fonts.css", import.meta.url), "utf8");
+  const urls = [...css.matchAll(/url\("([^"]+)"\)/g)].map(match => match[1]);
+  assert.equal(urls.length, 7);
+  for (const path of urls) {
+    assert.ok(path.startsWith("./assets/fonts/"));
+    const bytes = await readFile(new URL(`../src/${path}`, import.meta.url));
+    assert.equal(bytes.subarray(0,4).toString(), "wOF2");
+  }
 });
 
 test("keeps the development password treatment and restrained benchmark celebration copy", () => {
@@ -41,7 +61,7 @@ test("overview uses official run transitions, never browser visit state", () => 
   assert.match(overview, /item\.status === "RETAINED"/);
   assert.match(overview, /item\.rankDelta > 0/);
   assert.match(overview, /item\.rankDelta < 0/);
-  assert.match(overview, /직전 보고 대비/);
+  assert.doesNotMatch(overview, /직전 보고 대비/);
   assert.doesNotMatch(appSource, /LAST_SEEN_STORAGE_KEY|markStrategyRead|loadLastSeenRuns|seenIndex/);
 });
 
@@ -125,6 +145,6 @@ test("keeps desktop chrome compact and aligns the screener inspector grid", () =
   assert.match(stylesSource, /\.top-search input \{\s*font-size: 13px !important;/);
   assert.match(stylesSource, /--selection-heading-rail: 38px;/);
   assert.match(stylesSource, /--selection-filter-rail: 40px;/);
-  assert.match(stylesSource, /height: calc\(var\(--selection-heading-rail\) \+ var\(--selection-filter-rail\) \+ var\(--selection-column-rail\)\);/);
-  assert.match(stylesSource, /grid-auto-rows: var\(--selection-row-rail\);/);
+  assert.match(stylesSource, /min-height: calc\(var\(--selection-heading-rail\) \+ var\(--selection-filter-rail\) \+ var\(--selection-column-rail\)\);/);
+  assert.match(stylesSource, /grid-auto-rows: minmax\(72px, auto\);/);
 });

@@ -18,6 +18,7 @@ import {
   parseHashRoute,
   resolveSelectedRun,
   searchHistoryRuns,
+  getHistorySearchMatches,
   searchSecurities,
   serializeHashRoute,
   summarizeRunChanges,
@@ -440,6 +441,20 @@ test("searches history by ticker and company, including the run where a symbol e
   ]);
   assert.deepEqual(searchHistoryRuns(index, { strategy: "TENX", query: "AAA" }).map((run) => run.run_id), ["tenx-1"]);
   assert.deepEqual(searchHistoryRuns(index, { query: "does-not-exist" }), []);
+});
+
+test("history accepts cashtags and full-width tickers and identifies selected versus exited matches", () => {
+  const index = createDashboardIndex(indexedHistoryFixture());
+  const expected = searchHistoryRuns(index, { query: "AAA" });
+  for (const query of [" aaa ", "$aaa", "ＡＡＡ"]) {
+    assert.deepEqual(searchHistoryRuns(index, { query }), expected);
+  }
+  const exitRun = index.runs.find((run) => run.run_id === "run-3");
+  const selectedRun = index.runs.find((run) => run.run_id === "run-5");
+  assert.deepEqual(getHistorySearchMatches(index, exitRun, "$aaa").map((item) => [item.symbol, item.status]), [["AAA", "EXIT"]]);
+  assert.deepEqual(getHistorySearchMatches(index, selectedRun, "alpha analytics").map((item) => [item.symbol, item.currentRank]), [["AAA", 1]]);
+  assert.deepEqual(getHistorySearchMatches(index, selectedRun, "does-not-exist"), []);
+  assert.deepEqual(getHistorySearchMatches(index, selectedRun, ""), []);
 });
 
 test("searches securities globally and returns only the newest strategy appearance", () => {

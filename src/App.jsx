@@ -43,6 +43,8 @@ import {
   parseHashRoute,
   resolveSelectedRun,
   searchHistoryRuns,
+  getHistorySearchMatches,
+  securitySearchTerms,
   searchSecurities,
   serializeHashRoute,
 } from "./data/dashboard-model.js";
@@ -79,7 +81,6 @@ const RISK_VALUES = Object.freeze({
 });
 
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
-const CONFIDENCE_LABELS = Object.freeze({ high: "높음", medium: "보통", low: "낮음", partial: "일부 근거" });
 
 const NAV_ITEMS = Object.freeze([
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
@@ -190,17 +191,12 @@ function humanizeRiskValue(value) {
   return RISK_VALUES[normalized.toLowerCase()] || normalized;
 }
 
-function humanizeConfidence(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return CONFIDENCE_LABELS[normalized] || value;
-}
-
 function priceBasisLabel(value) {
   return {
-    tracking_archive_snapshot: "공식 실행 보관값",
-    validated_price_ledger_screen: "검증 가격 원장 · 선정 시점",
-    validated_price_ledger_current: "검증 가격 원장 · 최근 종가",
-    official_completed_eod_tracking: "공식 완료 종가",
+    tracking_archive_snapshot: "선정 시점에 기록한 가격",
+    validated_price_ledger_screen: "선정 시점의 검증된 가격",
+    validated_price_ledger_current: "최근 거래일의 검증된 종가",
+    official_completed_eod_tracking: "거래가 끝난 정규장 종가",
   }[value] || value || null;
 }
 
@@ -684,14 +680,14 @@ function SymbolTimelineTable({ timeline, limit = 10 }) {
     <div className="symbol-timeline-wrap">
       <table className="symbol-timeline-table">
         <thead>
-          <tr><th>DATE</th><th>STATE</th><th>GAP</th><th>RANK</th><th>SCORE</th><th>Δ SCORE</th><th>STREAK</th></tr>
+          <tr><th>선정일</th><th>변화</th><th>미선정 횟수</th><th>순위</th><th>점수</th><th>점수 변화</th><th>연속 선정</th></tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
             <tr key={`${entry.runId}:${entry.status}`}>
               <td>{formatDate(entry.reportDate || entry.reportCreatedAt)}</td>
-              <td className={`timeline-state is-${entry.status.toLowerCase()}`}>{entry.status}</td>
-              <td>{entry.missingRunCount ? `${entry.missingRunCount} RUNS` : "—"}</td>
+              <td className={`timeline-state is-${entry.status.toLowerCase()}`}>{{ NEW: "신규 진입", "RE-ENTRY": "재진입", RETAINED: "유지", EXIT: "제외" }[entry.status] || entry.status}</td>
+              <td>{entry.missingRunCount ? `${entry.missingRunCount}회` : "—"}</td>
               <td>{entry.currentRank ?? "—"}</td>
               <td>{formatNumber(entry.currentScore)}</td>
               <td>{entry.scoreBasisChanged ? "산식 변경" : entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
@@ -710,38 +706,26 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
   }
   const detail = getRecommendationDetail(recommendation);
   const nativeTenx = recommendation.strategy === "TENX" && detail.scoreBreakdown?.score_name === "tenx_score";
-  const summary = nativeTenx
-    ? "매출 성장 전망·현재 가격·영업현금 품질을 함께 평가한 상위 후보입니다."
-    : detail.summary;
   const visibleDrivers = nativeTenx
     ? detail.drivers.map((item) => ({ ...item, basis: null, value: readableTenxText(item.value) }))
     : detail.drivers;
   const tenxFacts = nativeTenx ? compactTenxFacts(detail) : null;
+  const dataCautions = tenxFacts?.points.filter((item) => item.label === "자료 상태") || [];
   const hasCurrentPrice = hasValue(recommendation.current_price);
   const displayCurrentPrice = hasCurrentPrice ? formatPrice(recommendation.current_price) : "업데이트 대기";
   const latestTimeline = timeline?.entries?.find((entry) => entry.recommendation) || null;
-  const factItems = nativeTenx ? [
-    { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
-    { label: "선정 시각", value: formatKst(run?.report_created_at) },
-    { label: "선정 가격 기준", value: priceBasisLabel(recommendation.screening_price_basis) },
-    { label: "최근 종가 기준일", value: recommendation.current_price_as_of },
+  const timingFacts = [
+    { label: "단기 과열", value: HEAT_LABELS[detail.timing?.heat] || detail.timing?.heat, tone: detail.timing?.heat === "high" ? "amber" : null },
+    { label: "RSI (14일)", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
+    { label: "진입 시 유의", value: detail.timing?.warning, tone: detail.timing?.warning ? "amber" : null },
+    { label: "지표 기준일", value: detail.timing?.price_as_of },
+  ];
+  const factItems = [
+    ...timingFacts,
+    { label: "섹터", value: recommendation.sector },
     { label: "업종", value: recommendation.industry },
     { label: "선정 횟수", value: timeline?.selectedRunCount ? `${timeline.selectedRunCount}회` : null },
-    { label: "연속 선정", value: timeline?.currentStreak ? `${timeline.currentStreak}회` : null },
-  ] : [
-    { label: "RSI14", value: hasValue(detail.timing?.rsi14) ? formatNumber(detail.timing.rsi14, 1) : null },
-    { label: "HEAT", value: HEAT_LABELS[detail.timing?.heat] || detail.timing?.heat, tone: detail.timing?.heat === "high" ? "amber" : null },
-    { label: "WARNING", value: detail.timing?.warning, tone: detail.timing?.warning ? "negative" : null },
-    { label: "PRICE AS OF", value: detail.timing?.price_as_of },
-    { label: "SELECTED AS OF", value: recommendation.screening_price_as_of },
-    { label: "SELECTION BASIS", value: priceBasisLabel(recommendation.screening_price_basis) },
-    { label: "CLOSE BASIS", value: priceBasisLabel(recommendation.current_price_basis) },
-    { label: "SECTOR", value: recommendation.sector },
-    { label: "INDUSTRY", value: recommendation.industry },
-    { label: "CONFIDENCE", value: humanizeConfidence(recommendation.confidence) },
-    { label: "APPEARANCE", value: timeline?.selectedRunCount ? `${timeline.selectedRunCount} / ${timeline.totalRunCount} RUNS` : null },
-    { label: "CURRENT STREAK", value: timeline?.currentStreak ? `${timeline.currentStreak}회` : null },
-    { label: "PREVIOUS RANK", value: latestTimeline?.previousRank },
+    { label: "직전 순위", value: latestTimeline?.previousRank },
   ];
   const knownFacts = [
     { label: "공식 순위", value: String(recommendation.recommendation_rank).padStart(2, "0") },
@@ -749,8 +733,12 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
     { label: "최근 종가", value: displayCurrentPrice },
     { label: "선정 당시 가격", value: formatPrice(recommendation.screening_price) },
     { label: "후보 상태", value: verdictLabel(recommendation.verdict) },
-    ...detail.metrics,
   ];
+  const primaryEvidence = nativeTenx ? tenxFacts.growth : visibleDrivers.length ? visibleDrivers : knownFacts;
+  const scoreEvidence = nativeTenx ? tenxFacts.points : (detail.scoreBreakdown?.dimensions || []).map((item) => ({
+    label: item.label,
+    value: `${formatCompactNumber(item.value)}${hasValue(item.scale_max) ? ` / ${formatCompactNumber(item.scale_max)}` : ""}`,
+  }));
 
   if (full) {
     return (
@@ -762,40 +750,27 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
             {recommendation.company_name ? <span>{recommendation.company_name}</span> : null}
           </div>
           <dl>
-            <div><dt>RANK</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
+            <div><dt>순위</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
             <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
             <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
             <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
-            <div><dt>DATE</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
+            <div><dt>선정일</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
         </header>
         <div className="dossier-grid">
           <section className="dossier-block">
-            <h2>{nativeTenx ? "성장 · 현금 지표" : "선정 요약"}</h2>
-            {nativeTenx ? <EvidenceList items={tenxFacts.growth} /> : <>
-              <p>{detail.hasRichDetail ? summary : `${recommendation.symbol}는 ${formatDate(run?.report_date || run?.report_created_at)} ${strategy || recommendation.strategy} 공식 실행에서 ${recommendation.recommendation_rank}위, ${formatNumber(recommendation.score)}점으로 선정됐습니다.`}</p>
-              {detail.catalyst ? <EvidenceList items={[{ label: "CATALYST", value: detail.catalyst }]} /> : null}
-            </>}
+            <h2>선정 근거</h2>
+            <EvidenceList items={primaryEvidence} />
+            {detail.catalyst ? <p className="detail-catalyst">{nativeTenx ? "두 전망연도 모두 같은 기준연도 대비 성장률입니다. 회사 가이던스가 아닌 애널리스트 예상치입니다." : detail.catalyst}</p> : null}
           </section>
 
           <section className="dossier-block">
-            <h2>{nativeTenx ? "배점 산정" : "확인할 지표"}</h2>
-            <EvidenceList items={nativeTenx ? tenxFacts.points : visibleDrivers.length ? visibleDrivers : knownFacts} />
-            {nativeTenx && tenxFacts.points.length >= 3 ? <p className="tenx-score-formula">42GV + 33GY + 25GCV</p> : null}
+            <h2>유의할 점</h2>
+            {detail.risks.length ? <RiskList risks={detail.risks} /> : !dataCautions.length ? <p>이 실행에 별도 위험 설명이 수록되지 않았습니다.</p> : null}
+            <EvidenceList items={dataCautions} />
+            {!nativeTenx && detail.hasRichDetail && detail.summary ? <p className="selection-caution-note">{detail.summary.replace(/^최종 기준 통과;\s*단,\s*/, "유의 항목: ").replace(/경기민감도$/, "경기 변동에 따른 실적 변화")}</p> : null}
+            <FactTape items={timingFacts} />
           </section>
-
-          {detail.risks.length ? (
-            <section className="dossier-block">
-              <h2>위험 · 무효화</h2>
-              <RiskList risks={detail.risks} />
-            </section>
-          ) : null}
-
-          {!nativeTenx && detail.scoreBreakdown?.dimensions?.length ? (
-            <section className="dossier-block">
-              <h2>점수 구성</h2><EvidenceList items={detail.scoreBreakdown.dimensions.map((item) => ({ label: item.label, value: formatCompactNumber(item.value) }))} />
-            </section>
-          ) : null}
 
           <section className="dossier-block is-wide">
             <h2>종목 이력 <span className="section-inline-note">{timeline?.selectedRunCount || 0}회 선정 · 최장 {timeline?.maxStreak || 0}회 연속</span></h2>
@@ -804,17 +779,18 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         </div>
 
         <section className="dossier-facts" aria-labelledby="dossier-facts-title">
-          <h2 id="dossier-facts-title">실행 당시 핵심 지표</h2>
-          <FactTape items={factItems} />
+          <h2 id="dossier-facts-title">종목 정보</h2>
+          <FactTape items={factItems.slice(timingFacts.length)} />
         </section>
 
         <details className="provenance-details">
-          <summary>근거 출처와 실행 계보</summary>
-          {nativeTenx ? <EvidenceList items={visibleDrivers} /> : null}
+          <summary><span>점수 구성·데이터 출처</span><ChevronRight size={16} aria-hidden="true" /></summary>
+          {scoreEvidence.length ? <div className="provenance-score"><h3>점수 구성</h3><EvidenceList items={scoreEvidence} /></div> : null}
+          {nativeTenx ? <div className="provenance-score"><h3>상세 산정 근거</h3><EvidenceList items={visibleDrivers} /></div> : null}
           <p>{detail.hasRichDetail
             ? detail.detailProvenance
-              ? "보관된 compact audit 수치를 공개 규칙으로 구조화한 상세입니다."
-              : "실행 당시 보관된 원본 수치를 공개 규칙으로 구조화한 상세입니다."
+              ? "선정 당시 저장된 수치로 구성했습니다."
+              : "선정 당시 저장된 수치로 구성했습니다."
             : "이 과거 실행은 순위·점수·가격·위험 플래그 범위에서만 보관됐습니다."}</p>
           <dl>
             <div><dt>실행 ID</dt><dd>{run?.run_id || recommendation.run_id || "—"}</dd></div>
@@ -830,29 +806,29 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
   }
 
   return (
-    <aside className={`detail-panel ${compact ? "is-compact" : ""}`} aria-label={`${recommendation.symbol} 미리보기`}>
+    <aside className={`detail-panel security-preview ${compact ? "is-compact" : ""}`} aria-label={`${recommendation.symbol} 미리보기`}>
       {onClose ? (
         <button type="button" className="detail-close" onClick={onClose} aria-label="상세 닫기" autoFocus><X size={20} /></button>
       ) : null}
       <div className="detail-heading">
-        <p className="detail-kicker">{nativeTenx ? "종목 요약" : "PREVIEW"} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
+        <p className="detail-kicker">종목 요약 · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
         <h2>{recommendation.symbol}</h2>
         <p>{recommendation.company_name || "회사명 미수록"}</p>
       </div>
       <dl className="detail-metrics">
-        <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
+        <div><dt>전략 점수</dt><dd className="preview-number">{formatNumber(recommendation.score)}</dd></div>
         <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
-        <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
-        {recommendation.sector ? <div><dt>{nativeTenx ? "분야" : "SECTOR"}</dt><dd>{recommendation.sector}</dd></div> : null}
-        {recommendation.confidence ? <div><dt>CONFIDENCE</dt><dd>{humanizeConfidence(recommendation.confidence)}</dd></div> : null}
+        <div><dt>최근 종가</dt><dd className="preview-number">{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
+        {recommendation.sector ? <div><dt>섹터</dt><dd>{recommendation.sector}</dd></div> : null}
       </dl>
       <section className="detail-summary">
-        <h3>{nativeTenx ? "선정 요약" : "SUMMARY"}</h3>
-        <p>{detail.hasRichDetail ? summary : `${formatDate(run?.report_date || run?.report_created_at)} 공식 실행 ${recommendation.recommendation_rank}위 · ${timeline?.selectedRunCount || 1}회 선정 기록`}</p>
+        <h3>선정 근거</h3>
+        <EvidenceList items={primaryEvidence} limit={2} />
       </section>
-      <FactTape items={factItems.slice(0, 6)} />
+      <FactTape items={timingFacts} />
       {!detail.hasRichDetail ? <div className="archive-notice"><strong>과거 기록</strong><p>이 실행에는 상세 설명이 없어 보관된 수치와 위험 신호만 표시합니다.</p></div> : null}
       <RiskList risks={detail.risks} limit={3} />
+      {dataCautions.length ? <div className="detail-data-caution"><EvidenceList items={dataCautions} /></div> : null}
       {onOpenFull ? (
         <button type="button" className="detail-open-full" onClick={onOpenFull}>
           전체 상세 보기 <ChevronRight size={17} aria-hidden="true" />
@@ -899,7 +875,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
           <p>{range} BENCHMARK SNAPSHOT</p>
           <h2 id="performance-title">{strategy} vs {benchmarkLabel}</h2>
         </div>
-        <Badge variant={sourceVariant} label={sourceLabel} />
+        {!aggregate ? <Badge variant={sourceVariant} label={sourceLabel} /> : null}
       </header>
 
       <div className="performance-controls">
@@ -936,7 +912,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
                 <tbody>
                   {runSeries.map((item) => (
                     <tr key={`${item.run_id}:${item.report_date}`}>
-                      <td data-label="실행일"><span>{item.report_date}</span><small>RUN {item.run_id}</small></td>
+                      <td data-label="실행일"><span>{item.report_date}</span></td>
                       <td data-label={strategy}>{formatPercent(item.strategy_return)}</td>
                       <td data-label={benchmarkLabel}>{formatPercent(item.qqq_return)}</td>
                       <td data-label={`${benchmarkLabel} 대비`} className={returnTone(item.excess_return)}>{formatPercentPoints(item.excess_return)}</td>
@@ -1001,10 +977,10 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
     [currentRun, index, strategy],
   );
   const recommendations = useMemo(() => {
-    const normalizedQuery = query.trim().toUpperCase();
-    if (!normalizedQuery) return allRecommendations;
+    const terms = securitySearchTerms(query);
+    if (!terms.length) return allRecommendations;
     return allRecommendations.filter((item) => (
-      `${item.symbol} ${item.company_name || ""}`.toUpperCase().includes(normalizedQuery)
+      terms.every((term) => `${item.symbol} ${item.company_name || ""}`.toUpperCase().includes(term))
     ));
   }, [allRecommendations, query]);
   const resolvedSelected = recommendations.find((item) => item.symbol === selectedSymbol)
@@ -1018,8 +994,6 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   );
   const selectedTimeline = resolvedSelected ? getSymbolTimeline(index, strategy, resolvedSelected.symbol) : null;
   const isHistorical = Boolean(currentRun && latestRun && String(currentRun.run_id) !== String(latestRun.run_id));
-  const richDetailCount = Number(currentRun.detail_coverage?.complete_count
-    ?? allRecommendations.filter((item) => getRecommendationDetail(item).hasRichDetail).length);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -1087,18 +1061,10 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
             <p className="strategy-descriptor">{STRATEGIES[strategy].label}</p>
           </div>
         </div>
-        {isHistorical ? <p className="run-provenance">과거 실행 · RUN {currentRun.run_id}</p> : null}
         {isHistorical ? (
           <div className="historical-banner" role="status">
-            <span>과거 실행을 보고 있습니다. 최신 추천과 혼동하지 마세요.</span>
-            <button type="button" onClick={onLatest}>최신 실행으로</button>
-          </div>
-        ) : null}
-        {isHistorical ? (
-          <div className="run-tape" aria-label="과거 실행 정보">
-            <span><strong>{allRecommendations.length}</strong>개 선정</span>
-            <span>RUN <strong>{currentRun.run_id}</strong></span>
-            <span>상세 설명 <strong>{richDetailCount} / {allRecommendations.length}</strong></span>
+            <span>과거 선정 결과 · {formatDate(currentRun.report_date || currentRun.report_created_at)}</span>
+            <button type="button" onClick={onLatest}>최신 결과 보기 <ChevronRight size={16} aria-hidden="true" /></button>
           </div>
         ) : null}
       </section>
@@ -1115,7 +1081,7 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
               isLabelHidden
               value={query}
               onChange={setQuery}
-              placeholder="종목 또는 회사 검색"
+              placeholder="티커 또는 회사명 검색"
               startIcon={<Search size={16} strokeWidth={1.8} />}
               hasClear
               width="100%"
@@ -1217,7 +1183,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
   return (
     <section className="secondary-view overview-view overview-v2">
       <header className="overview-page-header">
-        <h1>최근 변경 사항 <small>직전 보고 대비</small></h1>
+        <h1>최근 변경 사항</h1>
         <button type="button" className="overview-history-link" onClick={onHistory}>
           실행 기록 <ChevronRight size={16} aria-hidden="true" />
         </button>
@@ -1230,6 +1196,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
               <span className="visit-strategy-heading">
                 <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
                 {item.run ? <small className="visit-updated-badge">{formatMonthDay(item.run.report_date || item.run.report_created_at)} Updated</small> : null}
+                <ChevronRight size={16} aria-hidden="true" />
               </span>
               <dl className="visit-changes">
                 <div><dt>새 진입</dt><dd className={`is-added${item.added.length ? " has-change" : ""}`}>{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
@@ -1273,7 +1240,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
         </section>
 
         <section className="backcast-preview">
-          <header><h2>{hasPerformancePreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2>{hasPerformancePreview ? <Badge variant="cyan" label="통합 실행 이력" /> : null}</header>
+          <header><h2>{hasPerformancePreview ? "스크리너 성과" : "성과 비교 준비 중"}</h2></header>
           <div className="backcast-preview-body">
             <div className="backcast-performance-list">
               {performancePreviews.map(({ strategy, cell }) => {
@@ -1290,12 +1257,12 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                       <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
-                      <span className="backcast-meta">완전 실행 {aggregate.run_count || "—"}회 · 종목 관측 {aggregate.underlying_signal_count || "—"}건</span>
+                      <span className="backcast-meta">{aggregate.run_count || "—"}회 선정 결과 · {aggregate.underlying_signal_count || "—"}건 측정</span>
                     </>
                   ) : (
                     <>
                       <p className="backcast-comparison-line"><strong>{strategy} 20D</strong></p>
-                      <p className="backcast-pending">완전한 실행 단위의 가격 관측을 기다리고 있습니다.</p>
+                      <p className="backcast-pending">선정 종목 전체의 20거래일 수익률이 모이면 표시됩니다.</p>
                     </>
                   )}
                 </section>
@@ -1357,19 +1324,19 @@ function HistoryView({ payload, index, onStrategy }) {
           isLabelHidden
           value={historyQuery}
           onChange={setHistoryQuery}
-          placeholder="종목·회사·실행 ID·날짜 검색"
+          placeholder="티커·회사명·날짜 검색"
           startIcon={<Search size={16} />}
           hasClear
           width="100%"
           size="md"
         />
-        <p className="history-result-count" aria-live="polite">전체 {filteredRuns.length}건</p>
+        <p className="history-result-count" aria-live="polite">{historyQuery.trim() ? "검색 결과" : "전체"} {filteredRuns.length}건</p>
       </div>
       <div className="history-column-head" aria-hidden="true">
         <span>전략</span>
         <span>실행일</span>
-        <span>실행 정보</span>
-        <span>구성 변화</span>
+        <span>선정 종목 수</span>
+        <span>{historyQuery.trim() ? "검색 종목 / 구성 변화" : "구성 변화"}</span>
         <span>결과</span>
         <span />
       </div>
@@ -1378,13 +1345,17 @@ function HistoryView({ payload, index, onStrategy }) {
           const picks = getIndexedRunRecommendations(index, run.strategy, run.run_id);
           const summary = getIndexedRunChanges(index, run.strategy, run.run_id);
           const isLatest = latestRunIds.has(`${run.strategy}:${run.run_id}`);
+          const matches = getHistorySearchMatches(index, run, historyQuery);
+          const matchedPick = matches.find((item) => item.status !== "EXIT");
           return (
-            <button type="button" className="history-run" key={`${run.strategy}:${run.run_id}`} onClick={() => onStrategy(run.strategy, run.run_id)}>
+            <button type="button" className="history-run" key={`${run.strategy}:${run.run_id}`} onClick={() => onStrategy(run.strategy, run.run_id, matchedPick?.symbol || "")}>
               <span className="history-engine">{run.strategy}</span>
               <span className="history-date">{formatDate(run.report_date || run.report_created_at)} {isLatest ? <b>최신</b> : null}</span>
-              <span className="history-id">RUN {run.run_id} · {picks.length}개 선정</span>
+              <span className="history-id">{picks.length}종목</span>
               <span className="history-symbols">
-                {summary?.isBaseline ? `기준 실행 · ${picks.map((item) => item.symbol).join(" · ")}` : (
+                {matches.length ? matches.map((item) => (
+                  <span className="history-match" key={item.symbol}><strong>{item.symbol}</strong><span>{item.status === "EXIT" ? "이 실행에서 제외" : `${item.currentRank}위 선정`}</span></span>
+                )) : summary?.isBaseline ? `첫 기록 · ${picks.map((item) => item.symbol).join(" · ")}` : (
                   summary?.added.length || summary?.removed.length ? (
                     <>
                       {summary.added.length ? <i className="is-added">+ {summary.added.join(" · ")}</i> : null}
@@ -1399,7 +1370,7 @@ function HistoryView({ payload, index, onStrategy }) {
             </button>
           );
         })}
-        {!filteredRuns.length ? <div className="empty-list">조건과 일치하는 실행 기록이 없습니다.</div> : null}
+        {!filteredRuns.length ? <div className="empty-list">일치하는 기록이 없습니다. 티커 또는 회사명을 확인하거나 검색어를 지워보세요.</div> : null}
       </div>
     </section>
   );
@@ -1441,8 +1412,7 @@ function MethodologyView({ benchmark, section, onSection }) {
   return (
     <section className="secondary-view methodology-view">
       <header>
-        <h1>스크리닝 및 성과 산정 방식</h1>
-        <span>무엇을 걸러내고, 어떻게 순위를 만들며, 성과가 언제 업데이트되는지 설명합니다.</span>
+        <h1>선정 기준과 성과 계산</h1>
       </header>
 
       <div className="method-tabs">
@@ -1459,20 +1429,20 @@ function MethodologyView({ benchmark, section, onSection }) {
           <>
             <section className="method-hero-card">
               <div><p>MLG</p><h2>중대형 성장주 Top 10</h2><span>실적 이력·현금흐름·애널리스트 커버리지가 갖춰진 미국 중대형 성장주를 찾습니다.</span></div>
-              <dl><div><dt>기초 규모</dt><dd>시총 $5B+</dd></div><div><dt>정밀 게이트</dt><dd>시총 $10B+</dd></div><div><dt>공식 결과</dt><dd>Top 10</dd></div></dl>
+              <dl><div><dt>시가총액</dt><dd>$10B 이상</dd></div><div><dt>평가 초점</dt><dd>실적·재무·가격</dd></div><div><dt>선정 종목</dt><dd>상위 10종목</dd></div></dl>
             </section>
             <div className="method-content-grid">
               <section className="method-card is-wide">
                 <h3>선별 흐름</h3>
                 <ol className="method-steps">
-                  <li><b>1</b><div><strong>미국 보통주 풀</strong><span>S&amp;P 500·Russell 1000·Nasdaq·NYSE를 목표로, 주가 $5 이상과 평균 거래량 20만주 이상부터 시작합니다.</span></div></li>
-                  <li><b>2</b><div><strong>품질 성장주 회수</strong><span>대형주 앵커, 품질 소프트웨어, AI 플랫폼·인프라와 섹터별 후보를 빠짐없이 모읍니다.</span></div></li>
-                  <li><b>3</b><div><strong>경량 점수로 후보 압축</strong><span>매출·EPS 성장, Rule of 40, 향후 전망, ROE와 부채 품질로 정밀 분석 대상을 압축합니다.</span></div></li>
-                  <li><b>4</b><div><strong>하드게이트와 최종 순위</strong><span>모든 필수 조건을 통과한 후보만 공식 score 내림차순으로 정렬해 Top 10을 게시합니다.</span></div></li>
+                  <li><b>1</b><div><strong>투자대상 확인</strong><span>미국 보통주 중 시총 $5B 이상, 주가 $5 이상, 평균 거래량 20만주 이상에서 후보를 찾습니다.</span></div></li>
+                  <li><b>2</b><div><strong>성장성과 재무 확인</strong><span>매출·EPS 성장, 현금흐름, 부채와 실적 전망을 검토합니다.</span></div></li>
+                  <li><b>3</b><div><strong>필수 조건 검증</strong><span>시총 $10B 이상과 성장·재무 기준을 충족하는지 확인합니다.</span></div></li>
+                  <li><b>4</b><div><strong>상위 10종목 선정</strong><span>조건을 통과한 후보를 최종 점수순으로 정렬합니다.</span></div></li>
                 </ol>
               </section>
               <section className="method-card">
-                <h3>주요 하드게이트</h3>
+                <h3>평가 기준</h3>
                 <ul className="method-checks">
                   <li><span>FCF</span><strong>양수</strong></li>
                   <li><span>Rule of 40</span><strong>30% 이상</strong></li>
@@ -1483,7 +1453,7 @@ function MethodologyView({ benchmark, section, onSection }) {
                 </ul>
               </section>
               <section className="method-card">
-                <h3>최종 점수 100</h3>
+                <h3>점수 구성 · 100점</h3>
                 <dl className="method-weights">
                   <div><dt>코어 성장 적합도</dt><dd>20</dd></div><div><dt>EPS 전망</dt><dd>18</dd></div><div><dt>밸류에이션</dt><dd>17</dd></div>
                   <div><dt>매출 전망</dt><dd>15</dd></div><div><dt>해자</dt><dd>10</dd></div><div><dt>애널리스트 신호</dt><dd>8</dd></div>
@@ -1499,7 +1469,7 @@ function MethodologyView({ benchmark, section, onSection }) {
           <>
             <section className="method-hero-card">
               <div><p>TENX</p><h2>중소형 초고속 성장주 Top5</h2><span>성장 전망·현재 가격·영업현금 품질을 함께 평가합니다.</span></div>
-              <dl><div><dt>시가총액</dt><dd>$2B–50B</dd></div><div><dt>정기 보고</dt><dd>화·금 오전 9시</dd></div><div><dt>공식 결과</dt><dd>Top 5</dd></div></dl>
+              <dl><div><dt>시가총액</dt><dd>$2B–50B</dd></div><div><dt>평가 초점</dt><dd>성장·가격·현금</dd></div><div><dt>선정 종목</dt><dd>상위 5종목</dd></div></dl>
             </section>
             <div className="method-content-grid">
               <section className="method-card is-wide">
@@ -1508,18 +1478,8 @@ function MethodologyView({ benchmark, section, onSection }) {
                   <li><b>1</b><div><strong>투자대상 확인</strong><span>미국 보통주 · 시총 $2B–50B · 거래 조건 확인</span></div></li>
                   <li><b>2</b><div><strong>동반 성장 확인</strong><span>매출·매출총이익 연평균 20% 이상, 최근 10% 이상</span></div></li>
                   <li><b>3</b><div><strong>성장·가격·현금 평가</strong><span>두 연도 매출 전망과 가격 부담, 조정 영업현금 평가</span></div></li>
-                  <li><b>4</b><div><strong>상위 5종목 선정</strong><span>하나의 최종 점수로 정렬해 Top5 보고</span></div></li>
+                  <li><b>4</b><div><strong>상위 5종목 선정</strong><span>조건을 통과한 후보를 최종 점수순으로 정렬합니다.</span></div></li>
                 </ol>
-              </section>
-              <section className="method-card">
-                <h3>배점 산정</h3>
-                <dl className="method-weights">
-                  <div><dt>성장 기여</dt><dd>최대 42점</dd></div><div><dt>가격 기여</dt><dd>최대 33점</dd></div>
-                  <div><dt>현금 기여</dt><dd>최대 25점</dd></div>
-                </dl>
-                <p className="tenx-score-formula">42GV + 33GY + 25GCV</p>
-                <p>G 성장 전망 · Y 비용·가격 대비 사업기여<br />C 조정 영업현금 · V 가격부담 반영</p>
-                <p>V = 두 전망연도 (1+B)<sup>−0.25</sup>의 평균<br />B = 전망 매출총이익 대비 가격부담 ÷ 20</p>
               </section>
               <section className="method-card">
                 <h3>평가 기준</h3>
@@ -1529,6 +1489,19 @@ function MethodologyView({ benchmark, section, onSection }) {
                   <li>현금 품질: 운전자본·주식보상 조정 영업현금</li>
                   <li>투자대상: ADR·리츠 및 지정 제외 업종 제외</li>
                 </ul>
+              </section>
+              <section className="method-card">
+                <h3>점수 구성 · 100점</h3>
+                <dl className="method-weights">
+                  <div><dt>성장 기여</dt><dd>최대 42점</dd></div><div><dt>가격 기여</dt><dd>최대 33점</dd></div>
+                  <div><dt>현금 기여</dt><dd>최대 25점</dd></div>
+                </dl>
+                <details className="method-formula-details">
+                  <summary>배점 산정식 보기</summary>
+                  <p className="tenx-score-formula">42GV + 33GY + 25GCV</p>
+                  <p>G 성장 전망 · Y 비용·가격 대비 사업기여<br />C 조정 영업현금 · V 가격부담 반영</p>
+                  <p>V = 두 전망연도 (1+B)<sup>−0.25</sup>의 평균<br />B = 전망 매출총이익 대비 가격부담 ÷ 20</p>
+                </details>
               </section>
             </div>
           </>
@@ -1561,10 +1534,10 @@ function MethodologyView({ benchmark, section, onSection }) {
               <section className="method-card">
                 <h3>숫자에 포함되는 조건</h3>
                 <ul className="method-bullets">
-                  <li>main의 scheduled production 추천</li>
+                  <li>정기 실행으로 확정된 추천</li>
                   <li>종목과 {benchmarkLabel}의 진입·관측 세션 일치</li>
-                  <li>양수 가격과 가격 무결성 게이트 통과</li>
-                  <li>부분 실행과 아직 성숙하지 않은 기간은 제외</li>
+                  <li>유효한 가격과 동일한 거래일 확인</li>
+                  <li>가격이 누락되거나 관측 기간이 끝나지 않은 결과는 제외</li>
                 </ul>
               </section>
             </div>
@@ -1575,34 +1548,20 @@ function MethodologyView({ benchmark, section, onSection }) {
         {section === "operations" ? (
           <>
             <section className="method-hero-card">
-              <div><p>OPERATIONS</p><h2>엔진 실행부터 암호화 게시까지</h2><span>프론트엔드는 외부 데이터 API를 직접 호출하지 않고, 검증된 저장소 이력을 암호화한 데이터만 읽습니다.</span></div>
-              <dl><div><dt>MLG</dt><dd>수·토 09:00</dd></div><div><dt>TENX</dt><dd>화·금 09:00</dd></div><div><dt>가격 백필</dt><dd>화–토 07:30</dd></div></dl>
+              <div><p>UPDATES</p><h2>주 2회 종목 선정</h2><span>아래 시각에 분석을 시작합니다. 검증과 게시가 끝나면 화면에 반영됩니다. 모든 시각은 한국 기준입니다.</span></div>
+              <dl><div><dt>MLG</dt><dd>수·토 09:00</dd></div><div><dt>TENX</dt><dd>화·금 09:00</dd></div><div><dt>가격 갱신</dt><dd>화–토 07:30</dd></div></dl>
             </section>
             <div className="method-content-grid">
-              <section className="method-card is-wide">
-                <h3>자동 업데이트 흐름</h3>
-                <ol className="method-steps operation-steps">
-                  <li><b>1</b><div><strong>엔진 실행</strong><span>MLG와 TENX가 각자의 규칙으로 추천과 상세 근거를 생성합니다.</span></div></li>
-                  <li><b>2</b><div><strong>검증 후 보고</strong><span>각 엔진의 검증을 통과한 결과만 발송합니다. TENX는 저장된 자료로 같은 결과가 다시 계산되고 보고 내용과 일치하는지도 확인합니다.</span></div></li>
-                  <li><b>3</b><div><strong>이력과 가격 보강</strong><span>추천 이력을 보관하고, 종목과 {benchmarkLabel}의 20·60·120일 가격을 별도 작업이 보강합니다.</span></div></li>
-                  <li><b>4</b><div><strong>안전하게 게시</strong><span>같은 공식 결과를 암호화해 대시보드에 전달합니다. 화면에서 점수를 다시 계산하거나 순위를 바꾸지 않습니다.</span></div></li>
-                  <li><b>5</b><div><strong>GitHub Pages 배포</strong><span>프론트 검증과 빌드를 통과하면 종목·이력·성과 화면이 함께 업데이트됩니다.</span></div></li>
-                </ol>
+              <section className="method-card">
+                <h3>결과가 반영되는 시점</h3>
+                <p>각 엔진의 검증을 통과한 결과만 발송하고 게시합니다. 화면에서 점수를 다시 계산하거나 순위를 바꾸지 않습니다.</p>
+                <p>수익률은 선정 종목과 {benchmarkLabel}의 같은 거래일 가격이 모두 확보된 뒤 표시합니다.</p>
               </section>
               <section className="method-card">
-                <h3>예약 시각 · KST</h3>
-                <dl className="method-schedule">
-                  <div><dt>MLG 공식 실행</dt><dd>수요일 · 토요일 09:00</dd></div>
-                  <div><dt>TENX 공식 실행</dt><dd>화요일 · 금요일 09:00</dd></div>
-                  <div><dt>가격·{benchmarkLabel} 백필</dt><dd>화요일–토요일 07:30</dd></div>
-                </dl>
-              </section>
-              <section className="method-card">
-                <h3>실패 시 동작</h3>
+                <h3>업데이트가 늦어질 때</h3>
                 <ul className="method-bullets">
-                  <li>수동 점검은 기본적으로 발송하지 않습니다. TENX는 별도로 승인된 실제 보고만 공식 이력에 반영할 수 있습니다.</li>
-                  <li>변환·암호화·검증이 실패하면 기존 배포 데이터를 유지합니다.</li>
-                  <li>브라우저에는 API 키와 복호화 전 평문 데이터가 배포되지 않습니다.</li>
+                  <li>분석이나 데이터 검증에 실패하면 마지막 정상 결과를 유지합니다.</li>
+                  <li>종목 선정일과 최근 종가의 기준일을 각각 확인하세요.</li>
                 </ul>
               </section>
             </div>
@@ -1614,7 +1573,7 @@ function MethodologyView({ benchmark, section, onSection }) {
         <summary>데이터 등급과 표시 원칙</summary>
         <dl>
           <div><dt>공식 측정</dt><dd>실제 발송 또는 전달 결정 뒤 기록된 공개시각을 기준으로 계산합니다.</dd></div>
-          <div><dt>과거 실행 역산</dt><dd>검증된 저장소 archive commit 이후 첫 정규장을 보수적 진입 시점으로 사용합니다.</dd></div>
+          <div><dt>과거 실행 역산</dt><dd>기록이 저장소에 확정된 이후 첫 정규장을 진입 시점으로 사용합니다.</dd></div>
           <div><dt>측정 대기</dt><dd>필요한 거래일이나 완전한 종목 집합이 아직 갖춰지지 않은 기간입니다.</dd></div>
           <div><dt>TENX 과거 이력</dt><dd>이전 엔진의 결과도 당시 기록 그대로 남습니다. 과거 전체 성과를 현재 V3.8의 실적으로 해석하지 않습니다.</dd></div>
         </dl>
@@ -1644,8 +1603,8 @@ function FullDetailView({ payload, index, route, onBack }) {
       <header className="full-detail-header">
         <button type="button" className="route-back" onClick={onBack}><ArrowLeft size={17} /> 목록으로</button>
         <div>
-          <p>{route.strategy} / RUN {route.runId}</p>
-          <span>{formatKst(run.report_created_at)} · {STRATEGIES[route.strategy].label}</span>
+          <p>{route.strategy} · {STRATEGIES[route.strategy].label}</p>
+          <span>{formatDate(run.report_date || run.report_created_at)} 선정</span>
         </div>
       </header>
       <DetailPanel
@@ -1693,9 +1652,9 @@ function Dashboard({ payload, onLock }) {
     return () => cancelAnimationFrame(frame);
   }, [route, routeKey]);
 
-  const selectStrategy = useCallback((nextStrategy, runId = null) => {
+  const selectStrategy = useCallback((nextStrategy, runId = null, initialQuery = "") => {
     setGlobalQuery("");
-    setSelectionQuery("");
+    setSelectionQuery(initialQuery);
     navigate({ view: "selection", strategy: nextStrategy, runId });
   }, [navigate]);
 
