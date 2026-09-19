@@ -179,7 +179,7 @@ function mean(values) {
  * Verified rows win if the same run is ever present in both evidence tiers.
  * TENX deliberately excludes reconstructed history: its benchmark restarts at TENX2.
  */
-export function getUnifiedPerformanceCell(performance, backcast, strategy, horizon) {
+export function getUnifiedPerformanceCell(performance, backcast, strategy, horizon, scope = "history") {
   const normalized = String(horizon).toLowerCase();
   const officialAggregate = getVerifiedAggregate(performance, strategy, normalized);
   const officialRuns = officialAggregate
@@ -203,21 +203,49 @@ export function getUnifiedPerformanceCell(performance, backcast, strategy, horiz
     ? performanceCellRows(backcast?.signals, strategy, normalized, "RECONSTRUCTED")
     : [];
 
-  const runSeries = keyedUnion(
+  let runSeries = keyedUnion(
     reconstructedRuns,
     officialRuns,
     (row) => String(row.run_id),
   ).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
-  const signals = keyedUnion(
+  let signals = keyedUnion(
     reconstructedSignals,
     officialSignals,
     (row) => String(row.run_id) + ":" + String(row.signal_id),
   );
-  const source = officialRuns.length && reconstructedRuns.length
+  // Older verified payloads put the actual investment dates on signals only.
+  runSeries = runSeries.map((run) => {
+    const members = signals.filter((signal) => String(signal.run_id) === String(run.run_id));
+    const entries = [...new Set(members.map((signal) => signal.entry_session).filter(Boolean))];
+    const exits = [...new Set(members.map((signal) => signal.measurement_session).filter(Boolean))];
+    return {
+      ...run,
+      entry_session: run.entry_session || (entries.length === 1 ? entries[0] : null),
+      measurement_session: run.measurement_session || (exits.length === 1 ? exits[0] : null),
+    };
+  });
+  if (scope === "latest" && runSeries.length) {
+    const latest = [...runSeries].sort((a, b) =>
+      String(b.measurement_session || "").localeCompare(String(a.measurement_session || ""))
+      || String(b.entry_session || "").localeCompare(String(a.entry_session || ""))
+      || String(b.report_date).localeCompare(String(a.report_date))
+      || String(b.run_id).localeCompare(String(a.run_id)),
+    )[0];
+    // Never label an undated result as a recent measurement.
+    if (!latest.entry_session || !latest.measurement_session) {
+      return { aggregate: null, runSeries: [], signals: [], source: null,
+        horizonStatus: { status: "HOLD", reason_code: "MEASUREMENT_DATES_MISSING" } };
+    }
+    runSeries = [latest];
+    signals = signals.filter((signal) => String(signal.run_id) === String(latest.run_id));
+  }
+  const hasOfficial = runSeries.some((row) => row.status === "VERIFIED");
+  const hasReconstructed = runSeries.some((row) => row.status === "RECONSTRUCTED");
+  const source = hasOfficial && hasReconstructed
     ? "MIXED"
-    : officialRuns.length
+    : hasOfficial
       ? "VERIFIED"
-      : reconstructedRuns.length
+      : hasReconstructed
         ? "RECONSTRUCTED"
         : null;
   const officialStatus = (performance?.horizon_statuses || []).find(
@@ -232,8 +260,13 @@ export function getUnifiedPerformanceCell(performance, backcast, strategy, horiz
     : null;
 
   if (!runSeries.length) {
+    const blockingStatus = [officialStatus, reconstructedStatus].find(
+      (status) => status?.status === "HOLD" && status.reason_code !== "SIGNAL_AVAILABILITY_PROXY",
+    );
     return {
-      horizonStatus: officialStatus || reconstructedStatus,
+      horizonStatus: blockingStatus || (officialStatus?.reason_code === "SIGNAL_AVAILABILITY_PROXY" && reconstructedStatus
+        ? reconstructedStatus
+        : officialStatus || reconstructedStatus),
       aggregate: null,
       runSeries,
       signals,
@@ -242,8 +275,7 @@ export function getUnifiedPerformanceCell(performance, backcast, strategy, horiz
   }
 
   const measurementSessions = [
-    officialAggregate?.measurement_session_max,
-    reconstructedAggregate?.measurement_session_max,
+    ...(scope === "history" ? [officialAggregate?.measurement_session_max, reconstructedAggregate?.measurement_session_max] : []),
     ...runSeries.map((row) => row.measurement_session),
   ].filter(Boolean);
   const underlyingSignalCount = signals.length

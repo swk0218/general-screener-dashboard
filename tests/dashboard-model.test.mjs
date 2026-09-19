@@ -184,6 +184,54 @@ test("unifies 11 reconstructed and 2 verified MLG runs into one 13-run benchmark
   assert.ok(Math.abs(cell.aggregate.equal_weight_return - (0.31 / 13)) < 1e-12);
 });
 
+test("latest completed uses measurement dates, paired signals and no historical average", () => {
+  for (const strategy of ["MLG", "TENX"]) for (const horizon of ["20d", "60d", "120d"]) {
+    const base = { strategy, horizon, status: "VERIFIED" };
+    const runs = [
+      { ...base, run_id: "older", report_date: "2026-08-20", strategy_return: 0.5, qqq_return: 0.1, excess_return: 0.4, signal_count: 1 },
+      { ...base, run_id: "recent", report_date: "2026-08-19", strategy_return: -0.02, qqq_return: -0.005, excess_return: -0.015, signal_count: 1 },
+    ];
+    const signals = runs.map((run, i) => ({ ...base, run_id: run.run_id, signal_id: "same-ticker", entry_session: `2026-08-${19+i}`, measurement_session: `2026-09-${16+i}` }));
+    const performance = { status: "PARTIAL", horizon_statuses: [base], aggregates: [{ ...base, measurement_session_max: "2099-01-01" }], run_series: runs, signals };
+    const before = structuredClone(performance);
+    const cell = getUnifiedPerformanceCell(performance, null, strategy, horizon, "latest");
+    assert.equal(cell.aggregate.equal_weight_return, -0.02);
+    assert.equal(cell.aggregate.qqq_equal_weight_return, -0.005);
+    assert.equal(cell.aggregate.run_count, 1);
+    assert.equal(cell.aggregate.measurement_session_max, "2026-09-17");
+    assert.equal(cell.runSeries[0].entry_session, "2026-08-20");
+    assert.deepEqual(cell.signals.map(row => row.run_id), ["recent"]);
+    assert.equal(getUnifiedPerformanceCell(performance, null, strategy, horizon).runSeries.length, 2);
+    assert.deepEqual(performance, before);
+    performance.signals = [];
+    assert.equal(getUnifiedPerformanceCell(performance, null, strategy, horizon, "latest").aggregate, null);
+  }
+});
+
+test("all horizons transition from pending to available without a frontend age gate", () => {
+  for (const strategy of ["MLG", "TENX"]) for (const horizon of ["20d", "60d", "120d"]) {
+    const status = { strategy, horizon, status: "PENDING", reason_code: "COMPLETE_RUN_PENDING" };
+    const performance = { status: "PENDING", horizon_statuses: [status], aggregates: [], run_series: [], signals: [] };
+    assert.equal(getUnifiedPerformanceCell(performance, null, strategy, horizon, "latest").aggregate, null);
+    performance.status = "PARTIAL";
+    status.status = "VERIFIED";
+    performance.aggregates = [{ ...status }];
+    performance.run_series = [{ ...status, run_id: "mature", report_date: "2026-07-01", entry_session: "2026-07-01", measurement_session: "2026-12-21", strategy_return: 0.1, qqq_return: 0.05, excess_return: 0.05, signal_count: 10 }];
+    assert.equal(getUnifiedPerformanceCell(performance, null, strategy, horizon, "latest").aggregate.run_count, 1);
+  }
+});
+
+test("legacy availability proxy defers to reconstructed readiness but data defects stay HOLD", () => {
+  const backcast = { horizon_statuses: [{ strategy: "MLG", horizon: "60d", status: "PENDING", reason_code: "COMPLETE_RUN_PENDING" }] };
+  const performance = { status: "HOLD", horizon_statuses: [{ strategy: "MLG", horizon: "60d", status: "HOLD", reason_code: "SIGNAL_AVAILABILITY_PROXY" }] };
+  assert.equal(getUnifiedPerformanceCell(performance, backcast, "MLG", "60D", "latest").horizonStatus.status, "PENDING");
+  performance.horizon_statuses[0].reason_code = "PARTIAL_RUN_OBSERVATIONS";
+  assert.equal(getUnifiedPerformanceCell(performance, backcast, "MLG", "60D", "latest").horizonStatus.status, "HOLD");
+  performance.horizon_statuses[0] = { strategy: "MLG", horizon: "60d", status: "PENDING", reason_code: "COMPLETE_RUN_PENDING" };
+  backcast.horizon_statuses[0] = { strategy: "MLG", horizon: "60d", status: "HOLD", reason_code: "PARTIAL_RUN_OBSERVATIONS" };
+  assert.equal(getUnifiedPerformanceCell(performance, backcast, "MLG", "60D", "latest").horizonStatus.status, "HOLD");
+});
+
 test("TENX benchmark ignores reconstructed pre-TENX2 history and starts empty", () => {
   const oldBackcast = {
     horizon_statuses: [{ strategy: "TENX", horizon: "20d", status: "RECONSTRUCTED" }],

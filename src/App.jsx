@@ -215,7 +215,7 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
 function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
   if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const value = Number(excessReturn);
-  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%`;
+  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%p`;
   return (
     <>
       <span className="benchmark-copy-prefix">{benchmarkLabel} 대비</span>{" "}
@@ -838,12 +838,15 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
   );
 }
 
-function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
+export function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
+  const [scope, setScope] = useState("latest");
   const benchmarkLabel = benchmarkDisplayName(benchmark);
   const officialEvidence = getPerformanceState(performance, evidenceStatus);
-  const cell = getUnifiedPerformanceCell(performance, backcast, strategy, range);
+  const cell = getUnifiedPerformanceCell(performance, backcast, strategy, range, scope);
   const { aggregate, runSeries, signals, source } = cell;
   const selectedStatus = cell.horizonStatus;
+  const latestRun = scope === "latest" ? runSeries[0] : null;
+  const isHeld = selectedStatus?.status === "HOLD";
   const expectedSignals = strategy === "MLG" ? 10 : 5;
   const completeRuns = Number(selectedStatus?.complete_run_count ?? aggregate?.run_count ?? runSeries.length ?? 0);
   const strategyReturn = Number(aggregate?.equal_weight_return);
@@ -880,12 +883,22 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
 
       <div className="performance-controls">
         <div>
-          <span>관측 기간</span>
-          <SegmentedControl value={range} onChange={setRange} label="성과 관측 기간" size="md" layout="fill">
-            {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "일")} />)}
+          <span>추천 후 보유 기간</span>
+          <SegmentedControl value={range} onChange={setRange} label="추천 후 보유 기간" size="md" layout="fill">
+            {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "거래일")} />)}
           </SegmentedControl>
         </div>
-        <p>{horizonBasisCopy}</p>
+        <div>
+          <span>집계 범위</span>
+          <SegmentedControl value={scope} onChange={setScope} label="성과 집계 범위" size="md" layout="fill">
+            <SegmentedControlItem value="latest" label="최근 완료" />
+            <SegmentedControlItem value="history" label="전체 이력" />
+          </SegmentedControl>
+        </div>
+        <p>{scope === "latest"
+          ? `가장 최근에 ${range.replace("D", "거래일")} 측정을 마친 추천 1회의 성과입니다. 오늘 기준 이동 수익률은 아닙니다.`
+          : `측정이 끝난 모든 추천의 평균입니다. ${horizonBasisCopy}`}</p>
+        {latestRun ? <p className="performance-period"><strong>{latestRun.entry_session} → {latestRun.measurement_session}</strong><span>실제 투자 기간 · {latestRun.report_date} 추천</span></p> : null}
       </div>
 
       <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
@@ -897,22 +910,22 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
                 <h3 className={returnTone(excessReturn)}><BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={excessReturn} /></h3>
               </div>
               <dl className="performance-kpis">
-                <div><dt>절대수익</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
+                <div><dt>{scope === "latest" ? "기간 수익률" : "평균 수익률"}</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
                 <div><dt>{benchmarkLabel} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
-                <div><dt>실행 완료</dt><dd>{completeRuns}회</dd></div>
+                <div><dt>집계 추천</dt><dd>{completeRuns}회</dd></div>
                 <div><dt>실행별 우위</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
               </dl>
             </section>
 
-            <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmarkLabel} horizon={range} />
+            {scope === "history" ? <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmarkLabel} horizon={range} /> : null}
 
-            <div className="performance-table-wrap">
+            {scope === "history" ? <div className="performance-table-wrap">
               <table className="performance-run-table">
-                <thead><tr><th>실행일</th><th>{strategy}</th><th>{benchmarkLabel}</th><th>{benchmarkLabel} 대비</th><th>관측 종목</th></tr></thead>
+                <thead><tr><th>추천일</th><th>{strategy}</th><th>{benchmarkLabel}</th><th>{benchmarkLabel} 대비</th><th>관측 종목</th></tr></thead>
                 <tbody>
                   {runSeries.map((item) => (
                     <tr key={`${item.run_id}:${item.report_date}`}>
-                      <td data-label="실행일"><span>{item.report_date}</span></td>
+                      <td data-label="추천일"><span>{item.report_date}</span></td>
                       <td data-label={strategy}>{formatPercent(item.strategy_return)}</td>
                       <td data-label={benchmarkLabel}>{formatPercent(item.qqq_return)}</td>
                       <td data-label={`${benchmarkLabel} 대비`} className={returnTone(item.excess_return)}>{formatPercentPoints(item.excess_return)}</td>
@@ -921,7 +934,7 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div> : null}
 
             <details className="signals-details">
               <summary>{source === "MIXED" ? "통합" : source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <small>· 진입 기준 {entryBasisLabel}</small></summary>
@@ -955,8 +968,12 @@ function PerformancePanel({ strategy, performance, backcast, evidenceStatus, ran
           </>
         ) : (
           <div className="performance-empty">
-            <strong>{strategy} {range} 성과는 아직 측정 중입니다.</strong>
-            <p>{expectedSignals}개 추천과 {benchmarkLabel}의 같은 거래일 가격이 모두 모이면 자동으로 표시됩니다.</p>
+            <strong>{strategy} {range} {isHeld ? "성과의 데이터 검증이 필요합니다." : "측정이 완료된 추천이 아직 없습니다."}</strong>
+            <p>{isHeld
+              ? "가격 누락 또는 검증 보류 상태입니다. 단순한 기간 대기와 구분하여 확인해야 합니다."
+              : `추천 이후 ${range.replace("D", "거래일")}이 지나고, ${expectedSignals}개 종목과 ${benchmarkLabel}의 가격이 모두 수집되면 표시됩니다.`}</p>
+            {strategy === "TENX" ? <p>TENX2부터 측정하며 이전 엔진의 성과는 포함하지 않습니다.</p> : null}
+            {selectedStatus?.reason_code ? <small>상태: {selectedStatus.reason_code}</small> : null}
           </div>
         )}
       </div>
@@ -1176,6 +1193,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
       payload.performance_backcast,
       strategy,
       "20D",
+      "latest",
     ),
   }));
   const hasPerformancePreview = performancePreviews.some((item) => item.cell.aggregate);
@@ -1257,7 +1275,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                       <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
-                      <span className="backcast-meta">{aggregate.run_count || "—"}회 선정 결과 · {aggregate.underlying_signal_count || "—"}건 측정</span>
+                      <span className="backcast-meta">최근 완료 · {cell.runSeries[0]?.entry_session} → {cell.runSeries[0]?.measurement_session} · {aggregate.underlying_signal_count || "—"}종목</span>
                     </>
                   ) : (
                     <>
