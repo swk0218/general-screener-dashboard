@@ -39,7 +39,8 @@ test("keeps the development password treatment and explicit average excess-retur
   assert.match(appSource, /placeholder="\*\*\*\*\*\*\*\*"/);
   assert.doesNotMatch(appSource, /ENCRYPTED STATIC VAULT/);
   assert.match(appSource, /className="benchmark-copy-value"/);
-  assert.match(appSource, /대비 평균 초과수익/);
+  assert.match(appSource, /대비 평균/);
+  assert.match(appSource, /"앞섰습니다" : "뒤처졌습니다"/);
   assert.doesNotMatch(appSource, /label="최근 완료"|label="성과 집계 범위"/);
   assert.doesNotMatch(appSource, /className="benchmark-copy-desktop"/);
   assert.doesNotMatch(appSource, /`\+\$\{\(value \* 100\)\.toFixed\(2\)\}%`/);

@@ -9,7 +9,7 @@ function finite(value) {
 }
 
 function formatPercent(value) {
-  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%p`;
+  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
 }
 
 function compactDate(value) {
@@ -32,7 +32,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
   }, [points.length === 0]);
   const chart = useMemo(() => {
     const sorted = [...points].sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
-    const values = sorted.flatMap((point) => [finite(point.excess_return), 0]);
+    const values = sorted.flatMap((point) => [finite(point.strategy_return), finite(point.qqq_return), 0]);
     const rawMin = Math.min(...values);
     const rawMax = Math.max(...values);
     const span = Math.max(0.02, rawMax - rawMin);
@@ -61,12 +61,13 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
   return (
     <figure ref={containerRef} className="return-chart" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <figcaption>
-        <span id={titleId}>추천일별 {horizon} 초과수익률</span>
+        <span id={titleId}>추천일별 {horizon} 수익률 비교</span>
       </figcaption>
-      <p id={descriptionId} className="return-chart-description">가로축은 추천일입니다. 각 점은 해당 추천의 {horizon.replace("D", "거래일")} 보유 후 벤치마크 대비 초과수익률입니다. 0 위는 상회, 아래는 하회입니다.</p>
+      <p id={descriptionId} className="return-chart-description">가로축은 추천일입니다. 각 점은 해당 추천의 {horizon.replace("D", "거래일")} 보유 수익률이며, 누적 수익률이 아닙니다.</p>
       <div className="return-chart-legend" aria-hidden="true">
-        <span><i className="is-strategy" />{strategy} − {benchmark}</span>
-        <span><i className="is-zero" />0%p</span>
+        <span><i className="is-strategy" />{strategy}</span>
+        <span><i className="is-benchmark" />{benchmark}</span>
+        <span><i className="is-zero" />0%</span>
       </div>
       <svg
         viewBox={`0 0 ${width} ${HEIGHT}`}
@@ -78,7 +79,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           {chart.ticks.map((tick) => (
             <g key={tick}>
               <line x1={MARGIN.left} x2={width - MARGIN.right} y1={chart.yFor(tick)} y2={chart.yFor(tick)} />
-              <text x={MARGIN.left - 10} y={chart.yFor(tick) + 4} textAnchor="end">{(tick * 100).toFixed(1)}%p</text>
+              <text x={MARGIN.left - 10} y={chart.yFor(tick) + 4} textAnchor="end">{(tick * 100).toFixed(1)}%</text>
             </g>
           ))}
         </g>
@@ -89,13 +90,15 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           y1={chart.yFor(0)}
           y2={chart.yFor(0)}
         />
-        {[['excess_return', 'is-strategy']].map(([field, className]) => (
+        {[['strategy_return', 'is-strategy'], ['qqq_return', 'is-benchmark']].map(([field, className]) => (
           <polyline key={field} className={`return-series ${className}`} points={chart.sorted.map((point, index) => `${chart.xFor(index)},${chart.yFor(finite(point[field]))}`).join(' ')} />
         ))}
         {chart.sorted.map((point, index) => {
           const x = chart.xFor(index);
-          const strategyValue = finite(point.excess_return);
+          const strategyValue = finite(point.strategy_return);
+          const qqqValue = finite(point.qqq_return);
           const strategyY = chart.yFor(strategyValue);
+          const benchmarkY = chart.yFor(qqqValue);
           return (
             <g key={`${point.run_id}:${point.report_date}`}>
               {chart.labelIndices.has(index) ? <text className="return-date-label" x={x} y={HEIGHT - 14} textAnchor="middle">
@@ -107,9 +110,16 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
                 cy={strategyY}
                 r="3"
               >
-                <title>{`${point.report_date} ${strategy} − ${benchmark} ${formatPercent(strategyValue)}`}</title>
+                <title>{`${point.report_date} ${strategy} ${formatPercent(strategyValue)}`}</title>
               </circle>
-
+              <circle
+                className="return-point is-benchmark"
+                cx={x}
+                cy={benchmarkY}
+                r="3"
+              >
+                <title>{`${point.report_date} ${benchmark} ${formatPercent(qqqValue)}`}</title>
+              </circle>
             </g>
           );
         })}

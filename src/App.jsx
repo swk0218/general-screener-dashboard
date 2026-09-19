@@ -208,19 +208,20 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
   if (!Number.isFinite(Number(excessReturn))) return "비교 가능한 실행을 기다리는 중입니다";
   const value = Number(excessReturn);
   return value >= 0
-    ? `${benchmarkLabel} 대비 ${(value * 100).toFixed(2)}% 앞섰습니다`
-    : `${benchmarkLabel} 대비 ${(Math.abs(value) * 100).toFixed(2)}% 뒤쳐졌습니다`;
+    ? `${benchmarkLabel} 대비 평균 ${(value * 100).toFixed(2)}%p 앞섰습니다`
+    : `${benchmarkLabel} 대비 평균 ${(Math.abs(value) * 100).toFixed(2)}%p 뒤처졌습니다`;
 }
 
 function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
   if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const value = Number(excessReturn);
-  const displayValue = formatPercentPoints(value);
+  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%p`;
   return (
     <>
-      <span className="benchmark-copy-prefix">{benchmarkLabel} 대비 평균 초과수익</span>{" "}
+      <span className="benchmark-copy-prefix">{benchmarkLabel} 대비 평균</span>{" "}
       <span className="benchmark-copy-result">
-        <strong className="benchmark-copy-value">{displayValue}</strong>
+        <strong className="benchmark-copy-value">{displayValue}</strong>{" "}
+        <span className="benchmark-copy-status">{value >= 0 ? "앞섰습니다" : "뒤처졌습니다"}</span>
       </span>
     </>
   );
