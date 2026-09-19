@@ -526,3 +526,46 @@ test("searches the newest matching historical company name when the latest name 
     `${item.strategy}:${item.runId}:${item.symbol}`
   )), ["TENX:tenx-1:AAA", "MLG:run-2:AAA"]);
 });
+
+test("benchmark caps reconciled completed runs at 24 independently per strategy and horizon", () => {
+  for (const strategy of ["MLG", "TENX"]) for (const horizon of ["20d", "60d", "120d"]) {
+    for (const count of [1, 23, 24, 25, 30]) {
+      const rows = Array.from({ length: count }, (_, i) => ({
+        strategy, horizon, run_id: String(i + 1),
+        report_date: new Date(Date.UTC(2026, 0, i + 1)).toISOString().slice(0, 10),
+        strategy_return: i / 100, qqq_return: 0.1, excess_return: i / 100 - 0.1,
+        signal_count: 1, status: "VERIFIED",
+      }));
+      const signals = rows.map(row => ({ ...row, signal_id: "repeated-symbol", entry_session: row.report_date, measurement_session: "2026-09-18" }));
+      const performance = {
+        status: "PARTIAL", horizon_statuses: [{ strategy, horizon, status: "VERIFIED" }],
+        aggregates: [{ strategy, horizon, status: "VERIFIED", measurement_session_max: "2099-01-01" }],
+        run_series: [...rows].reverse().concat({ ...rows.at(-1), run_id: "pending", report_date: "2099-01-01", status: "PENDING" }), signals,
+      };
+      // A duplicate in the reconstructed tier must not consume a slot or override official data.
+      const backcast = { aggregates: [{ strategy, horizon, status: "RECONSTRUCTED" }],
+        run_series: [{ ...rows.at(-1), status: "RECONSTRUCTED", strategy_return: 999 }],
+        signals: [{ ...signals.at(-1), status: "RECONSTRUCTED" }] };
+      if (strategy === "MLG") {
+        const olderIds = new Set(rows.slice(0, Math.min(10, count - 1)).map(row => row.run_id));
+        backcast.run_series.unshift(...rows.filter(row => olderIds.has(row.run_id)).map(row => ({ ...row, status: "RECONSTRUCTED" })));
+        backcast.signals.unshift(...signals.filter(row => olderIds.has(row.run_id)).map(row => ({ ...row, status: "RECONSTRUCTED" })));
+        performance.run_series = performance.run_series.filter(row => !olderIds.has(row.run_id));
+        performance.signals = signals.filter(row => !olderIds.has(row.run_id));
+      }
+      const before = structuredClone({ performance, backcast });
+      const cell = getUnifiedPerformanceCell(performance, backcast, strategy, horizon);
+      const expected = rows.slice(-24);
+      assert.deepEqual(cell.runSeries.map(row => row.run_id), expected.map(row => row.run_id));
+      assert.equal(cell.aggregate.run_count, Math.min(24, count));
+      assert.equal(cell.signals.length, expected.length);
+      assert.deepEqual(new Set(cell.signals.map(row => row.run_id)), new Set(expected.map(row => row.run_id)));
+      for (const [output, field] of [["equal_weight_return", "strategy_return"], ["qqq_equal_weight_return", "qqq_return"], ["equal_weight_excess_return", "excess_return"]]) {
+        assert.ok(Math.abs(cell.aggregate[output] - expected.reduce((sum, row) => sum + row[field], 0) / expected.length) < 1e-12);
+      }
+      assert.equal(cell.aggregate.qqq_win_rate, expected.filter(row => row.excess_return > 0).length / expected.length);
+      assert.equal(cell.aggregate.measurement_session_max, "2026-09-18");
+      assert.deepEqual({ performance, backcast }, before);
+    }
+  }
+});

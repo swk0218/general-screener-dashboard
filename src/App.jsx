@@ -40,6 +40,7 @@ import {
   compactTenxFacts,
   getSymbolTimeline,
   getUnifiedPerformanceCell,
+  PERFORMANCE_RUN_LIMIT,
   parseHashRoute,
   resolveSelectedRun,
   searchHistoryRuns,
@@ -886,7 +887,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
             {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "거래일")} />)}
           </SegmentedControl>
         </div>
-        <p>측정이 끝난 모든 추천의 평균입니다. {horizonBasisCopy}</p>
+        <p>측정 완료된 최근 {PERFORMANCE_RUN_LIMIT}회 추천의 평균입니다. {PERFORMANCE_RUN_LIMIT}회 미만이면 확보된 결과만 반영합니다. {horizonBasisCopy}</p>
       </div>
 
       <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
@@ -1263,7 +1264,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                       <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
-                      <span className="backcast-meta">전체 이력 · {aggregate.run_count}회 측정 · 벤치마크 상회 {cell.runSeries.filter((item) => Number(item.excess_return) > 0).length}/{aggregate.run_count}회</span>
+                      <span className="backcast-meta">최근 {aggregate.run_count}회 측정 · 최대 {PERFORMANCE_RUN_LIMIT}회 · 벤치마크 상회 {cell.runSeries.filter((item) => Number(item.excess_return) > 0).length}/{aggregate.run_count}회</span>
                     </>
                   ) : (
                     <>

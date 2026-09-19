@@ -3,6 +3,7 @@ const VIEW_IDS = new Set(["overview", "history", "methodology"]);
 const METHODOLOGY_SECTIONS = new Set(["mlg", "tenx", "performance", "operations"]);
 const EVIDENCE_LEVELS = new Set(["HOLD", "PARTIAL", "READY"]);
 const EMPTY_LIST = Object.freeze([]);
+export const PERFORMANCE_RUN_LIMIT = 24;
 
 function normalizeStrategy(value) {
   const strategy = String(value || "").toUpperCase();
@@ -207,12 +208,20 @@ export function getUnifiedPerformanceCell(performance, backcast, strategy, horiz
     reconstructedRuns,
     officialRuns,
     (row) => String(row.run_id),
-  ).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date)));
+  ).sort((a, b) => String(a.report_date).localeCompare(String(b.report_date))
+    || String(a.run_id).localeCompare(String(b.run_id), "en", { numeric: true }));
   let signals = keyedUnion(
     reconstructedSignals,
     officialSignals,
     (row) => String(row.run_id) + ":" + String(row.signal_id),
   );
+  // Cap completed, reconciled runs independently for each strategy and horizon.
+  // Keep archive inputs intact; all displayed statistics share this selection.
+  if (scope === "history") {
+    runSeries = runSeries.slice(-PERFORMANCE_RUN_LIMIT);
+    const selectedRunIds = new Set(runSeries.map((run) => String(run.run_id)));
+    signals = signals.filter((signal) => selectedRunIds.has(String(signal.run_id)));
+  }
   // Older verified payloads put the actual investment dates on signals only.
   runSeries = runSeries.map((run) => {
     const members = signals.filter((signal) => String(signal.run_id) === String(run.run_id));
@@ -275,7 +284,6 @@ export function getUnifiedPerformanceCell(performance, backcast, strategy, horiz
   }
 
   const measurementSessions = [
-    ...(scope === "history" ? [officialAggregate?.measurement_session_max, reconstructedAggregate?.measurement_session_max] : []),
     ...runSeries.map((row) => row.measurement_session),
   ].filter(Boolean);
   const underlyingSignalCount = signals.length
