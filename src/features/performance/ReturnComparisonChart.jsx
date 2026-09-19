@@ -62,8 +62,8 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
     <figure ref={containerRef} className="return-chart" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <figcaption>
         <span id={titleId}>실행별 {horizon} 수익률 비교</span>
-        <span id={descriptionId} className="sr-only">가로축은 선정일, 세로축은 선정 후 {horizon.replace("D", "거래일")} 수익률입니다. 누적 수익률이 아닙니다.</span>
       </figcaption>
+      <p id={descriptionId} className="return-chart-description">가로축은 추천일입니다. 각 점은 해당 추천의 {horizon.replace("D", "거래일")} 보유 수익률이며, 누적 수익률이 아닙니다.</p>
       <div className="return-chart-legend" aria-hidden="true">
         <span><i className="is-strategy" />{strategy}</span>
         <span><i className="is-benchmark" />{benchmark}</span>
