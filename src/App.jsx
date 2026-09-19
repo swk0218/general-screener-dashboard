@@ -215,13 +215,12 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
 function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
   if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const value = Number(excessReturn);
-  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%p`;
+  const displayValue = formatPercentPoints(value);
   return (
     <>
-      <span className="benchmark-copy-prefix">{benchmarkLabel} 대비</span>{" "}
+      <span className="benchmark-copy-prefix">{benchmarkLabel} 대비 평균 초과수익</span>{" "}
       <span className="benchmark-copy-result">
-        <strong className="benchmark-copy-value">{displayValue}</strong>{" "}
-        <span className="benchmark-copy-status">{value >= 0 ? "앞섰습니다" : "뒤쳐졌습니다"}</span>
+        <strong className="benchmark-copy-value">{displayValue}</strong>
       </span>
     </>
   );
@@ -839,13 +838,11 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
 }
 
 export function PerformancePanel({ strategy, performance, backcast, evidenceStatus, range, setRange, benchmark = "QQQ" }) {
-  const [scope, setScope] = useState("latest");
   const benchmarkLabel = benchmarkDisplayName(benchmark);
   const officialEvidence = getPerformanceState(performance, evidenceStatus);
-  const cell = getUnifiedPerformanceCell(performance, backcast, strategy, range, scope);
+  const cell = getUnifiedPerformanceCell(performance, backcast, strategy, range);
   const { aggregate, runSeries, signals, source } = cell;
   const selectedStatus = cell.horizonStatus;
-  const latestRun = scope === "latest" ? runSeries[0] : null;
   const isHeld = selectedStatus?.status === "HOLD";
   const expectedSignals = strategy === "MLG" ? 10 : 5;
   const completeRuns = Number(selectedStatus?.complete_run_count ?? aggregate?.run_count ?? runSeries.length ?? 0);
@@ -888,17 +885,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
             {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "거래일")} />)}
           </SegmentedControl>
         </div>
-        <div>
-          <span>집계 범위</span>
-          <SegmentedControl value={scope} onChange={setScope} label="성과 집계 범위" size="md" layout="fill">
-            <SegmentedControlItem value="latest" label="최근 완료" />
-            <SegmentedControlItem value="history" label="전체 이력" />
-          </SegmentedControl>
-        </div>
-        <p>{scope === "latest"
-          ? `가장 최근에 ${range.replace("D", "거래일")} 측정을 마친 추천 1회의 성과입니다. 오늘 기준 이동 수익률은 아닙니다.`
-          : `측정이 끝난 모든 추천의 평균입니다. ${horizonBasisCopy}`}</p>
-        {latestRun ? <p className="performance-period"><strong>{latestRun.entry_session} → {latestRun.measurement_session}</strong><span>실제 투자 기간 · {latestRun.report_date} 추천</span></p> : null}
+        <p>측정이 끝난 모든 추천의 평균입니다. {horizonBasisCopy}</p>
       </div>
 
       <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
@@ -910,16 +897,16 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
                 <h3 className={returnTone(excessReturn)}><BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={excessReturn} /></h3>
               </div>
               <dl className="performance-kpis">
-                <div><dt>{scope === "latest" ? "기간 수익률" : "평균 수익률"}</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
+                <div><dt>평균 수익률</dt><dd className={returnTone(strategyReturn)}>{formatPercent(strategyReturn)}</dd></div>
                 <div><dt>{benchmarkLabel} 대비</dt><dd className={returnTone(excessReturn)}>{formatPercentPoints(excessReturn)}</dd></div>
-                <div><dt>집계 추천</dt><dd>{completeRuns}회</dd></div>
-                <div><dt>실행별 우위</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
+                <div><dt>측정 완료</dt><dd>{completeRuns}회</dd></div>
+                <div><dt>벤치마크 상회</dt><dd>{benchmarkWinCount} / {completeRuns}회</dd></div>
               </dl>
             </section>
 
-            {scope === "history" ? <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmarkLabel} horizon={range} /> : null}
+            <ReturnComparisonChart points={runSeries} strategy={strategy} benchmark={benchmarkLabel} horizon={range} />
 
-            {scope === "history" ? <div className="performance-table-wrap">
+            <div className="performance-table-wrap">
               <table className="performance-run-table">
                 <thead><tr><th>추천일</th><th>{strategy}</th><th>{benchmarkLabel}</th><th>{benchmarkLabel} 대비</th><th>관측 종목</th></tr></thead>
                 <tbody>
@@ -934,7 +921,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
                   ))}
                 </tbody>
               </table>
-            </div> : null}
+            </div>
 
             <details className="signals-details">
               <summary>{source === "MIXED" ? "통합" : source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <small>· 진입 기준 {entryBasisLabel}</small></summary>
@@ -956,6 +943,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
             <details className="calculation-details">
               <summary>산정 방식 및 데이터 등급</summary>
               <div>
+                <p>추천별 보유 기간이 겹치고 같은 종목이 반복될 수 있어 각 측정은 독립적인 표본이 아닙니다. 표시한 평균은 실제 계좌의 누적수익률이 아닙니다.</p>
                 <p>진입 기준은 {entryBasisLabel}입니다. 동일한 진입·측정 세션의 {benchmarkLabel}과 비교하며, 실행당 {expectedSignals}종목 전체가 갖춰진 경우만 동일가중 평균에 포함합니다. 수수료와 슬리피지는 반영하지 않습니다.</p>
                 <dl>
                   <div><dt>현재 표시</dt><dd>{sourceLabel}</dd></div>
@@ -1193,7 +1181,6 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
       payload.performance_backcast,
       strategy,
       "20D",
-      "latest",
     ),
   }));
   const hasPerformancePreview = performancePreviews.some((item) => item.cell.aggregate);
@@ -1275,7 +1262,7 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
                       <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
-                      <span className="backcast-meta">최근 완료 · {cell.runSeries[0]?.entry_session} → {cell.runSeries[0]?.measurement_session} · {aggregate.underlying_signal_count || "—"}종목</span>
+                      <span className="backcast-meta">전체 이력 · {aggregate.run_count}회 측정 · 벤치마크 상회 {cell.runSeries.filter((item) => Number(item.excess_return) > 0).length}/{aggregate.run_count}회</span>
                     </>
                   ) : (
                     <>

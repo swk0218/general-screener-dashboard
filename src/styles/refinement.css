@@ -266,15 +266,4 @@
   :is(.performance-strategy-control, .screener-mode-bar) .astryx-segmented-control [role="radio"] { font-size: 11px; padding-inline: 4px; }
 }
 
-/* Performance dates clarify the existing holding-period contract. */
-.performance-controls .performance-period {
-  display: grid;
-  gap: 4px;
-}
-.performance-period strong { color: var(--gs-text); font-size: 14px; }
-.performance-period span, .return-chart-description {
-  color: var(--gs-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.return-chart-description { margin: 8px 0 16px; }
+.return-chart-description { color: var(--gs-muted); font-size: 12px; line-height: 1.6; margin: 8px 0 16px; }
