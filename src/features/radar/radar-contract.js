@@ -45,8 +45,16 @@ export function validateRadarDelivery(value) {
   const { score, level, mixed } = value.gauge;
   const { bottom, top } = value.events;
   const replay=value.operating_status==='REPLAY_NO_FORWARD_ISSUE';
-  if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status))fail();
-  if(!replay&&(!value.evidence_ready||['DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status)||value.gauge.data_status==='CACHED_STALE')) {
+  const observation=value.operating_status==='OBSERVATION_COMPUTED';
+  if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW','OBSERVATION_COMPUTED'].includes(value.operating_status))fail();
+  if(observation&&(value.observation_only!==true||value.controller_evaluated!==false||value.evidence_ready!==false
+    ||bottom||top||value.active.bottom||value.active.top||score!==null&&(score<20||score>79)
+    ||!value.observation||value.observation.policy!=='SCORE_ONLY_NO_OPERATIONAL_ALERT'
+    ||typeof value.observation.computed_at_utc!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(value.observation.computed_at_utc)
+    ||!Number.isFinite(Date.parse(value.observation.computed_at_utc))
+    ||Date.parse(value.observation.computed_at_utc)>Date.now()+300000
+    ||value.observation.historical_first_seen_claimed!==false))fail();
+  if(!replay&&!observation&&(!value.evidence_ready||['DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status)||value.gauge.data_status==='CACHED_STALE')) {
     if(bottom||top||score!==null||level!=='UNAVAILABLE'||value.scores.bottom!==null||value.scores.top!==null)fail();
   }
   if (typeof mixed !== 'boolean' || typeof value.gauge.reference_version !== 'string') fail();
