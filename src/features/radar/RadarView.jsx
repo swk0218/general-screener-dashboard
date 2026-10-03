@@ -22,5 +22,12 @@ export function RadarView({ delivery=null }) {
     <details><summary>점수 해석과 자료 기준</summary><p>Extreme Low와 Extreme High는 당일 실제 신규 경보를 뜻합니다. 경보가 없는 날은 20~79에 표시하고, 양방향 경보가 함께 발신되면 숫자 대신 상충 상태를 표시합니다.</p><p>검증되지 않은 자료나 순위 참조가 없으면 점수를 표시하지 않습니다.</p></details>
     <section><h2>자체 모델 입력</h2><dl className="radar-inputs">{MODEL_INPUTS.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{['cnn_rank','RV20_rank'].includes(key) && typeof data?.inputs[key]==='number' ? `${number(data.inputs[key]*100)}%` : number(data?.inputs[key])}</dd></div>)}</dl></section>
     <section><h2>참고 게이지</h2><p>RSI와 VIX 원수치는 참고 표시입니다.</p><dl className="radar-inputs">{REFERENCE_INPUTS.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{number(data?.references[key])}</dd></div>)}</dl></section>
+    {data?.operating_status==='REPLAY_NO_FORWARD_ISSUE' && <p>동결 연구 재현 · 실제 운영 신호 아님</p>}
+    {data?.gauge.reason && <details><summary>모델·자료·표시 검증 정보</summary>
+      <p>모델 버전: {data.model_version}</p><p>표시 버전: {data.gauge.presentation_version}</p>
+      <p>자료 상태: {data.gauge.data_status} · 표시 사유: {data.gauge.reason}</p>
+      <p>기준 버전: {data.gauge.reference_version}</p>
+      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} q90: {number(data.native_details?.[side]?.threshold)} · 확인 거부: {data.native_details?.[side]?.vetoed===true?'예':'아니오'} · 입력 사유: {data.native_details?.[side]?.availability_reason ?? '—'}</p>)}
+    </details>}
   </section>;
 }
