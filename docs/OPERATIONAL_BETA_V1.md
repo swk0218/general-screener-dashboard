@@ -9,8 +9,12 @@ Historical replay and ten-session active state do not establish live readiness o
 same-day emission. Extreme Low/High must match a new emitted event. Missing/stale
 or unverified input stays unavailable. Keep source bytes and receipts private.
 
-Blocked: full-precision CNN acquisition, independent history/feature verification,
-real source-to-state-to-encrypted-UI smoke and prospective acquisition gate.
+The complete offline raw/PIT/fixed-model/SQLite/feed pipeline now passes using
+this checkout's actual decryptor/validator. Its independent feature/history verifier
+refuses to treat normalized fixtures as authenticated provider data. A separate
+public archive observation obtained full-precision JSON with actual local first_seen.
+Blocked: official CNN HTTP 418, canonical live provider/session mapping and prefix,
+real live source-to-state-to-encrypted-UI smoke and prospective acquisition gate.
 No live feed, publisher, deployment or workflow activation was run.
 
 After backend gates pass, review both pinned commits, encrypted payload path and
