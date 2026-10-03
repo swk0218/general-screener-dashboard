@@ -29,6 +29,9 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
+import { RadarView } from "./features/radar/RadarView.jsx";
+import { loadOptionalRadarDelivery } from "./features/radar/radar-envelope.js";
+import { radarHeaderStatus } from "./features/radar/gauge-model.js";
 import {
   getPerformanceState,
   createDashboardIndex,
@@ -84,6 +87,7 @@ const RISK_VALUES = Object.freeze({
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
 
 const NAV_ITEMS = Object.freeze([
+  { id: "radar", label: "RADAR", icon: TrendingUp },
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -92,6 +96,7 @@ const NAV_ITEMS = Object.freeze([
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
+  { id: "radar", label: "RADAR", icon: TrendingUp },
   { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -100,6 +105,7 @@ const MOBILE_NAV_ITEMS = Object.freeze([
 ]);
 
 const VIEW_LABELS = Object.freeze({
+  radar: "MARKET RADAR",
   overview: "OVERVIEW",
   selection: "SCREENER",
   detail: "SECURITY DETAIL",
@@ -233,6 +239,7 @@ function routeDocumentTitle(route) {
   if (route?.view === "selection") return `${route.strategy || "MLG"} 스크리너 | GENERAL SCREENER`;
   if (route?.view === "performance") return `${route.strategy || "MLG"} 성과 | GENERAL SCREENER`;
   const labels = {
+    radar: "시장 전환 신호",
     overview: "개요",
     history: "실행 이력",
     methodology: "방법론",
@@ -385,8 +392,10 @@ function BrandHeader({
   searchResults,
   onOpenSearchResult,
   generatedAt,
+  radar,
   onLock,
 }) {
+  const radarStatus=activeView==='radar'?radarHeaderStatus(radar):null;
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchTriggerRef = useRef(null);
   const searchWrapRef = useRef(null);
@@ -482,10 +491,11 @@ function BrandHeader({
       >
         <Search size={24} strokeWidth={1.8} />
       </button>
-      <div className="sync-status">
-        <span className="sync-label">Last Update</span>
-        <time dateTime={generatedAt || undefined}>{formatKstDate(generatedAt)}</time>
-        <span className="status-dot" aria-label="데이터 동기화 완료" />
+      <div className={`sync-status${radarStatus?' is-radar':''}`}>
+        <span className="sync-label">{radarStatus?radarStatus.label:'Screener Update'}</span>
+        <time dateTime={radarStatus?(radarStatus.date||undefined):(generatedAt||undefined)}>{radarStatus?(radarStatus.date||'—'):formatKstDate(generatedAt)}</time>
+        {radarStatus&&<span className="radar-header-state">{radarStatus.status}</span>}
+        <span className={`status-dot${radarStatus?' is-hold':''}`} aria-label={radarStatus?radarStatus.status:'데이터 동기화 완료'} />
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
         <LockKeyhole size={18} />
@@ -1625,7 +1635,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, onLock }) {
+function Dashboard({ payload, radar, onLock }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
@@ -1701,6 +1711,8 @@ function Dashboard({ payload, onLock }) {
         onPerformance={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
       />
     );
+  } else if (route.view === "radar") {
+    content = <RadarView delivery={radar} />;
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
@@ -1757,6 +1769,7 @@ function Dashboard({ payload, onLock }) {
         searchResults={searchResults}
         onOpenSearchResult={openSearchResult}
         generatedAt={payload.generated_at}
+        radar={radar}
         onLock={onLock}
       />
       <SideNav activeView={route.view} onNavigate={navigateItem} onLock={onLock} />
@@ -1770,6 +1783,9 @@ export function App() {
   const [envelope, setEnvelope] = useState(null);
   const [envelopeError, setEnvelopeError] = useState("");
   const [payload, setPayload] = useState(null);
+  const [radar, setRadar] = useState(null);
+  const radarRequest = useRef(null);
+  const unlockGeneration = useRef(0);
   const [dashboardRevision, setDashboardRevision] = useState(0);
 
   useEffect(() => {
@@ -1795,7 +1811,24 @@ export function App() {
     const decrypted = await decryptEnvelope(envelope, passphrase);
     const validated = assertDashboardPayload(decrypted);
     setPayload(assertDashboardPayload(quarantineDashboardPayload(validated)));
+    const generation = ++unlockGeneration.current;
+    radarRequest.current?.abort();
+    const controller = new AbortController();
+    radarRequest.current = controller;
+    setRadar(null);
+    loadOptionalRadarDelivery(`${import.meta.env.BASE_URL}data/radar-observation.json`, `${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal)
+      .then(value => { if (unlockGeneration.current === generation) setRadar(value); })
+      .catch(() => { if (unlockGeneration.current === generation) setRadar(null); });
   }
+
+  function lock() {
+    unlockGeneration.current += 1;
+    radarRequest.current?.abort();
+    setRadar(null);
+    setPayload(null);
+  }
+
+  useEffect(() => () => radarRequest.current?.abort(), []);
 
   return (
     <Theme theme={neutralTheme} mode="dark">
@@ -1803,9 +1836,9 @@ export function App() {
         <AppErrorBoundary
           key={dashboardRevision}
           onRetry={() => setDashboardRevision((current) => current + 1)}
-          onLock={() => setPayload(null)}
+          onLock={lock}
         >
-          <Dashboard payload={payload} onLock={() => setPayload(null)} />
+          <Dashboard payload={payload} radar={radar} onLock={lock} />
         </AppErrorBoundary>
       ) : (
         <UnlockScreen envelope={envelope} envelopeError={envelopeError} onUnlock={unlock} />

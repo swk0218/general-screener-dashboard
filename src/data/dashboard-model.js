@@ -1,5 +1,5 @@
 const STRATEGY_IDS = new Set(["MLG", "TENX"]);
-const VIEW_IDS = new Set(["overview", "history", "methodology"]);
+const VIEW_IDS = new Set(["overview", "history", "methodology", "radar"]);
 const METHODOLOGY_SECTIONS = new Set(["mlg", "tenx", "performance", "operations"]);
 const EVIDENCE_LEVELS = new Set(["HOLD", "PARTIAL", "READY"]);
 const EMPTY_LIST = Object.freeze([]);
