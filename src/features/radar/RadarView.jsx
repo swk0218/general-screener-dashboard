@@ -55,7 +55,7 @@ export function RadarView({delivery=null}) {
     {data?.gauge.reason&&<details className="radar-explanation"><summary>모델·자료·표시 검증 정보</summary>
       <p>모델 버전: {data.model_version}</p><p>표시 버전: {data.gauge.presentation_version}</p>
       <p>자료 상태: {data.gauge.data_status} · 표시 사유: {data.gauge.reason}</p><p>기준 버전: {data.gauge.reference_version}</p>
-      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
+      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {observation?'미계산':typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
     </details>}
   </section>;
 }

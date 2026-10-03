@@ -14,8 +14,9 @@ export function validateRadarDelivery(value) {
   const date = new Date(`${value.session}T00:00:00Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value.session) fail();
   if (!value.events || !value.active || !value.gauge || !value.inputs || !value.references) fail();
+  const observation=value.operating_status==='OBSERVATION_COMPUTED';
   for (const side of ['bottom','top']) {
-    if (typeof value.events[side] !== 'boolean' || typeof value.active[side] !== 'boolean') fail();
+    if (typeof value.events[side] !== 'boolean' || (observation?value.active[side]!==null:typeof value.active[side] !== 'boolean')) fail();
     if (value.scores?.[side] !== null && (!finite(value.scores?.[side]) || value.scores[side]<0 || value.scores[side]>1)) fail();
   }
   for (const [key] of MODEL_INPUTS) if (!Object.hasOwn(value.inputs,key) || (value.inputs[key]!==null && !finite(value.inputs[key]))) fail();
@@ -36,7 +37,7 @@ export function validateRadarDelivery(value) {
   }
   if(value.native_details!==undefined) for(const side of ['bottom','top']) {
     const d=value.native_details?.[side];
-    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||typeof d.vetoed!=='boolean') fail();
+    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||(observation?d.vetoed!==null:typeof d.vetoed!=='boolean')) fail();
   }
   if(value.input_metadata!==undefined) for(const m of Object.values(value.input_metadata)) {
     if(!m||typeof m.source!=='string'||(m.source_date!==null&&!/^\d{4}-\d{2}-\d{2}$/.test(m.source_date||''))
@@ -45,15 +46,38 @@ export function validateRadarDelivery(value) {
   const { score, level, mixed } = value.gauge;
   const { bottom, top } = value.events;
   const replay=value.operating_status==='REPLAY_NO_FORWARD_ISSUE';
-  const observation=value.operating_status==='OBSERVATION_COMPUTED';
   if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW','OBSERVATION_COMPUTED'].includes(value.operating_status))fail();
   if(observation&&(value.observation_only!==true||value.controller_evaluated!==false||value.evidence_ready!==false
-    ||bottom||top||value.active.bottom||value.active.top||score!==null&&(score<20||score>79)
+    ||bottom||top||value.active.bottom!==null||value.active.top!==null||score!==null&&(score<20||score>79)
     ||!value.observation||value.observation.policy!=='SCORE_ONLY_NO_OPERATIONAL_ALERT'
     ||typeof value.observation.computed_at_utc!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(value.observation.computed_at_utc)
     ||!Number.isFinite(Date.parse(value.observation.computed_at_utc))
     ||Date.parse(value.observation.computed_at_utc)>Date.now()+300000
     ||value.observation.historical_first_seen_claimed!==false))fail();
+  if(observation) {
+    const v=value.verification,o=value.observation;
+    if(v?.schema!=='dated_observation_math_v1'||v.immutable_panel_sha256!=='73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8'
+      ||v.independent_features!==true||v.raw_hashes_bound!==true||v.exact_session_inputs!==true
+      ||v.model_seal_verified!==true||v.controller_evaluated!==false||v.feature_tolerance!==1e-12
+      ||!/^\d{4}-\d{2}-\d{2}$/.test(o.expected_session||'')||o.expected_session<value.session
+      ||!['DATED_OBSERVATION','DATED_STALE_OBSERVATION'].includes(value.gauge.data_status)
+      ||(value.gauge.data_status==='DATED_STALE_OBSERVATION')!==(o.expected_session!==value.session))fail();
+    for(const source of ['CNN','SPY','VIX']) {
+      const r=o.source_receipts?.[source],hash=o.source_hashes?.[source];
+      if(!r||! /^[a-f0-9]{64}$/.test(hash||'')||(r.raw_sha256||r.sha256)!==hash||r.observation_date!==value.session
+        ||!/(Z|[+-]\d{2}:\d{2})$/.test(r.received_at_utc||'')||!Number.isFinite(Date.parse(r.received_at_utc))
+        ||Date.parse(r.received_at_utc)>Date.parse(o.computed_at_utc))fail();
+    }
+    if(score!==null) {
+      for(const [key] of MODEL_INPUTS)if(!finite(value.inputs[key]))fail();
+      if(!finite(value.references.vix)||!value.input_metadata||!value.input_positions||!value.native_details)fail();
+      for(const [key] of [...MODEL_INPUTS,...REFERENCE_INPUTS]) {
+        if(value.inputs[key]===null||value.references[key]===null)continue;
+        const m=value.input_metadata[key];
+        if(!m||m.source_date!==value.session||m.status!=='DATED_OBSERVATION_NOT_ALERT'||!m.received_at_utc)fail();
+      }
+    }
+  }
   if(!replay&&!observation&&(!value.evidence_ready||['DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status)||value.gauge.data_status==='CACHED_STALE')) {
     if(bottom||top||score!==null||level!=='UNAVAILABLE'||value.scores.bottom!==null||value.scores.top!==null)fail();
   }
