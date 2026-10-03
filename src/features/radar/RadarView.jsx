@@ -2,6 +2,7 @@ import { validateRadarDelivery } from './radar-contract.js';
 import { inputGaugeCards, thresholdPosition, radarHeaderStatus } from './gauge-model.js';
 import { GaugeCard, GaugeTrack } from './GaugeCard.jsx';
 import './radar.css';
+import { ObservationStatus } from './ObservationStatus.jsx';
 
 const number=value=>typeof value==='number'&&Number.isFinite(value)?value.toLocaleString('ko-KR',{maximumFractionDigits:3}):'—';
 
@@ -10,6 +11,7 @@ export function RadarView({delivery=null}) {
   try {if(delivery)data=validateRadarDelivery(delivery);}catch{/* Separate optional surface fails closed. */}
   const cards=inputGaugeCards(data),status=radarHeaderStatus(data);
   return <section className="secondary-view radar-view">
+    <ObservationStatus />
     <header className="radar-page-header"><p>MARKET RADAR</p><h1>시장 전환 신호</h1><p>낮을수록 저점, 높을수록 고점 방향 · 확률이 아닌 연구 점수</p></header>
     <div className="radar-research-notice" role="status">
       <span>{status.status}</span><time dateTime={data?.session}>{data?.session||'자료 확인 대기'}</time>

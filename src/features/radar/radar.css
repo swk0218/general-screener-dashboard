@@ -76,3 +76,4 @@
 
 .radar-score-denominator{font-size:1rem;font-weight:400;color:var(--text-muted,#94a3b8)}
 .radar-card-percentile{font-size:.8rem;color:#cbd5e1;margin:.5rem 0}
+.radar-observation-panel{padding:24px;border:1px solid var(--border,#334155);border-radius:16px;margin-bottom:24px}.radar-observation-panel dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.radar-observation-panel dt{font-size:12px;opacity:.7}.radar-observation-panel dd{margin:4px 0;overflow-wrap:anywhere}.radar-observation-panel p{line-height:1.7}@media(max-width:600px){.radar-observation-panel dl{grid-template-columns:1fr}.radar-observation-panel{padding:18px}}

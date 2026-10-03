@@ -1,13 +1,16 @@
 # Frozen MarketRadar surface — 2026-10-03
 
-Operational beta v1 remains blocked on backend live-source gates.
+Daily observation beta is approved for the existing Radar tab: NO_SIGNAL, honest
+source/receipt/build/deployment times and stale handling;19:00KST scheduled batch.
+Investment-reference alert promotion remains separate from this observation release.
 See [release readiness and rollback](docs/OPERATIONAL_BETA_V1.md).
 
 The separate `#/radar` view accepts only the frozen model's optional encrypted
 delivery. See [Radar UI contract and validation](docs/FROZEN_RADAR_UI.md).
-General Screener's main encrypted payload, MLG/TENX contracts, and Pages workflow
-remain unchanged. Missing optional Radar data does not block the screener.
-No live Radar feed or deployment was enabled by this local intake.
+General Screener's encrypted payload and MLG/TENX contracts remain unchanged.
+The existing Pages workflow adds a derived-only observation probe/daily trigger
+using the same permission scopes. Missing optional Radar data does not block Screener.
+No new secret, raw source value, decrypted recommendation or TEST_ONLY feed is published.
 
 # GENERAL SCREENER
 

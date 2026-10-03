@@ -5,10 +5,11 @@ import { parseHashRoute, serializeHashRoute } from '../src/data/dashboard-model.
 import { decryptRadarEnvelope } from '../src/features/radar/radar-envelope.js';
 import { createCipheriv, pbkdf2Sync, randomBytes, createHash } from 'node:crypto';
 import { inputGaugeCards,thresholdPosition,radarHeaderStatus } from '../src/features/radar/gauge-model.js';
+import {validateObservationStatus,observationState} from '../src/features/radar/observation-status.js';
 
 function fixture(score=50,level='Neutral',bottom=false,top=false) {
-  return {schema_version:'frozen_radar_delivery_v1',model_version:FROZEN_MODEL_VERSION,session:'2026-03-12',evidence_ready:false,
-    events:{bottom,top},active:{bottom:true,top:false},scores:{bottom:.95,top:.95},
+  return {schema_version:'frozen_radar_delivery_v1',model_version:FROZEN_MODEL_VERSION,session:'2026-03-12',evidence_ready:false,operating_status:'REPLAY_NO_FORWARD_ISSUE',
+    events:{bottom,top},active:{bottom:true,top:false},scores:{bottom:score===null?null:.95,top:score===null?null:.95},
     gauge:{score,level,mixed:true,reference_version:'TEST_ONLY'},
     inputs:Object.fromEntries(MODEL_INPUTS.map(([key])=>[key,null])),
     references:Object.fromEntries(REFERENCE_INPUTS.map(([key])=>[key,null]))};
@@ -57,6 +58,26 @@ test('native threshold position is descriptive and never derives warnings',()=>{
 test('Radar route stays separate from engine strategy routes',()=>{
   assert.equal(parseHashRoute('#/radar').view,'radar');
   assert.equal(serializeHashRoute({view:'radar'}),'#/radar');
+});
+test('unverified hold cannot issue events or display a signal gauge',()=>{
+  for(const status of ['DATA_HOLD','NO_SIGNAL','SHADOW',undefined]) {
+    const bad=fixture(0,'Extreme Low',true,false);bad.operating_status=status;
+    assert.throws(()=>validateRadarDelivery(bad));
+    const good=fixture(null,'UNAVAILABLE');good.operating_status=status;
+    assert.equal(validateRadarDelivery(good).gauge.score,null);
+  }
+});
+test('daily status always remains NO_SIGNAL and expires at next open',()=>{
+  const value={schema_version:'radar_observation_status_v1',mode:'OBSERVATION_BETA',decision:'NO_SIGNAL',evidence_ready:false,
+    model_score:null,events:{bottom:false,top:false},status:'OBSERVED_NO_SIGNAL',model_policy:'close90_v1_unchanged',collection_policy:'next_open_observation_only',historical_first_seen_claimed:false,
+    market_close_utc:'2026-10-02T20:00:00Z',next_open_utc:'2026-10-05T13:30:00Z',computed_at_utc:'2026-10-03T10:00:10Z',next_scheduled_at_utc:'2026-10-06T10:00:00Z',
+    source_market_close_utc:'2026-10-02T20:00:00Z',provider_updated_at_utc:'2026-10-02T23:59:58Z',first_seen_at_utc:'2026-10-03T10:00:00Z',received_at_utc:'2026-10-03T10:00:00Z',built_at_utc:null,published_at_utc:null,source_session:'2026-10-02'};
+  assert.equal(validateObservationStatus(value),value);
+  assert.equal(observationState(value,Date.parse('2026-10-04T10:00:00Z')),'OBSERVED_NO_SIGNAL');
+  assert.equal(observationState(value,Date.parse(value.next_open_utc)),'STALE');
+  for(const mutate of [v=>v.events.bottom=true,v=>v.decision='ALERT',v=>v.model_score=50,v=>v.first_seen_at_utc='2026-10-04T10:00:00Z']) {
+    const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateObservationStatus(bad));
+  }
 });
 test('Extreme equals actual same-day event; active state is independent',()=>{
   for(const [score,level,b,t] of [[0,'Extreme Low',true,false],[19,'Extreme Low',true,false],[80,'Extreme High',false,true],[100,'Extreme High',false,true],[20,'Low',false,false],[50,'Neutral',false,false],[79,'High',false,false]]) {

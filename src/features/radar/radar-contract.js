@@ -44,6 +44,11 @@ export function validateRadarDelivery(value) {
   }
   const { score, level, mixed } = value.gauge;
   const { bottom, top } = value.events;
+  const replay=value.operating_status==='REPLAY_NO_FORWARD_ISSUE';
+  if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status))fail();
+  if(!replay&&(!value.evidence_ready||['DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status)||value.gauge.data_status==='CACHED_STALE')) {
+    if(bottom||top||score!==null||level!=='UNAVAILABLE'||value.scores.bottom!==null||value.scores.top!==null)fail();
+  }
   if (typeof mixed !== 'boolean' || typeof value.gauge.reference_version !== 'string') fail();
   if (score === null) {
     if (!['UNAVAILABLE','CONFLICT'].includes(level) || (level==='CONFLICT' && (!(bottom&&top)||!mixed))) fail();
