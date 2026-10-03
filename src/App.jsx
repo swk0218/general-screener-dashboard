@@ -31,6 +31,7 @@ import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
 import { RadarView } from "./features/radar/RadarView.jsx";
 import { loadRadarDelivery } from "./features/radar/radar-envelope.js";
+import { radarHeaderStatus } from "./features/radar/gauge-model.js";
 import {
   getPerformanceState,
   createDashboardIndex,
@@ -391,8 +392,10 @@ function BrandHeader({
   searchResults,
   onOpenSearchResult,
   generatedAt,
+  radar,
   onLock,
 }) {
+  const radarStatus=activeView==='radar'?radarHeaderStatus(radar):null;
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchTriggerRef = useRef(null);
   const searchWrapRef = useRef(null);
@@ -488,10 +491,11 @@ function BrandHeader({
       >
         <Search size={24} strokeWidth={1.8} />
       </button>
-      <div className="sync-status">
-        <span className="sync-label">Last Update</span>
-        <time dateTime={generatedAt || undefined}>{formatKstDate(generatedAt)}</time>
-        <span className="status-dot" aria-label="데이터 동기화 완료" />
+      <div className={`sync-status${radarStatus?' is-radar':''}`}>
+        <span className="sync-label">{radarStatus?radarStatus.label:'Screener Update'}</span>
+        <time dateTime={radarStatus?(radarStatus.date||undefined):(generatedAt||undefined)}>{radarStatus?(radarStatus.date||'—'):formatKstDate(generatedAt)}</time>
+        {radarStatus&&<span className="radar-header-state">{radarStatus.status}</span>}
+        <span className={`status-dot${radarStatus?' is-hold':''}`} aria-label={radarStatus?radarStatus.status:'데이터 동기화 완료'} />
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
         <LockKeyhole size={18} />
@@ -1765,6 +1769,7 @@ function Dashboard({ payload, radar, onLock }) {
         searchResults={searchResults}
         onOpenSearchResult={openSearchResult}
         generatedAt={payload.generated_at}
+        radar={radar}
         onLock={onLock}
       />
       <SideNav activeView={route.view} onNavigate={navigateItem} onLock={onLock} />

@@ -4,6 +4,7 @@ import { MODEL_INPUTS, REFERENCE_INPUTS, validateRadarDelivery, FROZEN_MODEL_VER
 import { parseHashRoute, serializeHashRoute } from '../src/data/dashboard-model.js';
 import { decryptRadarEnvelope } from '../src/features/radar/radar-envelope.js';
 import { createCipheriv, pbkdf2Sync, randomBytes, createHash } from 'node:crypto';
+import { inputGaugeCards,thresholdPosition,radarHeaderStatus } from '../src/features/radar/gauge-model.js';
 
 function fixture(score=50,level='Neutral',bottom=false,top=false) {
   return {schema_version:'frozen_radar_delivery_v1',model_version:FROZEN_MODEL_VERSION,session:'2026-03-12',evidence_ready:false,
@@ -12,6 +13,31 @@ function fixture(score=50,level='Neutral',bottom=false,top=false) {
     inputs:Object.fromEntries(MODEL_INPUTS.map(([key])=>[key,null])),
     references:Object.fromEntries(REFERENCE_INPUTS.map(([key])=>[key,null]))};
 }
+
+test('input gauges use natural scales or verified ranks without inventing VIX bounds',()=>{
+ const data=fixture();data.inputs.cnn_score=31.1714285714286;data.inputs.cnn_rank=.26;
+ data.inputs.return20_risk=-.04;data.inputs.trend200_risk=.69;data.inputs.RV20_rank=.34;data.inputs.log_implied_realized=.37;
+ data.references.vix=16.04;data.references.rsi14=50.246;
+ const cards=inputGaugeCards(data);
+ assert.equal(cards.model.length,5);assert.equal(cards.reference.length,3);
+ assert.equal(cards.model[0].position,26);assert.equal(cards.model[1].position,null);assert.equal(cards.model[2].position,null);assert.equal(cards.model[4].position,null);
+ assert.equal(cards.reference[0].position,data.inputs.cnn_score);assert.equal(cards.reference[1].position,null);assert.equal(cards.reference[1].value,16.04);
+ assert.equal(cards.reference[2].position,50.246);
+ data.input_positions={version:'frozen-input-prior-midrank-v1',window_sessions:252,minimum_valid:126,excludes_current:true,vix_rank:.42};
+ assert.equal(inputGaugeCards(validateRadarDelivery(data)).reference[1].position,42);
+ data.input_positions.version='synthetic';assert.throws(()=>validateRadarDelivery(data));
+ assert.equal(inputGaugeCards(data).reference[1].position,null);
+});
+test('native threshold position is descriptive and never derives warnings',()=>{
+ assert.deepEqual(thresholdPosition(.5,.5),{score:50,threshold:50,delta:0,above:true});
+ assert.equal(thresholdPosition(.9,null),null);
+ assert.equal(thresholdPosition(1.1,.9),null);
+ const data=fixture();data.operating_status='REPLAY_NO_FORWARD_ISSUE';
+ assert.deepEqual(radarHeaderStatus(data),{date:'2026-03-12',label:'Radar 기준',status:'동결 연구',tone:'is-hold'});
+ assert.equal(radarHeaderStatus(null).status,'자료 없음');
+ data.operating_status='SHADOW';data.gauge.data_status='CACHED_STALE';assert.equal(radarHeaderStatus(data).status,'과거 자료');
+ assert.equal(data.events.bottom,false);
+});
 test('Radar route stays separate from engine strategy routes',()=>{
   assert.equal(parseHashRoute('#/radar').view,'radar');
   assert.equal(serializeHashRoute({view:'radar'}),'#/radar');

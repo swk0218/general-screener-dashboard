@@ -140,7 +140,7 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
 });
 
 test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
-  assert.match(appSource, /<span className="sync-label">Last Update<\/span>/);
+  assert.match(appSource, /radarStatus\.label:'Screener Update'/);
   assert.match(appSource, /formatKstDate\(generatedAt\)/);
   assert.doesNotMatch(appSource, /LAST SYNC/);
   assert.match(stylesSource, /--sidebar-width: 208px;/);

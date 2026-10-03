@@ -20,6 +20,19 @@ export function validateRadarDelivery(value) {
   }
   for (const [key] of MODEL_INPUTS) if (!Object.hasOwn(value.inputs,key) || (value.inputs[key]!==null && !finite(value.inputs[key]))) fail();
   for (const [key] of REFERENCE_INPUTS) if (!Object.hasOwn(value.references,key) || (value.references[key]!==null && !finite(value.references[key]))) fail();
+  if(value.input_positions!==undefined) {
+    const p=value.input_positions;
+    if(!p||p.version!=='frozen-input-prior-midrank-v1'||p.window_sessions!==252||p.minimum_valid!==126||p.excludes_current!==true
+      ||(p.vix_rank!==null&&(!finite(p.vix_rank)||p.vix_rank<0||p.vix_rank>1))) fail();
+  }
+  if(value.native_details!==undefined) for(const side of ['bottom','top']) {
+    const d=value.native_details?.[side];
+    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||typeof d.vetoed!=='boolean') fail();
+  }
+  if(value.input_metadata!==undefined) for(const m of Object.values(value.input_metadata)) {
+    if(!m||typeof m.source!=='string'||(m.source_date!==null&&!/^\d{4}-\d{2}-\d{2}$/.test(m.source_date||''))
+      ||(m.received_at_utc!==null&&(typeof m.received_at_utc!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(m.received_at_utc)||!Number.isFinite(Date.parse(m.received_at_utc))))) fail();
+  }
   const { score, level, mixed } = value.gauge;
   const { bottom, top } = value.events;
   if (typeof mixed !== 'boolean' || typeof value.gauge.reference_version !== 'string') fail();

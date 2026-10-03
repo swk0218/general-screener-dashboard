@@ -13,8 +13,26 @@ Conflicting alerts have no scalar; missing values never become neutral.
 An optional encrypted feed loader is connected at data/market-radar.enc.json; no
 real feed file is installed yet, so production data remains unavailable. No browser FMP
 call, plaintext public delivery, API key, stored password or production payload
-modification was introduced. Encrypted Radar transport and final annual-reference
-comparison await the final handoff packet.
+modification was introduced. Encrypted Radar transport and the final annual-reference
+comparison were verified from the locally materialized handoff packet.
+
+2026-10-03 update: the handoff/reference comparison has passed on939 sessions.
+The current UI uses a reusable GaugeTrack/GaugeCard for five model-input cards
+and three raw/reference cards. CNN/RSI use their natural0–100 scales; CNN/RV20/VIX
+prior ranks use the sealed252-session/min126/exclude-current rule. Return20,
+SMA200 risk distance and log ratio have no invented display position. Missing
+scales are blank and source receipt timestamps remain explicitly unverified.
+Model-input positions never create alerts. Native score cards show current score,
+annual q90 marker and signed difference; technical details default to collapsed.
+
+Research status is in document flow; no fixed QA banner is inserted. Radar's
+header uses its own source date/status and amber research indication. Screener
+timestamp is labeled Screener Update in other views. Radar-only mobile grid
+rules separate status/search/lock without changing other product routes.
+Frontend70 tests and check/build pass; browser QA checks both exact requested
+viewport sizes, header collision, research notice flow, all8 cards, no invented
+rank, lock/navigation/password storage, errors and horizontal overflow. Primary
+screenshots are1440x1000 and390x844, with supplemental full-page captures.
 
 Validation: existing 62 tests plus 6 Radar tests pass; npm run check passes. Browser plugin not available;
 temporary Playwright with system Chrome rendered the actual Radar component at
