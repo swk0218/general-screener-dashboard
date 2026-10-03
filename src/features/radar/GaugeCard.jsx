@@ -15,6 +15,7 @@ export function GaugeCard({card}) {
     <h3>{card.title}</h3>
     <div className="radar-card-value"><strong>{format(card.value)}</strong><span>{card.unit}</span></div>
     <GaugeTrack position={card.position} labels={card.position===null?['','','—','','']:undefined} label={`${card.title} 입력 위치 · 신규 경보 아님`} />
+    {['vix','return20_risk','trend200_risk','log_implied_realized'].includes(card.key)&&card.position!==null&&<p className="radar-card-percentile">과거 백분위 {format(card.position)}%</p>}
     <p className="radar-card-basis">{card.basis}</p>
     {card.position===null&&<p className="radar-card-unavailable">위치 표시 없음</p>}
     <p className="radar-card-source">{card.metadata.source} · {card.metadata.source_date||'날짜 미확인'}</p>

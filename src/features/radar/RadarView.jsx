@@ -16,7 +16,7 @@ export function RadarView({delivery=null}) {
       <p>{data?.operating_status==='REPLAY_NO_FORWARD_ISSUE'?'동결 연구 재현 · 실제 운영 신호 아님':'실제 관측·수집 경로 검증 대기'}</p>
     </div>
     <section className="radar-gauge" aria-label="시장 전환 게이지">
-      <div className="radar-main-value"><strong>{data?.gauge.score??'—'}</strong><span>{data?.gauge.level==='CONFLICT'?'상충 상태':data?.gauge.score===null?'자료 확인 중':data?.gauge.level||'자료 확인 중'}</span></div>
+      <div className="radar-main-value"><strong>{data?.gauge.score??'—'}<small className="radar-score-denominator"> /100</small></strong><span>{data?.gauge.level==='CONFLICT'?'상충 상태':data?.gauge.score===null?'자료 확인 중':data?.gauge.level||'자료 확인 중'}</span></div>
       <GaugeTrack position={data?.gauge.score??null} label="확률이 아닌 시장 전환 방향 표시 점수"
         banded
         labels={['Extreme Low','Low','Neutral','High','Extreme High']} />

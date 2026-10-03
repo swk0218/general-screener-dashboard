@@ -28,6 +28,22 @@ test('input gauges use natural scales or verified ranks without inventing VIX bo
  data.input_positions.version='synthetic';assert.throws(()=>validateRadarDelivery(data));
  assert.equal(inputGaugeCards(data).reference[1].position,null);
 });
+test('UI-only prior ranks require counts, current source match and sealed reference metadata',()=>{
+ const data=fixture();data.references.vix=16.04;data.inputs.return20_risk=-1;data.inputs.trend200_risk=2;data.inputs.log_implied_realized=.7;
+ data.input_positions={version:'frozen-input-prior-midrank-v2',window_sessions:252,minimum_valid:126,excludes_current:true,
+ date:data.session,session:500,ui_only:true,reference_window_sha256:'a'.repeat(64),
+ source_values:{VIX:16.04,return20_risk:-1,trend200_risk:2,log_implied_realized:.7},
+ valid_counts:{vix_rank:252,return20_risk_rank:252,trend200_risk_rank:126,log_implied_realized_rank:252},
+ vix_rank:.1,return20_risk_rank:0,trend200_risk_rank:1,log_implied_realized_rank:.5};
+ const cards=inputGaugeCards(validateRadarDelivery(data));
+ assert.equal(cards.reference[1].position,10);assert.equal(cards.reference[1].value,16.04);
+ assert.equal(cards.model[1].position,0);assert.equal(cards.model[2].position,100);assert.equal(cards.model[4].position,50);
+ for(const mutate of [p=>p.valid_counts.return20_risk_rank=125,p=>p.source_values.VIX=15,p=>p.date='2026-03-11',p=>p.ui_only=false,p=>p.trend200_risk_rank=1.1,p=>delete p.return20_risk_rank]) {
+   const bad=structuredClone(data);mutate(bad.input_positions);assert.throws(()=>validateRadarDelivery(bad));
+ }
+ data.input_positions.return20_risk_rank=null;assert.equal(inputGaugeCards(validateRadarDelivery(data)).model[1].position,null);
+ assert.equal(data.events.bottom,false);assert.equal(data.gauge.score,50);
+});
 test('native threshold position is descriptive and never derives warnings',()=>{
  assert.deepEqual(thresholdPosition(.5,.5),{score:50,threshold:50,delta:0,above:true});
  assert.equal(thresholdPosition(.9,null),null);

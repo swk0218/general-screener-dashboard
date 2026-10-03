@@ -22,8 +22,17 @@ export function validateRadarDelivery(value) {
   for (const [key] of REFERENCE_INPUTS) if (!Object.hasOwn(value.references,key) || (value.references[key]!==null && !finite(value.references[key]))) fail();
   if(value.input_positions!==undefined) {
     const p=value.input_positions;
-    if(!p||p.version!=='frozen-input-prior-midrank-v1'||p.window_sessions!==252||p.minimum_valid!==126||p.excludes_current!==true
+    if(!p||!['frozen-input-prior-midrank-v1','frozen-input-prior-midrank-v2'].includes(p.version)||p.window_sessions!==252||p.minimum_valid!==126||p.excludes_current!==true
       ||(p.vix_rank!==null&&(!finite(p.vix_rank)||p.vix_rank<0||p.vix_rank>1))) fail();
+  }
+  if(value.input_positions?.version==='frozen-input-prior-midrank-v2') {
+    const p=value.input_positions;
+    if(p.date!==value.session||!Number.isInteger(p.session)||p.ui_only!==true||! /^[a-f0-9]{64}$/.test(p.reference_window_sha256||'')) fail();
+    for(const [key,column] of [['vix_rank','VIX'],['return20_risk_rank','return20_risk'],['trend200_risk_rank','trend200_risk'],['log_implied_realized_rank','log_implied_realized']]) {
+      const count=p.valid_counts?.[key],source=p.source_values?.[column],expected=column==='VIX'?value.references.vix:value.inputs[column];
+      if(!Number.isInteger(count)||count<0||count>252||source!==expected) fail();
+      if(p[key]!==null&&(!finite(p[key])||p[key]<0||p[key]>1||count<126||source===null)) fail();
+    }
   }
   if(value.native_details!==undefined) for(const side of ['bottom','top']) {
     const d=value.native_details?.[side];
