@@ -60,6 +60,8 @@ export function validateRadarDelivery(value) {
       ||v.independent_features!==true||v.raw_hashes_bound!==true||v.exact_session_inputs!==true
       ||v.model_seal_verified!==true||v.controller_evaluated!==false||v.feature_tolerance!==1e-12
       ||!/^\d{4}-\d{2}-\d{2}$/.test(o.expected_session||'')||o.expected_session<value.session
+      ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.first_seen_at_utc||'')||!Number.isFinite(Date.parse(o.first_seen_at_utc))
+      ||Date.parse(o.first_seen_at_utc)>Date.parse(o.computed_at_utc)
       ||!['DATED_OBSERVATION','DATED_STALE_OBSERVATION'].includes(value.gauge.data_status)
       ||(value.gauge.data_status==='DATED_STALE_OBSERVATION')!==(o.expected_session!==value.session))fail();
     for(const source of ['CNN','SPY','VIX']) {

@@ -13,7 +13,6 @@ export function RadarView({delivery=null}) {
   const cards=inputGaugeCards(data),status=radarHeaderStatus(data);
   const observation=data?.operating_status==='OBSERVATION_COMPUTED';
   return <section className="secondary-view radar-view">
-    <ObservationStatus />
     <header className="radar-page-header"><p>MARKET RADAR</p><h1>시장 전환 신호</h1><p>낮을수록 저점, 높을수록 고점 방향 · 확률이 아닌 연구 점수</p></header>
     <div className="radar-research-notice" role="status">
       <span>{status.status}</span><time dateTime={data?.session}>{data?.session||'자료 확인 대기'}</time>
@@ -39,6 +38,7 @@ export function RadarView({delivery=null}) {
         <p className="radar-active-state">기존 10세션 연구 상태 <b>{observation?'미계산':data?(data.active[side]?'활성':'비활성'):'—'}</b></p>
       </section>;
     })}</div>
+    <details className="radar-explanation radar-observation-details"><summary>관찰 수신·갱신 시각과 출처 확인</summary><ObservationStatus /></details>
     <section className="radar-card-section"><div className="radar-section-heading"><h2>자체 모델 입력</h2><p>입력 위치는 신규 경보가 아닙니다.</p></div>
       <div className="radar-card-grid">{cards.model.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
     </section>
