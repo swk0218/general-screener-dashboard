@@ -13,7 +13,6 @@ export function RadarView({delivery=null}) {
   const cards=inputGaugeCards(data),status=radarHeaderStatus(data);
   const observation=data?.operating_status==='OBSERVATION_COMPUTED';
   return <section className="secondary-view radar-view">
-    <ObservationStatus />
     <header className="radar-page-header"><p>MARKET RADAR</p><h1>시장 전환 신호</h1><p>낮을수록 저점, 높을수록 고점 방향 · 확률이 아닌 연구 점수</p></header>
     <div className="radar-research-notice" role="status">
       <span>{status.status}</span><time dateTime={data?.session}>{data?.session||'자료 확인 대기'}</time>
@@ -39,6 +38,7 @@ export function RadarView({delivery=null}) {
         <p className="radar-active-state">기존 10세션 연구 상태 <b>{observation?'미계산':data?(data.active[side]?'활성':'비활성'):'—'}</b></p>
       </section>;
     })}</div>
+    <details className="radar-explanation radar-observation-details"><summary>관찰 수신·갱신 시각과 출처 확인</summary><ObservationStatus /></details>
     <section className="radar-card-section"><div className="radar-section-heading"><h2>자체 모델 입력</h2><p>입력 위치는 신규 경보가 아닙니다.</p></div>
       <div className="radar-card-grid">{cards.model.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
     </section>
@@ -55,7 +55,7 @@ export function RadarView({delivery=null}) {
     {data?.gauge.reason&&<details className="radar-explanation"><summary>모델·자료·표시 검증 정보</summary>
       <p>모델 버전: {data.model_version}</p><p>표시 버전: {data.gauge.presentation_version}</p>
       <p>자료 상태: {data.gauge.data_status} · 표시 사유: {data.gauge.reason}</p><p>기준 버전: {data.gauge.reference_version}</p>
-      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
+      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {observation?'미계산':typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
     </details>}
   </section>;
 }
