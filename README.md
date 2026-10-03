@@ -1,3 +1,11 @@
+# Frozen MarketRadar surface — 2026-10-03
+
+The separate `#/radar` view accepts only the frozen model's optional encrypted
+delivery. See [Radar UI contract and validation](docs/FROZEN_RADAR_UI.md).
+General Screener's main encrypted payload, MLG/TENX contracts, and Pages workflow
+remain unchanged. Missing optional Radar data does not block the screener.
+No live Radar feed or deployment was enabled by this local intake.
+
 # GENERAL SCREENER
 
 Private-by-passphrase static dashboard for the official MLG and TENX screener outputs.
@@ -59,10 +67,3 @@ contract, encryption, or push validation fails, the last known-good encrypted pa
 ## Security boundary
 
 This is authenticated encryption for a static site, not server-side account authentication. Anyone can download the ciphertext, so a weak passphrase can be attacked offline. Use a long random passphrase, rotate the local preview passphrase before public deployment, and never place FMP/API credentials in this repository or browser code.
-# Frozen MarketRadar surface — 2026-10-03
-
-The separate `#/radar` view accepts only the frozen model's optional encrypted
-delivery. See [Radar UI contract and validation](docs/FROZEN_RADAR_UI.md).
-General Screener's main encrypted payload, MLG/TENX contracts, and Pages workflow
-remain unchanged. Missing optional Radar data does not block the screener.
-No live Radar feed or deployment was enabled by this local intake.
