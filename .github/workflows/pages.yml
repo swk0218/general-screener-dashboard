@@ -69,3 +69,59 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      # Existing CSP remains self-only. Browser never contacts GitHub API.
+      # Stamp the actual first successful publication of this observation data,
+      # then publish that same data plus receipt. No new token permission.
+  verify-publication:
+    # Environment success is written after the first deployment job completes.
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: github-pages
+          path: publication-input
+
+      - name: Attach verified first-publication receipt to same-origin status
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import datetime,json,os,pathlib,tarfile,urllib.request
+          target=pathlib.Path('publication-site');target.mkdir()
+          with tarfile.open('publication-input/artifact.tar') as archive:
+              archive.extractall(target,filter='data')
+          path=target/'data/radar-observation.json'
+          status=json.loads(path.read_text())
+          root='https://api.github.com/repos/swk0218/general-screener-dashboard'
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'MarketRadar-publication-receipt/1.0'}),timeout=15) as response:
+                  return json.load(response)
+          for deployment in get(root+'/deployments?environment=github-pages&per_page=5'):
+              if deployment['sha']!=os.environ['BUILD_SHA']:continue
+              for receipt in get(root+'/deployments/'+str(deployment['id'])+'/statuses'):
+                  if receipt['state']=='success' and datetime.datetime.fromisoformat(receipt['created_at'].replace('Z','+00:00'))>=datetime.datetime.fromisoformat(status['computed_at_utc']):
+                      status['published_at_utc']=receipt['created_at']
+                      status['first_publication_deployment_id']=deployment['id']
+                      break
+              if status['published_at_utc']:break
+          if not status['published_at_utc']:raise SystemExit('Verified publication receipt unavailable; existing deployed NO_SIGNAL remains safe')
+          path.write_text(json.dumps(status,indent=2))
+          print('Verified first publication '+status['published_at_utc'])
+          PY
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          name: github-pages-verified
+          path: publication-site
+
+      - name: Publish same observation with verified first-publication time
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+        with:
+          artifact_name: github-pages-verified
