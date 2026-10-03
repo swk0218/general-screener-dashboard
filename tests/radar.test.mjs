@@ -68,6 +68,19 @@ test('unverified hold cannot issue events or display a signal gauge',()=>{
     assert.equal(validateRadarDelivery(good).gauge.score,null);
   }
 });
+test('dated observation permits numbers but can never impersonate evaluated controllers or Extreme',()=>{
+  const value=fixture(43,'Neutral');
+  Object.assign(value,{operating_status:'OBSERVATION_COMPUTED',observation_only:true,controller_evaluated:false,
+    active:{bottom:false,top:false},observation:{computed_at_utc:new Date().toISOString(),policy:'SCORE_ONLY_NO_OPERATIONAL_ALERT',historical_first_seen_claimed:false}});
+  assert.equal(validateRadarDelivery(value).gauge.score,43);
+  for(const mutate of [v=>v.events.bottom=true,v=>v.active.top=true,v=>v.evidence_ready=true,
+    v=>v.controller_evaluated=true,v=>v.observation_only=false,v=>v.gauge.score=19,v=>v.gauge.score=80,
+    v=>v.operating_status='DATA_HOLD',v=>v.observation.historical_first_seen_claimed=true,
+    v=>delete v.observation.computed_at_utc,v=>v.observation.computed_at_utc='invalid',
+    v=>v.observation.computed_at_utc=new Date(Date.now()+600000).toISOString()]) {
+    const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
+  }
+});
 test('daily status always remains NO_SIGNAL and expires at next open',()=>{
   const value={schema_version:'radar_observation_status_v1',mode:'OBSERVATION_BETA',decision:'NO_SIGNAL',evidence_ready:false,
     model_score:null,events:{bottom:false,top:false},status:'OBSERVED_NO_SIGNAL',model_policy:'close90_v1_unchanged',collection_policy:'next_open_observation_only',historical_first_seen_claimed:false,

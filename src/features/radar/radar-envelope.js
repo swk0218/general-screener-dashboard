@@ -32,7 +32,7 @@ export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal)
   if(response.ok) {
     // A published observation-only status explicitly has no live model feed.
     const status=validateObservationStatus(await response.json());
-    if(status.mode==='OBSERVATION_BETA')return null;
+    if(status.mode==='OBSERVATION_BETA'&&status.score_delivery_available!==true)return null;
   }
   return loadRadarDelivery(url,passphrase,signal);
 }

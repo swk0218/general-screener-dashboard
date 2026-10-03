@@ -44,6 +44,7 @@ jobs:
         run: |
           python -m pip install exchange-calendars==4.13.2 pandas==2.2.3
           python scripts/radar-observation-status.py --output public/data/radar-observation.json --previous-url https://swk0218.github.io/general-screener-dashboard/data/radar-observation.json
+          python -c "import json,pathlib; p=pathlib.Path('public/data/radar-observation.json'); d=json.loads(p.read_text()); d['score_delivery_available']=pathlib.Path('public/data/market-radar.enc.json').is_file(); p.write_text(json.dumps(d,indent=2))"
 
       - name: Verify and build
         run: npm run check
