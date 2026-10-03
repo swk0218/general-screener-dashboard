@@ -29,6 +29,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
+import { RadarView } from "./features/radar/RadarView.jsx";
 import {
   getPerformanceState,
   createDashboardIndex,
@@ -84,6 +85,7 @@ const RISK_VALUES = Object.freeze({
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
 
 const NAV_ITEMS = Object.freeze([
+  { id: "radar", label: "RADAR", icon: TrendingUp },
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -92,6 +94,7 @@ const NAV_ITEMS = Object.freeze([
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
+  { id: "radar", label: "RADAR", icon: TrendingUp },
   { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -100,6 +103,7 @@ const MOBILE_NAV_ITEMS = Object.freeze([
 ]);
 
 const VIEW_LABELS = Object.freeze({
+  radar: "MARKET RADAR",
   overview: "OVERVIEW",
   selection: "SCREENER",
   detail: "SECURITY DETAIL",
@@ -1701,6 +1705,8 @@ function Dashboard({ payload, onLock }) {
         onPerformance={(nextStrategy) => navigate({ view: "performance", strategy: nextStrategy })}
       />
     );
+  } else if (route.view === "radar") {
+    content = <RadarView />;
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {

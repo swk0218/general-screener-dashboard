@@ -1,0 +1,11 @@
+.radar-view { max-width: 1100px; margin: 0 auto; }
+.radar-view header p, .radar-view > p, .radar-gauge p { color: var(--text-secondary, #a0a6af); line-height: 1.7; }
+.radar-gauge { padding: 32px 0; border-bottom: 1px solid #2a3037; }
+.radar-gauge > strong { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 64px; }
+.radar-scale { display: grid; grid-template-columns: repeat(5,1fr); margin: 24px 0; border-top: 2px solid #40ef66; gap: 8px; padding-top: 12px; font-size: 12px; }
+.radar-directions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-bottom: 1px solid #2a3037; }
+.radar-directions section { padding: 20px 0; }
+.radar-inputs { margin: 0 0 32px; }
+.radar-inputs > div { display: flex; justify-content: space-between; gap: 24px; border-bottom: 1px solid #2a3037; padding: 16px 0; }
+.radar-inputs dd { margin: 0; font-family: 'IBM Plex Mono', monospace; }
+@media(max-width:600px) { .radar-scale { font-size: 10px; } .radar-directions { grid-template-columns:1fr; } }

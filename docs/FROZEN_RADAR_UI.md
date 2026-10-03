@@ -1,0 +1,23 @@
+# Frozen Radar UI preparation
+
+Based on current remote main 9d1797b. Latest MLG/TENX encrypted payload, score/rank
+contracts, benchmark model and existing views remain unchanged. Added separate
+#/radar route, optional delivery validator, and a missing-data-first screen.
+
+The screen separates five own-model feature families (CNN raw score plus rank,
+20-day risk-adjusted return, SMA200 risk-adjusted distance, RV20 rank, logged
+VIX/RV ratio) from RSI/raw VIX reference values. Same-day events and ten-session
+active state are distinct. Extreme levels are accepted only with emitted flags.
+Conflicting alerts have no scalar; missing values never become neutral.
+
+No feed is connected yet. The screen displays unavailable values. No browser FMP
+call, plaintext public delivery, API key, stored password or production payload
+modification was introduced. Encrypted Radar transport and final annual-reference
+comparison await the final handoff packet.
+
+Validation: 66 tests and npm run check pass. Browser plugin not available;
+temporary Playwright with system Chrome rendered the actual Radar component at
+1440x1000 and 390x844. Header identity, meaningful content, disclosure interaction,
+no horizontal overflow, no page/console errors verified. This was component QA,
+not the production unlock/full navigation/integrated data flow. Screenshots reside
+outside the repo in the workspace qa-evidence folder.
