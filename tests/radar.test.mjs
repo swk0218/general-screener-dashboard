@@ -71,13 +71,31 @@ test('unverified hold cannot issue events or display a signal gauge',()=>{
 test('dated observation permits numbers but can never impersonate evaluated controllers or Extreme',()=>{
   const value=fixture(43,'Neutral');
   Object.assign(value,{operating_status:'OBSERVATION_COMPUTED',observation_only:true,controller_evaluated:false,
-    active:{bottom:false,top:false},observation:{computed_at_utc:new Date().toISOString(),policy:'SCORE_ONLY_NO_OPERATIONAL_ALERT',historical_first_seen_claimed:false}});
+    active:{bottom:null,top:null},observation:{computed_at_utc:new Date().toISOString(),first_seen_at_utc:'2026-03-13T10:00:00Z',expected_session:value.session,policy:'SCORE_ONLY_NO_OPERATIONAL_ALERT',historical_first_seen_claimed:false,
+      source_hashes:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,'a'.repeat(64)])),
+      source_receipts:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,{raw_sha256:'a'.repeat(64),observation_date:value.session,received_at_utc:'2026-03-13T10:00:00Z'}]))},
+    verification:{schema:'dated_observation_math_v1',immutable_panel_sha256:'73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8',independent_features:true,raw_hashes_bound:true,exact_session_inputs:true,model_seal_verified:true,controller_evaluated:false,feature_tolerance:1e-12}});
+  value.gauge.data_status='DATED_OBSERVATION';
+  value.inputs=Object.fromEntries(MODEL_INPUTS.map(([k])=>[k,.5]));value.references={vix:16,rsi14:50};
+  value.input_positions={version:'frozen-input-prior-midrank-v1',window_sessions:252,minimum_valid:126,excludes_current:true,vix_rank:.5};
+  value.input_metadata=Object.fromEntries([...MODEL_INPUTS,...REFERENCE_INPUTS].map(([k])=>[k,{source:'TEST_ONLY',source_date:value.session,status:'DATED_OBSERVATION_NOT_ALERT',received_at_utc:'2026-03-13T10:00:00Z'}]));
+  value.native_details={bottom:{threshold:.9,vetoed:null},top:{threshold:.9,vetoed:null}};
   assert.equal(validateRadarDelivery(value).gauge.score,43);
+  const retained=structuredClone(value);
+  Object.assign(retained.observation,{expected_session:'2026-03-13',collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
+  retained.gauge.data_status='DATED_STALE_OBSERVATION';
+  assert.equal(validateRadarDelivery(retained).gauge.score,43);
+  for(const mutation of [v=>v.observation.failure_code='raw provider error',v=>v.observation.last_attempt_at_utc='invalid']) {
+    const bad=structuredClone(retained);mutation(bad);assert.throws(()=>validateRadarDelivery(bad));
+  }
   for(const mutate of [v=>v.events.bottom=true,v=>v.active.top=true,v=>v.evidence_ready=true,
     v=>v.controller_evaluated=true,v=>v.observation_only=false,v=>v.gauge.score=19,v=>v.gauge.score=80,
     v=>v.operating_status='DATA_HOLD',v=>v.observation.historical_first_seen_claimed=true,
+    v=>v.inputs.cnn_rank=null,v=>delete v.verification,v=>delete v.input_metadata,
+    v=>delete v.observation.source_receipts,v=>v.observation.source_hashes.SPY='b'.repeat(64),
     v=>delete v.observation.computed_at_utc,v=>v.observation.computed_at_utc='invalid',
-    v=>v.observation.computed_at_utc=new Date(Date.now()+600000).toISOString()]) {
+    v=>v.observation.computed_at_utc=new Date(Date.now()+600000).toISOString(),
+    v=>{v.observation.expected_session='2026-99-99';v.gauge.data_status='DATED_STALE_OBSERVATION';}]) {
     const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
   }
 });

@@ -13,7 +13,6 @@ export function RadarView({delivery=null}) {
   const cards=inputGaugeCards(data),status=radarHeaderStatus(data);
   const observation=data?.operating_status==='OBSERVATION_COMPUTED';
   return <section className="secondary-view radar-view">
-    <ObservationStatus />
     <header className="radar-page-header"><p>MARKET RADAR</p><h1>시장 전환 신호</h1><p>낮을수록 저점, 높을수록 고점 방향 · 확률이 아닌 연구 점수</p></header>
     <div className="radar-research-notice" role="status">
       <span>{status.status}</span><time dateTime={data?.session}>{data?.session||'자료 확인 대기'}</time>
@@ -21,6 +20,7 @@ export function RadarView({delivery=null}) {
     </div>
     {observation&&<div role="status"><p>관찰 기준일 {data.session} · {data.gauge.data_status==='DATED_STALE_OBSERVATION'?'과거 관찰':'최신 공통 입력'} 점수입니다. 최신 시장 기준일 {data.observation.expected_session}의 결측: {data.observation.latest_session_input_missing?.join(', ')||'없음'}.</p>
       <p>공통 입력 최초 관찰 수신 {kstTime(data.observation.first_seen_at_utc)} · 점수 계산 {kstTime(data.observation.computed_at_utc)} · 마감 +90분 경보 자격 없음.</p></div>}
+    {observation&&data.observation.collection_status==='FAILED_RETAINED_DATED'&&<p role="status">갱신 실패 · 이전 날짜의 관측 점수를 유지합니다. 운영 경보는 발행하지 않습니다.</p>}
     <section className="radar-gauge" aria-label="시장 전환 게이지">
       <div className="radar-main-value"><strong>{data?.gauge.score??'—'}<small className="radar-score-denominator"> /100</small></strong><span>{data?.gauge.level==='CONFLICT'?'상충 상태':data?.gauge.score===null?'자료 확인 중':data?.gauge.level||'자료 확인 중'}</span></div>
       <GaugeTrack position={data?.gauge.score??null} label="확률이 아닌 시장 전환 방향 표시 점수"
@@ -39,6 +39,7 @@ export function RadarView({delivery=null}) {
         <p className="radar-active-state">기존 10세션 연구 상태 <b>{observation?'미계산':data?(data.active[side]?'활성':'비활성'):'—'}</b></p>
       </section>;
     })}</div>
+    <details className="radar-explanation radar-observation-details"><summary>관찰 수신·갱신 시각과 출처 확인</summary><ObservationStatus /></details>
     <section className="radar-card-section"><div className="radar-section-heading"><h2>자체 모델 입력</h2><p>입력 위치는 신규 경보가 아닙니다.</p></div>
       <div className="radar-card-grid">{cards.model.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
     </section>
@@ -55,7 +56,7 @@ export function RadarView({delivery=null}) {
     {data?.gauge.reason&&<details className="radar-explanation"><summary>모델·자료·표시 검증 정보</summary>
       <p>모델 버전: {data.model_version}</p><p>표시 버전: {data.gauge.presentation_version}</p>
       <p>자료 상태: {data.gauge.data_status} · 표시 사유: {data.gauge.reason}</p><p>기준 버전: {data.gauge.reference_version}</p>
-      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
+      {['bottom','top'].map(side=><p key={side}>{side==='bottom'?'저점':'고점'} 확인 거부: {observation?'미계산':typeof data.native_details?.[side]?.vetoed==='boolean'?(data.native_details[side].vetoed?'예':'아니오'):'미확인'} · 입력 사유: {data.native_details?.[side]?.availability_reason||'—'}</p>)}
     </details>}
   </section>;
 }

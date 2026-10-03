@@ -23,3 +23,5 @@ Do not modify public/data/payload.enc.json or MLG/TENX producer workflows.
 
 Numeric public deployment remains pending the existing-key private publisher
 integration. A separate manual publication does not constitute daily numeric refresh.
+
+Observation display constraint: native Context80/CNN feature values and scores are unchanged. Gauge43 uses the original sealed UI-v1 annual ECDF no-emission branch, not a new fit, percentile, cap or model threshold. Because no controller evaluation is performed, this observation cannot determine would_emit, quota, cooldown, confirmation or active hold state. The 20–79 observation range expresses no actual issued event; it does not assert that an operationally evaluated controller would be silent. Only a genuinely emitted operational event may enter Extreme under the original display mapping. Observational false event/active fields are explicitly marked controller_evaluated=false and are not controller-state evidence.
