@@ -81,13 +81,21 @@ test('dated observation permits numbers but can never impersonate evaluated cont
   value.input_metadata=Object.fromEntries([...MODEL_INPUTS,...REFERENCE_INPUTS].map(([k])=>[k,{source:'TEST_ONLY',source_date:value.session,status:'DATED_OBSERVATION_NOT_ALERT',received_at_utc:'2026-03-13T10:00:00Z'}]));
   value.native_details={bottom:{threshold:.9,vetoed:null},top:{threshold:.9,vetoed:null}};
   assert.equal(validateRadarDelivery(value).gauge.score,43);
+  const retained=structuredClone(value);
+  Object.assign(retained.observation,{expected_session:'2026-03-13',collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
+  retained.gauge.data_status='DATED_STALE_OBSERVATION';
+  assert.equal(validateRadarDelivery(retained).gauge.score,43);
+  for(const mutation of [v=>v.observation.failure_code='raw provider error',v=>v.observation.last_attempt_at_utc='invalid']) {
+    const bad=structuredClone(retained);mutation(bad);assert.throws(()=>validateRadarDelivery(bad));
+  }
   for(const mutate of [v=>v.events.bottom=true,v=>v.active.top=true,v=>v.evidence_ready=true,
     v=>v.controller_evaluated=true,v=>v.observation_only=false,v=>v.gauge.score=19,v=>v.gauge.score=80,
     v=>v.operating_status='DATA_HOLD',v=>v.observation.historical_first_seen_claimed=true,
     v=>v.inputs.cnn_rank=null,v=>delete v.verification,v=>delete v.input_metadata,
     v=>delete v.observation.source_receipts,v=>v.observation.source_hashes.SPY='b'.repeat(64),
     v=>delete v.observation.computed_at_utc,v=>v.observation.computed_at_utc='invalid',
-    v=>v.observation.computed_at_utc=new Date(Date.now()+600000).toISOString()]) {
+    v=>v.observation.computed_at_utc=new Date(Date.now()+600000).toISOString(),
+    v=>{v.observation.expected_session='2026-99-99';v.gauge.data_status='DATED_STALE_OBSERVATION';}]) {
     const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
   }
 });

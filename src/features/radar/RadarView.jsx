@@ -20,6 +20,7 @@ export function RadarView({delivery=null}) {
     </div>
     {observation&&<div role="status"><p>관찰 기준일 {data.session} · {data.gauge.data_status==='DATED_STALE_OBSERVATION'?'과거 관찰':'최신 공통 입력'} 점수입니다. 최신 시장 기준일 {data.observation.expected_session}의 결측: {data.observation.latest_session_input_missing?.join(', ')||'없음'}.</p>
       <p>공통 입력 최초 관찰 수신 {kstTime(data.observation.first_seen_at_utc)} · 점수 계산 {kstTime(data.observation.computed_at_utc)} · 마감 +90분 경보 자격 없음.</p></div>}
+    {observation&&data.observation.collection_status==='FAILED_RETAINED_DATED'&&<p role="status">갱신 실패 · 이전 날짜의 관측 점수를 유지합니다. 운영 경보는 발행하지 않습니다.</p>}
     <section className="radar-gauge" aria-label="시장 전환 게이지">
       <div className="radar-main-value"><strong>{data?.gauge.score??'—'}<small className="radar-score-denominator"> /100</small></strong><span>{data?.gauge.level==='CONFLICT'?'상충 상태':data?.gauge.score===null?'자료 확인 중':data?.gauge.level||'자료 확인 중'}</span></div>
       <GaugeTrack position={data?.gauge.score??null} label="확률이 아닌 시장 전환 방향 표시 점수"

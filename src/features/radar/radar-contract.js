@@ -1,4 +1,5 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value);
+const validDate = value => typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
 export const FROZEN_MODEL_VERSION = 'dd19fa6f7834bb8f85b5b04b0c8b40c5b4419270969d752221d48a74a055770b';
 export const MODEL_INPUTS = Object.freeze([
   ['cnn_score', 'CNN 공포·탐욕 점수'], ['cnn_rank', 'CNN 과거 순위'],
@@ -56,10 +57,14 @@ export function validateRadarDelivery(value) {
     ||value.observation.historical_first_seen_claimed!==false))fail();
   if(observation) {
     const v=value.verification,o=value.observation;
+    if(o.collection_status!==undefined&&(o.collection_status!=='FAILED_RETAINED_DATED'
+      ||!['SOURCE_FETCH_FAILED','REVISION_QUARANTINED','PUBLICATION_FAILED','CANONICAL_RECOVERY_FAILED'].includes(o.failure_code)
+      ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.last_attempt_at_utc||'')||!Number.isFinite(Date.parse(o.last_attempt_at_utc))
+      ||Date.parse(o.last_attempt_at_utc)<Date.parse(o.computed_at_utc)||Date.parse(o.last_attempt_at_utc)>Date.now()+300000))fail();
     if(v?.schema!=='dated_observation_math_v1'||v.immutable_panel_sha256!=='73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8'
       ||v.independent_features!==true||v.raw_hashes_bound!==true||v.exact_session_inputs!==true
       ||v.model_seal_verified!==true||v.controller_evaluated!==false||v.feature_tolerance!==1e-12
-      ||!/^\d{4}-\d{2}-\d{2}$/.test(o.expected_session||'')||o.expected_session<value.session
+      ||!validDate(o.expected_session)||o.expected_session<value.session
       ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.first_seen_at_utc||'')||!Number.isFinite(Date.parse(o.first_seen_at_utc))
       ||Date.parse(o.first_seen_at_utc)>Date.parse(o.computed_at_utc)
       ||!['DATED_OBSERVATION','DATED_STALE_OBSERVATION'].includes(value.gauge.data_status)
