@@ -1,4 +1,5 @@
 import { validateRadarDelivery } from './radar-contract.js';
+import { validateObservationStatus } from './observation-status.js';
 
 const decode=value=>{
   if(typeof value!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value))throw new Error('INVALID_RADAR_ENVELOPE');
@@ -24,4 +25,14 @@ export async function loadRadarDelivery(url,passphrase,signal) {
   const response=await fetch(url,{signal,cache:'no-store'});
   if(!response.ok)throw new Error('RADAR_UNAVAILABLE');
   return decryptRadarEnvelope(await response.json(),passphrase);
+}
+
+export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal) {
+  const response=await fetch(statusUrl,{signal,cache:'no-store'});
+  if(response.ok) {
+    // A published observation-only status explicitly has no live model feed.
+    const status=validateObservationStatus(await response.json());
+    if(status.mode==='OBSERVATION_BETA')return null;
+  }
+  return loadRadarDelivery(url,passphrase,signal);
 }

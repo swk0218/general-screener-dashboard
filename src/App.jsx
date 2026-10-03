@@ -30,7 +30,7 @@ import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
 import { RadarView } from "./features/radar/RadarView.jsx";
-import { loadRadarDelivery } from "./features/radar/radar-envelope.js";
+import { loadOptionalRadarDelivery } from "./features/radar/radar-envelope.js";
 import { radarHeaderStatus } from "./features/radar/gauge-model.js";
 import {
   getPerformanceState,
@@ -1816,7 +1816,7 @@ export function App() {
     const controller = new AbortController();
     radarRequest.current = controller;
     setRadar(null);
-    loadRadarDelivery(`${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal)
+    loadOptionalRadarDelivery(`${import.meta.env.BASE_URL}data/radar-observation.json`, `${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal)
       .then(value => { if (unlockGeneration.current === generation) setRadar(value); })
       .catch(() => { if (unlockGeneration.current === generation) setRadar(null); });
   }

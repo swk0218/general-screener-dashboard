@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MODEL_INPUTS, REFERENCE_INPUTS, validateRadarDelivery, FROZEN_MODEL_VERSION } from '../src/features/radar/radar-contract.js';
 import { parseHashRoute, serializeHashRoute } from '../src/data/dashboard-model.js';
-import { decryptRadarEnvelope } from '../src/features/radar/radar-envelope.js';
+import { decryptRadarEnvelope,loadOptionalRadarDelivery } from '../src/features/radar/radar-envelope.js';
+import {readFile} from 'node:fs/promises';
 import { createCipheriv, pbkdf2Sync, randomBytes, createHash } from 'node:crypto';
 import { inputGaugeCards,thresholdPosition,radarHeaderStatus } from '../src/features/radar/gauge-model.js';
 import {validateObservationStatus,observationState} from '../src/features/radar/observation-status.js';
@@ -78,6 +79,15 @@ test('daily status always remains NO_SIGNAL and expires at next open',()=>{
   for(const mutate of [v=>v.events.bottom=true,v=>v.decision='ALERT',v=>v.model_score=50,v=>v.first_seen_at_utc='2026-10-04T10:00:00Z']) {
     const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateObservationStatus(bad));
   }
+});
+test('observation-only configuration never requests an absent model feed',async(t)=>{
+  const status=JSON.parse(await readFile(new URL('../public/data/radar-observation.json',import.meta.url),'utf8'));
+  const requested=[];
+  t.mock.method(globalThis,'fetch',async url=>{
+    requested.push(url);assert.equal(url,'/status');return {ok:true,json:async()=>status};
+  });
+  assert.equal(await loadOptionalRadarDelivery('/status','/model-feed','TEST_ONLY_NOT_REAL'),null);
+  assert.deepEqual(requested,['/status']);
 });
 test('Extreme equals actual same-day event; active state is independent',()=>{
   for(const [score,level,b,t] of [[0,'Extreme Low',true,false],[19,'Extreme Low',true,false],[80,'Extreme High',false,true],[100,'Extreme High',false,true],[20,'Low',false,false],[50,'Neutral',false,false],[79,'High',false,false]]) {
