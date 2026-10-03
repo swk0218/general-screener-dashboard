@@ -1,5 +1,8 @@
 # Frozen MarketRadar surface — 2026-10-03
 
+Operational beta v1 remains blocked on backend live-source gates.
+See [release readiness and rollback](docs/OPERATIONAL_BETA_V1.md).
+
 The separate `#/radar` view accepts only the frozen model's optional encrypted
 delivery. See [Radar UI contract and validation](docs/FROZEN_RADAR_UI.md).
 General Screener's main encrypted payload, MLG/TENX contracts, and Pages workflow

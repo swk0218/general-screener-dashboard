@@ -22,3 +22,10 @@ annual ECDF mapping may not change model score/controllers. Raw research 6/8 and
 Run npm run check and synthetic encrypted delivery/UI integration after changes.
 No deployment, upstream main merge or workflow change during this local intake.
 Final annual reference/raw-feature golden packet is pending user local download.
+
+## Operational beta v1 preparation - 2026-10-03
+The private handoff's reference/raw-feature packet has been verified locally.
+Read docs/OPERATIONAL_BETA_V1.md for current release state. Backend live-source
+gates remain blocked; local regression PASS does not authorize readiness.
+Keep Screener/MLG/TENX runtime and encrypted payload unchanged. No remote
+publication, deployment, main merge or schedule activation is authorized here.
