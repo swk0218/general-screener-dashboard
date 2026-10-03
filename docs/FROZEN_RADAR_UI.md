@@ -10,14 +10,19 @@ VIX/RV ratio) from RSI/raw VIX reference values. Same-day events and ten-session
 active state are distinct. Extreme levels are accepted only with emitted flags.
 Conflicting alerts have no scalar; missing values never become neutral.
 
-No feed is connected yet. The screen displays unavailable values. No browser FMP
+An optional encrypted feed loader is connected at data/market-radar.enc.json; no
+real feed file is installed yet, so production data remains unavailable. No browser FMP
 call, plaintext public delivery, API key, stored password or production payload
 modification was introduced. Encrypted Radar transport and final annual-reference
 comparison await the final handoff packet.
 
-Validation: 66 tests and npm run check pass. Browser plugin not available;
+Validation: existing 62 tests plus 6 Radar tests pass; npm run check passes. Browser plugin not available;
 temporary Playwright with system Chrome rendered the actual Radar component at
 1440x1000 and 390x844. Header identity, meaningful content, disclosure interaction,
 no horizontal overflow, no page/console errors verified. This was component QA,
-not the production unlock/full navigation/integrated data flow. Screenshots reside
+not actual production data. Additional synthetic encrypted-fixture QA verifies
+unlock -> optional feed -> overview/Radar navigation -> lock at both sizes, with
+correct title, no overflow/errors, no password storage and cleared Radar on lock.
+Current model seal is required by validator. The original general encryption and
+payload contracts remain unchanged. Screenshots reside
 outside the repo in the workspace qa-evidence folder.

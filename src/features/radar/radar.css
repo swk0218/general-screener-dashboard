@@ -2,7 +2,9 @@
 .radar-view header p, .radar-view > p, .radar-gauge p { color: var(--text-secondary, #a0a6af); line-height: 1.7; }
 .radar-gauge { padding: 32px 0; border-bottom: 1px solid #2a3037; }
 .radar-gauge > strong { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 64px; }
-.radar-scale { display: grid; grid-template-columns: repeat(5,1fr); margin: 24px 0; border-top: 2px solid #40ef66; gap: 8px; padding-top: 12px; font-size: 12px; }
+.radar-track { position: relative; height: 2px; background: #2a3037; margin-top: 24px; }
+.radar-pointer { position: absolute; top: -5px; height: 12px; width: 2px; transform: translateX(-50%); background: #40ef66; }
+.radar-scale { display: grid; grid-template-columns: repeat(5,1fr); margin: 12px 0 24px; gap: 8px; font-size: 12px; }
 .radar-directions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-bottom: 1px solid #2a3037; }
 .radar-directions section { padding: 20px 0; }
 .radar-inputs { margin: 0 0 32px; }

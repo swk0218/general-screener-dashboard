@@ -1,4 +1,5 @@
 const finite = value => typeof value === 'number' && Number.isFinite(value);
+export const FROZEN_MODEL_VERSION = 'dd19fa6f7834bb8f85b5b04b0c8b40c5b4419270969d752221d48a74a055770b';
 export const MODEL_INPUTS = Object.freeze([
   ['cnn_score', 'CNN 공포·탐욕 점수'], ['cnn_rank', 'CNN 과거 순위'],
   ['return20_risk', '20일 위험조정 수익률'], ['trend200_risk', '200일 평균선 위험조정 이격'],
@@ -8,7 +9,7 @@ export const REFERENCE_INPUTS = Object.freeze([['rsi14', 'RSI'], ['vix', 'VIX �
 
 export function validateRadarDelivery(value) {
   const fail = () => { throw new Error('Radar 자료를 확인하지 못했습니다.'); };
-  if (value?.schema_version !== 'frozen_radar_delivery_v1' || typeof value.model_version !== 'string'
+  if (value?.schema_version !== 'frozen_radar_delivery_v1' || value.model_version !== FROZEN_MODEL_VERSION
     || !/^\d{4}-\d{2}-\d{2}$/.test(value.session || '') || typeof value.evidence_ready !== 'boolean') fail();
   const date = new Date(`${value.session}T00:00:00Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value.session) fail();
