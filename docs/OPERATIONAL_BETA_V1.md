@@ -15,6 +15,11 @@ refuses to treat normalized fixtures as authenticated provider data. A separate
 public archive observation obtained full-precision JSON with actual local first_seen.
 Blocked: official CNN HTTP 418, canonical live provider/session mapping and prefix,
 real live source-to-state-to-encrypted-UI smoke and prospective acquisition gate.
+
+The backend's subsequent source audit resolves the archive daily-label rule and
+finds substantive snapshot revisions (27 finite comparisons plus one frozen NA).
+Five fixed-model sensitivities preserve confirmed alert dates, while ranks change.
+This does not establish live availability; frontend runtime and readiness remain unchanged.
 No live feed, publisher, deployment or workflow activation was run.
 
 After backend gates pass, review both pinned commits, encrypted payload path and
