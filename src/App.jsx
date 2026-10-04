@@ -20,6 +20,7 @@ import {
   LockKeyhole,
   LogOut,
   PanelRightOpen,
+  Radar,
   Search,
   TrendingUp,
   X,
@@ -87,7 +88,7 @@ const RISK_VALUES = Object.freeze({
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
 
 const NAV_ITEMS = Object.freeze([
-  { id: "radar", label: "RADAR", icon: TrendingUp },
+  { id: "radar", label: "RADAR", icon: Radar },
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -96,7 +97,7 @@ const NAV_ITEMS = Object.freeze([
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
-  { id: "radar", label: "RADAR", icon: TrendingUp },
+  { id: "radar", label: "RADAR", icon: Radar },
   { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
