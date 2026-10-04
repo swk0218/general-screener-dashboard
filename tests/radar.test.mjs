@@ -341,7 +341,8 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     assert.match(html,/참고 지표 · 모델 점수에 미반영/);
     assert.ok(html.indexOf('시장 전환 종합 지표')<html.indexOf('경보까지 남은 조건'));
     assert.ok(html.indexOf('CNN 원값')<html.indexOf('모델이 읽는 5가지 시장 상태'));
-    assert.match(html,/시장 보조 지표/);assert.match(html,/시장 전환 개별 지표/);
+    assert.match(html,/>보조 지표<\/h2>/);assert.match(html,/>개별 지표<\/h2>/);
+    assert.doesNotMatch(html,/시장 보조 지표|시장 전환 개별 지표/);
     assert.equal((html.match(/<dt>낮을수록<\/dt>/g)||[]).length,5);
     assert.equal((html.match(/<dt>높을수록<\/dt>/g)||[]).length,5);
     assert.match(html,/높아도 상승인지 하락인지는 알 수 없습니다/);

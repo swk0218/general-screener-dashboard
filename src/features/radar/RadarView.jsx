@@ -99,11 +99,11 @@ export function RadarView({delivery=null}) {
     </section>
 
     <section className="radar-section" aria-labelledby="radar-inputs-title">
-      <div className="radar-section-heading"><h2 id="radar-inputs-title">시장 보조 지표</h2><p>종합 지표와 같은 기준일의 원값 · 참고 수치</p></div>
+      <div className="radar-section-heading"><h2 id="radar-inputs-title">보조 지표</h2><p>종합 지표와 같은 기준일의 원값 · 참고 수치</p></div>
       <div className="radar-reference-grid">{cards.reference.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
     </section>
     <section className="radar-section" aria-labelledby="radar-model-title">
-      <div className="radar-section-heading"><h2 id="radar-model-title">시장 전환 개별 지표</h2><p>모델이 읽는 5가지 시장 상태</p></div>
+      <div className="radar-section-heading"><h2 id="radar-model-title">개별 지표</h2><p>모델이 읽는 5가지 시장 상태</p></div>
       <p className="radar-input-intro">SPY 가격·CNN 공포·탐욕·VIX를 가공한 지표입니다. 높고 낮음은 각각 아래의 시장 상태를 뜻하며, 하나만으로 저점·고점 경보를 판단하지 않습니다.</p>
       <p className="radar-input-rank-note">과거 위치 0은 낮은 쪽, 100은 높은 쪽입니다. 오늘을 제외한 직전 252거래일과 비교합니다.</p>
       <div className="radar-input-list">{cards.model.map(card=><GaugeCard key={card.key} card={card} model/>)}</div>
