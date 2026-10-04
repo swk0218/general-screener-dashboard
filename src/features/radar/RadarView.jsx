@@ -71,7 +71,9 @@ export function RadarView({delivery=null}) {
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
       <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 종합 지표</h2><span>기준일 <time dateTime={data?.session}>{data?.session||'확인 대기'}</time></span></div>
       {(stale||failed)&&<p className="radar-data-notice" role="status"><strong>{failed?'갱신 실패 · 이전 점수 유지':'이전 거래일 점수'}</strong>
-        {dated&&<span>{data.observation.expected_session} 자료 {data.observation.latest_session_input_missing?.join(' · ')||'일부'} 미확보 · 오늘의 신규 신호가 아닙니다.</span>}</p>}
+        {dated&&<span>{data.observation.latest_session_input_missing?.length
+          ?`${data.observation.expected_session} 자료 ${data.observation.latest_session_input_missing.join(' · ')} 미확보`
+          :'갱신을 완료하지 못해 이전 기준일의 점수를 유지합니다.'} · 오늘의 신규 신호가 아닙니다.</span>}</p>}
       <div className="radar-hero-content"><MarketGauge score={data?.gauge.score??null} level={unavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
         <div className="radar-reading"><h3>{headline}</h3><p>{unavailable?'유효한 공통 입력이 갖춰지면 점수를 표시합니다.':conflict?'저점과 고점의 최종 경보가 함께 발생해 대표 숫자를 표시하지 않습니다.':level==='CONFLICT'?'과거 버전의 혼합 표시입니다. 최신 자료를 확인해 주세요.':observation?'운영 경보는 계산하지 않은 관찰 점수입니다.':data.events.bottom||data.events.top?'표시된 기준일에 모든 경보 조건을 통과했습니다.':'최종 경보 조건은 아직 충족하지 않았습니다.'}</p>
           <dl className="radar-event-summary"><dt>기준일 신규 신호</dt><dd>{eventLabel}</dd></dl>

@@ -352,6 +352,11 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);
     assert.match(staleHtml,/오늘의 신규 신호가 아닙니다/);assert.match(staleHtml,/과거 기준일 발생/);
+    Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
+      failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
+    const failedHtml=render(stale);
+    assert.match(failedHtml,/갱신 실패 · 이전 점수 유지/);
+    assert.doesNotMatch(failedHtml,/일부 미확보/);
     for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
       const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
       if(!v||v.gauge.level==='UNAVAILABLE')assert.doesNotMatch(output,/>제한 없음<|>유지 중</);
