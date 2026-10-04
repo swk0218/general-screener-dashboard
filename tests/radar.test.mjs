@@ -351,10 +351,20 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     assert.match(html,/최근 20일 변동성의 역사적 크기/);
     assert.match(html,/하락 확률은 아닙니다/);
     assert.match(html,/원점수 \/ q90/);assert.match(html,/저점 공포 지표/);
+    assert.equal((html.match(/class="radar-threshold-track"/g)||[]).length,2);
+    for(const side of ['bottom','top']) {
+      assert.ok(html.includes(`aria-valuenow="${mixed.scores[side]}"`));
+      assert.ok(html.includes(`left:${mixed.native_details[side].threshold*100}%`));
+    }
     assert.deepEqual(mixed,before);
+    const activeHtml=render(dailyFixture(true,false));
+    assert.equal((activeHtml.match(/role="alert"/g)||[]).length,1);
+    assert.match(activeHtml,/radar-alert-outcome is-issued/);
+    const firstInput=html.slice(html.indexOf('data-input="cnn_rank"'));
+    assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-label'));
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
-    const staleHtml=render(stale);
+    const staleHtml=render(stale);assert.doesNotMatch(staleHtml,/role="alert"/);
     assert.match(staleHtml,/갱신 지연/);assert.match(staleHtml,/과거 기준일 발생/);
     Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
       failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
@@ -363,7 +373,7 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     assert.doesNotMatch(failedHtml,/일부 미확보/);
     for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
       const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
-      if(!v||v.gauge.level==='UNAVAILABLE')assert.doesNotMatch(output,/>제한 없음<|>유지 중</);
+      if(!v||v.gauge.level==='UNAVAILABLE')assert.doesNotMatch(output,/>제한 없음<|>유지 중<|radar-threshold-track/);
     }
   } finally {await server.close();}
 });

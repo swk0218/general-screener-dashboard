@@ -28,9 +28,11 @@ export function GaugeCard({card, model=false}) {
   const signed=['return20_risk','trend200_risk','log_implied_realized'].includes(card.key);
   const ratio=card.key==='log_implied_realized';
   const rankInput=['cnn_rank','RV20_rank'].includes(card.key);
+  const value=<div className="radar-card-value"><strong>{formatRadarNumber(card.value,model?3:2)}</strong><span>{card.key==='log_implied_realized'?'로그값':card.unit}</span></div>;
   return <article className={model?'radar-input-row':'radar-reference-item'} data-input={card.key}>
+    {model&&value}
     <div className="radar-input-label"><h3>{title}</h3></div>
-    <div className="radar-card-value"><strong>{formatRadarNumber(card.value,model?3:2)}</strong><span>{card.key==='log_implied_realized'?'로그값':card.unit}</span></div>
+    {!model&&value}
     {!model&&card.key==='vix'&&<p className="radar-reference-rank">과거 위치 {card.position===null?'미확인':`${formatRadarNumber(card.position,1)} /100`} · 모델 입력</p>}
     {model&&<div className="radar-input-position">
       <span>{card.position===null?'과거 위치 미확인':rankInput?'과거 대비 위치':`과거 위치 ${formatRadarNumber(card.position,1)} /100`}</span>

@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, TriangleAlert, BellOff } from 'lucide-react';
 import { REASONS } from './signal-contract.js';
 import { radarPresentation } from './radar-presentation.js';
 import { inputGaugeCards, thresholdPosition } from './gauge-model.js';
@@ -33,10 +33,21 @@ function DirectionSignal({side,data,stale}) {
   checks.push(['공포 지표',side==='top'?'적용 안 함':!calculated||!cnnKnown?'미확인':detail.cnn_bottom_score>=detail.cnn_bottom_q90?'충족':'미달']);
   checks.push(['경보 제한',!calculated?'미계산':operatingBlocks.length?'보류':'없음']);
   const reasons=operatingBlocks.filter(reason=>reason!=='LEGACY_OBSERVATION_ONLY');
-  return <section className="radar-direction-card" aria-label={`${title} 경보 조건`}>
-    <header className="radar-direction-heading"><h3>{title} 경보</h3>
-      <strong className={event?'radar-issued':''}>{unavailable?'계산 불가':!calculated?'미계산':event?(stale?'과거 기준일 발생':'기준일 발생'):'발생 안 함'}</strong>
-    </header>
+  const liveAlert=event&&!stale;
+  return <section className={`radar-direction-card${liveAlert?' is-issued':''}`} aria-label={`${title} 경보 조건`}>
+    <header className="radar-direction-heading"><h3>{title} 경보</h3></header>
+    <div className={`radar-alert-outcome${liveAlert?' is-issued':''}`} role={liveAlert?'alert':undefined}>
+      {event?<TriangleAlert size={22} aria-hidden="true"/>:calculated?<BellOff size={20} aria-hidden="true"/>:null}
+      <strong>{unavailable?'계산 불가':!calculated?'미계산':event?(stale?'과거 기준일 발생':'경보 발생'):'경보 없음'}</strong>
+    </div>
+    {position&&<figure className="radar-threshold-chart">
+      <figcaption><span>원점수 <b>{number(data.scores[side],3)}</b></span><span>경보 기준 <b>{number(detail.threshold,3)}</b></span></figcaption>
+      <div className="radar-threshold-track" role="meter" aria-label={`${title} 원점수와 경보 기준`} aria-valuemin={0} aria-valuemax={1} aria-valuenow={data.scores[side]} aria-valuetext={`원점수 ${number(data.scores[side],6)}, 경보 기준 ${number(detail.threshold,6)}, ${position.above?'기준 충족':'기준 미달'}`}>
+        <span className="radar-threshold-fill" style={{width:`${position.score}%`}}/>
+        <span className="radar-threshold-marker" style={{left:`${position.threshold}%`}}/>
+      </div>
+      <div className="radar-threshold-scale" aria-hidden="true"><span>0</span><span>기준선 이상이면 경보 후보</span><span>1</span></div>
+    </figure>}
     <dl className="radar-checks">{checks.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     {reasons.length>0&&<p className="radar-condition-note">{reasons.map(reason=>BLOCK_COPY[reason]||REASONS[reason]||reason).join(' ')}</p>}
   </section>;
