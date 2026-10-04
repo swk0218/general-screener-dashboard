@@ -62,7 +62,7 @@ test('mixed and dual-event results require complete inputs and provenance regard
   for(const args of [[false,false,true],[true,true],[true,false],[false,true],[false,false]]) {
     const value=dailyFixture(...args);
     const mutations=[...MODEL_INPUTS.map(([key])=>v=>{v.inputs[key]=null;}),
-      v=>v.references.vix=null,v=>delete v.input_metadata,v=>delete v.input_positions,
+      v=>v.references.vix=null,v=>v.input_positions.vix_rank=null,v=>delete v.input_metadata,v=>delete v.input_positions,
       v=>delete v.native_details,v=>delete v.observation.source_receipts,
       v=>delete v.observation.source_hashes,
       ...MODEL_INPUTS.map(([key])=>v=>{delete v.input_metadata[key];}),
@@ -297,4 +297,11 @@ test('v3 keeps a scalar for weak and strong mixed context and reserves conflict 
   }
   const legacy=dailyFixture(false,false,true);legacy.gauge.presentation_version='marketradar-signal-distance-v2';legacy.gauge.score=null;legacy.gauge.level='CONFLICT';
   assert.equal(validateRadarDelivery(legacy),legacy); // immutable historical v2 envelopes remain readable
+});
+
+
+test('missing VIX rank makes calculation unavailable even when other scalar inputs are present',()=>{
+  const v=unavailableDailyFixture();v.inputs.cnn_rank=.5;v.input_positions.vix_rank=null;
+  assert.equal(validateRadarDelivery(v),v);
+  v.input_positions.vix_rank=.5;assert.throws(()=>validateRadarDelivery(v));
 });

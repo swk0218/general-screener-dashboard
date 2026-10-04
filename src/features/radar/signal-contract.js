@@ -19,7 +19,7 @@ export function validateSignalGauge(value,fail) {
   if(g.level==='UNAVAILABLE') {
     if(e.bottom||e.top||!['MISSING_REQUIRED_CONTEXT_INPUT'].includes(g.reason))fail();
     if(Object.values(value.scores).every(Number.isFinite))fail();
-    if([...Object.values(value.inputs),value.references.vix].every(Number.isFinite))fail();
+    if([...Object.values(value.inputs),value.references.vix,value.input_positions?.vix_rank].every(Number.isFinite))fail();
     return;
   }
   for(const side of ['bottom','top']) {

@@ -90,7 +90,7 @@ export function validateRadarDelivery(value) {
     const available=daily?level!=='UNAVAILABLE':score!==null;
     if(available) {
       for(const [key] of MODEL_INPUTS)if(!finite(value.inputs[key]))fail();
-      if(!finite(value.references.vix)||!value.input_metadata||!value.input_positions||!value.native_details)fail();
+      if(!finite(value.references.vix)||!value.input_metadata||!value.input_positions||!value.native_details||!finite(value.input_positions.vix_rank))fail();
     }
     // Partially unavailable packets also need provenance for every finite input.
     for(const [key] of [...MODEL_INPUTS,...REFERENCE_INPUTS]) {
