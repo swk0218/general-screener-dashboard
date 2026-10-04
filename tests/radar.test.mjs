@@ -360,6 +360,8 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const activeHtml=render(dailyFixture(true,false));
     assert.equal((activeHtml.match(/role="alert"/g)||[]).length,1);
     assert.match(activeHtml,/radar-alert-outcome is-issued/);
+    assert.match(activeHtml,/radar-headline is-alert/);
+    assert.match(html,/radar-headline is-normal/);
     const firstInput=html.slice(html.indexOf('data-input="cnn_rank"'));
     assert.ok(firstInput.indexOf('radar-input-label')<firstInput.indexOf('radar-card-value'));
     assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-position'));
@@ -395,6 +397,8 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
       assert.ok(html.includes(`<strong>${v.gauge.score}</strong>`));
       assert.ok(html.includes(v.session));
       assert.deepEqual(v,before);
+      assert.match(html,args[0]||args[1]?/radar-headline is-alert/:/radar-headline is-normal/);
+      assert.match(html,/지수 자세히/);
       if(args[2])assert.match(html,/양방향 조건 강함/);
     }
     const both=render(dailyFixture(true,true));
@@ -402,7 +406,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     const invalid=dailyFixture(true,false);invalid.scores.bottom=0;
     for(const v of [null,{},invalid,unavailableDailyFixture()]) {
       const html=render(v);assert.match(html,/계산 불가/);assert.match(html,/경보 미계산/);
-      assert.match(html,/<strong>—<\/strong>/);assert.doesNotMatch(html,/Neutral|Extreme Low|NaN/);
+      assert.match(html,/<strong>—<\/strong>/);assert.match(html,/radar-headline is-unavailable/);assert.doesNotMatch(html,/radar-headline is-alert|Neutral|Extreme Low|NaN/);
     }
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     Object.assign(stale.observation,{expected_session:'2026-03-13',latest_session_input_missing:['VIX']});

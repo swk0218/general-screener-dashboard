@@ -2542,6 +2542,7 @@ input:focus-visible,
   padding: 8px 0 10px;
 }
 
+.top-search input,
 .selection-filter input,
 .history-controls input {
   font-size: 13px !important;
