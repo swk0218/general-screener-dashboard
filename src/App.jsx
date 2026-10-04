@@ -94,7 +94,6 @@ const NAV_ITEMS = Object.freeze([
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERFORMANCE", icon: BarChart3 },
-  { id: "methodology", label: "METHOD", icon: BookOpen },
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
@@ -103,7 +102,6 @@ const MOBILE_NAV_ITEMS = Object.freeze([
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERF", icon: BarChart3 },
-  { id: "methodology", label: "METHOD", icon: BookOpen },
 ]);
 
 const VIEW_LABELS = Object.freeze({
@@ -241,7 +239,7 @@ function routeDocumentTitle(route) {
   if (route?.view === "selection") return `${route.strategy || "MLG"} 스크리너 | GENERAL SCREENER`;
   if (route?.view === "performance") return `${route.strategy || "MLG"} 성과 | GENERAL SCREENER`;
   const labels = {
-    radar: "시장 전환 신호",
+    radar: "시장 신호 (Beta)",
     overview: "개요",
     history: "실행 이력",
     methodology: "방법론",
@@ -377,11 +375,12 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
   );
 }
 
-function StrategyModeControl({ strategy, onChange, label = "스크리닝 전략" }) {
+function StrategyModeControl({ strategy, onChange, label = "스크리닝 전략", includeAll = false }) {
   return (
     <SegmentedControl value={strategy} onChange={onChange} label={label} size="md" layout="fill">
-      <SegmentedControlItem value="MLG" label="MLG · 중대형 성장주" />
-      <SegmentedControlItem value="TENX" label="TENX · 텐베거 유망주" />
+      {includeAll&&<SegmentedControlItem value="ALL" label="전체" />}
+      <SegmentedControlItem value="MLG" label={includeAll?"MLG":"MLG 중대형 성장주"} />
+      <SegmentedControlItem value="TENX" label={includeAll?"TENX":"TENX 텐베거 유망주"} />
     </SegmentedControl>
   );
 }
@@ -494,10 +493,9 @@ function BrandHeader({
         <Search size={24} strokeWidth={1.8} />
       </button>
       <div className={`sync-status${radarStatus?' is-radar':''}`}>
-        <span className="sync-label">{radarStatus?radarStatus.label:'Screener Update'}</span>
+        <span className="sync-label">{radarStatus?'Radar Update':'Screener Update'}</span>
         <time dateTime={radarStatus?(radarStatus.date||undefined):(generatedAt||undefined)}>{radarStatus?(radarStatus.date||'—'):formatKstDate(generatedAt)}</time>
-        {radarStatus&&<span className="radar-header-state">{radarStatus.status}</span>}
-        <span className={`status-dot${radarStatus?' is-hold':''}`} aria-label={radarStatus?radarStatus.status:'데이터 동기화 완료'} />
+        {!radarStatus&&<span className="status-dot" aria-label="데이터 동기화 완료" />}
       </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
         <LockKeyhole size={18} />
@@ -877,11 +875,6 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
     : source === "VERIFIED"
       ? "공식 공개 이후 첫 정규장"
       : "저장소 확정 이후 첫 정규장(역산)";
-  const horizonBasisCopy = source === "MIXED"
-    ? `공식·역산 실행을 합친 ${range.replace("D", "거래일")} 동일가중 성과`
-    : source === "RECONSTRUCTED"
-      ? `저장소 확정 이후 첫 정규장부터 ${range.replace("D", "거래일")} 동일가중 참고 성과`
-      : `공식 추천 공개 이후 ${range.replace("D", "거래일")} 동일가중 성과`;
   return (
     <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
       <header className="performance-panel-header">
@@ -894,12 +887,10 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
 
       <div className="performance-controls">
         <div>
-          <span>추천 후 보유 기간</span>
           <SegmentedControl value={range} onChange={setRange} label="추천 후 보유 기간" size="md" layout="fill">
             {HORIZONS.map((item) => <SegmentedControlItem key={item} value={item} label={item.replace("D", "거래일")} />)}
           </SegmentedControl>
         </div>
-        <p>측정 완료된 최근 {PERFORMANCE_RUN_LIMIT}회 추천의 평균입니다. {PERFORMANCE_RUN_LIMIT}회 미만이면 확보된 결과만 반영합니다. {horizonBasisCopy}</p>
       </div>
 
       <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
@@ -938,7 +929,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
             </div>
 
             <details className="signals-details">
-              <summary>{source === "MIXED" ? "통합" : source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <small>· 진입 기준 {entryBasisLabel}</small></summary>
+              <summary>{source === "MIXED" ? "통합" : source === "VERIFIED" ? "검증" : "역산"} 종목 {signals.length}건 <ChevronRight size={16} aria-hidden="true" /></summary>
               {signals.length ? (
                 <div className="signals-table-wrap">
                   <table>
@@ -1065,9 +1056,6 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   return (
     <div className="selection-view">
       <section className="screener-mode-bar" aria-label="스크리너 선택">
-        <div>
-          <p>SCREENER MODE</p>
-        </div>
         <StrategyModeControl strategy={strategy} onChange={onStrategy} />
       </section>
       <section className="run-header">
@@ -1075,7 +1063,7 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
           <div>
             <h1>
               <span>{strategy}</span>
-              <span className="run-date">· {formatDate(currentRun.report_date || currentRun.report_created_at)}</span>
+              <span className="run-date">{formatDate(currentRun.report_date || currentRun.report_created_at)}</span>
             </h1>
             <p className="strategy-descriptor">{STRATEGIES[strategy].label}</p>
           </div>
@@ -1203,12 +1191,11 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
     <section className="secondary-view overview-view overview-v2">
       <header className="overview-page-header">
         <h1>대시보드</h1>
-        <button type="button" className="overview-history-link" onClick={onHistory}>
-          실행 기록 <ChevronRight size={16} aria-hidden="true" />
-        </button>
       </header>
 
       <RadarSummary delivery={radar} onOpen={onRadar} />
+      <section className="overview-screening" aria-labelledby="screening-changes-title">
+      <h2 id="screening-changes-title">스크리닝 변화</h2>
       <section className="since-visit" aria-label="최근 실행 변화">
         <div className="visit-strategies">
           {latestRuns.map((item) => (
@@ -1231,6 +1218,7 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
         </footer>
       </section>
 
+      </section>
       <div className="overview-working-grid">
         <section className="latest-selection-mini">
           <header><h2>최신 상위 종목</h2></header>
@@ -1326,19 +1314,7 @@ function HistoryView({ payload, index, onStrategy }) {
         <h1>실행 기록</h1>
       </header>
       <div className="history-controls">
-        <div className="history-filter" role="group" aria-label="엔진 필터">
-          {["ALL", "MLG", "TENX"].map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={filter === item ? "is-active" : ""}
-              aria-pressed={filter === item}
-              onClick={() => setFilter(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
+        <div className="history-strategy-control"><StrategyModeControl strategy={filter} onChange={setFilter} label="엔진 필터" includeAll /></div>
         <TextInput
           label="실행 기록 검색"
           isLabelHidden
@@ -1404,7 +1380,6 @@ function StandalonePerformanceView({ payload, strategy, onStrategy }) {
         <h1>벤치마크 비교</h1>
       </header>
       <div className="performance-strategy-control">
-        <span>비교 전략</span>
         <StrategyModeControl strategy={strategy} onChange={onStrategy} label="성과 비교 전략" />
       </div>
       <PerformancePanel

@@ -63,7 +63,6 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
       <figcaption>
         <span id={titleId}>추천일별 {horizon} 수익률 비교</span>
       </figcaption>
-      <p id={descriptionId} className="return-chart-description">가로축은 추천일입니다. 각 점은 해당 추천의 {horizon.replace("D", "거래일")} 보유 수익률이며, 누적 수익률이 아닙니다.</p>
       <div className="return-chart-legend" aria-hidden="true">
         <span><i className="is-strategy" />{strategy}</span>
         <span><i className="is-benchmark" />{benchmark}</span>
@@ -124,6 +123,7 @@ export function ReturnComparisonChart({ points = [], strategy, benchmark = "QQQ"
           );
         })}
       </svg>
+      <p id={descriptionId} className="return-chart-description">가로축은 추천일입니다. 각 점은 해당 추천의 {horizon.replace("D", "거래일")} 보유 수익률이며, 누적 수익률이 아닙니다.</p>
     </figure>
   );
 }

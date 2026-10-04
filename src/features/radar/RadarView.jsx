@@ -3,12 +3,13 @@ import { REASONS } from './signal-contract.js';
 import { radarPresentation } from './radar-presentation.js';
 import { inputGaugeCards, thresholdPosition } from './gauge-model.js';
 import { GaugeCard, InputProvenance, formatRadarNumber as number } from './GaugeCard.jsx';
+import { RadarUpdate } from './RadarSummary.jsx';
 import { MarketGauge } from './MarketGauge.jsx';
 import { ObservationStatus } from './ObservationStatus.jsx';
 import { kstTime } from './observation-status.js';
 import './radar.css';
 
-const BANDS = [['저점 경보','0–19'],['저점 쪽','20–39'],['중립','40–59'],['고점 쪽','60–79'],['고점 경보','80–100']];
+const BANDS = [['저점 경보','0–19'],['냉각 구간','20–39'],['중립','40–59'],['과열 구간','60–79'],['고점 경보','80–100']];
 const BLOCK_COPY = {
   COOLDOWN:'앞선 신호와의 20거래일 간격을 기다리고 있습니다.',
   QUARTER_LIMIT:'이번 분기의 신호 횟수 한도에 도달했습니다.',
@@ -33,7 +34,7 @@ function DirectionSignal({side,data,stale}) {
   checks.push(['경보 제한',!calculated?'미계산':operatingBlocks.length?'보류':'없음']);
   const reasons=operatingBlocks.filter(reason=>reason!=='LEGACY_OBSERVATION_ONLY');
   return <section className="radar-direction-card" aria-label={`${title} 경보 조건`}>
-    <header className="radar-direction-heading"><h3>{title} 경보 <small>{side==='bottom'?'바닥 가능성':'꼭대기 가능성'}</small></h3>
+    <header className="radar-direction-heading"><h3>{title} 경보</h3>
       <strong className={event?'radar-issued':''}>{unavailable?'계산 불가':!calculated?'미계산':event?(stale?'과거 기준일 발생':'기준일 발생'):'발생 안 함'}</strong>
     </header>
     <dl className="radar-checks">{checks.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
@@ -44,29 +45,23 @@ function DirectionSignal({side,data,stale}) {
 export function RadarView({delivery=null}) {
   const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,notice}=radarPresentation(delivery);
   const cards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
-  const legacy=Object.values(data?.native_details||{}).some(detail=>detail?.block_reasons?.includes('LEGACY_OBSERVATION_ONLY'));
   return <section className="secondary-view radar-view">
-    <header className="radar-page-header"><div><h1>시장 전환 신호</h1><p>S&P 500 · 저점과 고점을 살피는 연구 모델</p></div><span className="radar-beta-label">BETA · 실운영 성과 미검증</span></header>
+    <header className="radar-page-header"><h1>시장 신호 (Beta)</h1></header>
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
-      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 종합 지표</h2><span>기준일 <time dateTime={data?.session}>{data?.session||'확인 대기'}</time></span></div>
-      {notice&&<p className="radar-data-notice" role="status"><strong>{notice}</strong><span>이전 점수 · 오늘의 신규 신호가 아닙니다.</span></p>}
+      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수</h2><RadarUpdate data={data} delayed={stale||failed}/></div>
       <div className="radar-hero-content"><MarketGauge score={data?.gauge.score??null} level={unavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
         <div className="radar-reading"><h3>{headline}</h3>
           {(unavailable||conflict||level==='CONFLICT'||observation)&&<p>{unavailable?(data?'계산 불가 · 필수 입력 결측':'유효한 자료 미확인'):conflict?'양쪽 경보가 동시에 발생해 단일 점수를 표시하지 않습니다.':observation?'점수만 계산한 자료이며 경보는 미계산입니다.':'최신 자료를 확인해 주세요.'}</p>}
-          <dl className="radar-event-summary"><dt>{stale||failed?'당시 신규 경보':'기준일 신규 경보'}</dt><dd>{eventLabel}</dd></dl>
+          <dl className="radar-event-summary"><dd>{eventLabel}</dd></dl>
         </div>
       </div>
       <div className="radar-band-legend" aria-label="점수 구간">{BANDS.map(([label,range],index)=><span key={label} className={Number.isInteger(data?.gauge.score)&&Math.min(4,Math.floor(data.gauge.score/20))===index?'is-current':''}><b>{label}</b><small>{range}</small></span>)}</div>
-      <div className="radar-score-foot"><p>낮을수록 저점, 높을수록 고점 방향 · 적중 확률이 아닙니다.</p>
-        {data?.gauge.mixed&&<p className="radar-mixed"><strong>혼합 성향{Number.isFinite(data.gauge.mixed_strength)?` ${Math.round(data.gauge.mixed_strength*100)} /100`:''}</strong><span>{conflict?'양방향 신규 경보 동시 발생':data.gauge.mixed_strength===1?'양쪽 모두 경보 후보 수준 · 약한 중립 아님':'양쪽 성향 함께 있음 · 경보 충돌 아님'}</span></p>}
-      </div>
+      {data?.gauge.mixed_strength===1&&!conflict&&<p className="radar-mixed">양방향 조건 강함</p>}
     </section>
 
     <section className="radar-section" aria-labelledby="radar-conditions-title">
       <div className="radar-section-heading"><h2 id="radar-conditions-title">저점·고점 경보</h2></div>
-      <p className="radar-section-intro">모델 기준 충족은 <strong>경보 후보</strong>입니다. 공포 지표(저점만)와 간격·횟수·자료 시각까지 통과해야 <strong>경보가 발생</strong>합니다.</p>
       <div className="radar-directions">{['bottom','top'].map(side=><DirectionSignal key={side} side={side} data={data} stale={stale||failed}/>)}</div>
-      {legacy&&<p className="radar-condition-note">당시 실시간 경보를 계산하지 않은 자료로, 새 경보를 발행하지 않습니다.</p>}
       <Disclosure title="상세 조건·이전 경보">
         <p>여기의 방향별 모델 점수는 위의 대표 0–100점과 다른 원점수입니다. 저점·고점 모델 모두 원점수가 각자의 기준 이상이어야 후보가 됩니다. 저점 원점수가 높아질수록 대표 점수는 낮은 쪽으로 움직입니다.</p>
         <p>q90는 해당 연도 학습 점수의 90분위 기준입니다. 원점수 0.9나 CNN 원값 90이 아닙니다. 원점수 기준, 저점 CNN 확인, 20거래일 간격·분기별 원신호 2회 한도·결측 복귀·수신 마감을 모두 통과해야 신규 경보입니다.</p>
@@ -78,9 +73,7 @@ export function RadarView({delivery=null}) {
     </section>
 
     <section className="radar-section" aria-labelledby="radar-model-title">
-      <div className="radar-section-heading"><h2 id="radar-model-title">개별 지표</h2></div>
-      <p className="radar-input-intro">SPY·CNN·VIX를 가공한 5개 지표입니다. 하나만으로 경보를 판단하지 않습니다.</p>
-      <p className="radar-input-rank-note">과거 위치: 직전 252거래일 대비 0(낮음)–100(높음).</p>
+      <div className="radar-section-heading"><h2 id="radar-model-title">구성 지표</h2></div>
       <div className="radar-input-list">{cards.model.map(card=><GaugeCard key={card.key} card={card} model/>)}</div>
       <Disclosure title="입력 원값·출처·수신 시각">
         <p>CNN·실현 변동성·VIX의 과거 순위는 모델 입력입니다. 가격 흐름·장기 추세·예상/실제 변동성 비교의 과거 위치는 읽기를 돕는 화면 전용 순위입니다. 오늘을 제외한 직전 252세션 중 최소 126개 유효값을 사용하며, 검증된 순위가 없으면 위치를 추정하지 않습니다. RSI는 모델 입력이 아닙니다.</p>
@@ -95,7 +88,7 @@ export function RadarView({delivery=null}) {
     <div className="radar-support">
       <Disclosure title="일일 갱신·자료 상태"><ObservationStatus delivery={data}/></Disclosure>
       <Disclosure title="점수 읽는 법과 연구 한계">
-        <p>0–19 Extreme Low는 저점 경보, 20–39 Low는 저점 방향, 40–59 Neutral은 중간 구간, 60–79 High는 고점 방향, 80–100 Extreme High는 고점 경보입니다. Extreme은 기준일 신규 경보에만 대응합니다. 오래된 자료를 오늘 신호로 읽지 마세요.</p>
+        <p>0–19 Extreme Low는 저점 경보, 20–39는 냉각 구간, 40–59 Neutral은 중간 구간, 60–79는 과열 구간, 80–100 Extreme High는 고점 경보입니다. Extreme은 기준일 신규 경보에만 대응합니다. 오래된 자료를 오늘 신호로 읽지 마세요.</p>
         <p>대표 점수는 각 방향의 학습 중앙값→q90 거리로 계산합니다. 비신호일은 50 + 30 × (고점 접근도 − 저점 접근도)를 반올림하고 20~79에 둡니다. 접근도는 중앙값에서 0, q90 이상에서 1입니다. 양쪽 성향이 강해도 대표 숫자를 유지하며, 두 최종 경보가 동시에 발생한 경우만 비웁니다.</p>
         <p>혼합 강도는 두 접근도 중 작은 값입니다. 대표 점수가 중간이어도 양쪽 조건이 약하다는 뜻은 아닙니다. 단독 방향의 경보 시작·해제는 최대21점(고점79↔100, 저점20↔0은20점), 강한 혼합 상태에서는 최대50점 차이를 만들 수 있습니다. 연도별 기준 갱신도 점수를 바꿀 수 있습니다.</p>
         <p>점수는 상승·하락 또는 안전한 매수의 확률이 아닙니다. 특정 고정 CNN 역사 자료에서는 6/8 포착·오경보 10회, 다른 버전에서는 5/8·10회였습니다. 회고 결과이며 실운영 성과나 안정적인 저점 4/4 성능이 아닙니다.</p>

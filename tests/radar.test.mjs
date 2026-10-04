@@ -106,9 +106,9 @@ test('unavailable packets without native details render safely and explain missi
     const {renderToStaticMarkup}=await import('react-dom/server');
     for(const packet of [value,null,{...value,native_details:{bottom:null}},{...value,gauge:{...value.gauge,reason:{}}},dailyFixture(false,false,true),dailyFixture(true,true)]) {
       const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet}));
-      assert.match(html,/시장 전환 신호/);
+      assert.match(html,/시장 신호 \(Beta\)/);
       if(packet===value){assert.match(html,/계산 불가 · 필수 입력 결측/);assert.match(html,/03\. 13\. 05:00 KST/);}
-      if(packet?.gauge?.mixed_strength===1&&packet.events.bottom===false)assert.match(html,/약한 중립 아님/);
+      if(packet?.gauge?.mixed_strength===1&&packet.events.bottom===false)assert.match(html,/양방향 조건 강함/);
       if(packet?.events?.bottom&&packet.events.top)assert.match(html,/양방향 경보 충돌/);
     }
   } finally {await server.close();}
@@ -337,26 +337,29 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const mixed=dailyFixture(false,false,true),before=structuredClone(mixed);
     const html=render(mixed);
     assert.match(html,/aria-valuenow="50"/);
-    assert.match(html,/혼합 성향/);assert.match(html,/약한 중립 아님/);
-    assert.match(html,/참고 지표 · 모델 점수에 미반영/);
-    assert.ok(html.indexOf('시장 전환 종합 지표')<html.indexOf('저점·고점 경보'));
-    assert.ok(html.indexOf('>개별 지표</h2>')<html.indexOf('>보조 지표</h2>'));
-    assert.match(html,/>보조 지표<\/h2>/);assert.match(html,/>개별 지표<\/h2>/);
-    assert.doesNotMatch(html,/시장 보조 지표|시장 전환 개별 지표/);
-    assert.equal((html.match(/<dt>낮을수록<\/dt>/g)||[]).length,5);
-    assert.equal((html.match(/<dt>높을수록<\/dt>/g)||[]).length,5);
-    assert.match(html,/움직임의 크기이며 상승·하락 방향은 아닙니다/);
+    assert.match(html,/양방향 조건 강함/);
+    assert.match(html,/RSI \(14\)/);
+    assert.ok(html.indexOf('시장 전환 지수')<html.indexOf('저점·고점 경보'));
+    assert.ok(html.indexOf('>구성 지표</h2>')<html.indexOf('>보조 지표</h2>'));
+    assert.match(html,/>보조 지표<\/h2>/);assert.match(html,/>구성 지표<\/h2>/);
+    assert.doesNotMatch(html,/시장 보조 지표|시장 전환 구성 지표/);
+    assert.equal((html.match(/<dt>낮을수록<\/dt>/g)||[]).length,2);
+    assert.equal((html.match(/<dt>높을수록<\/dt>/g)||[]).length,2);
+    assert.equal((html.match(/<dt>음수일 때<\/dt>/g)||[]).length,3);
+    assert.equal((html.match(/<dt>양수일 때<\/dt>/g)||[]).length,3);
+    assert.match(html,/<dt>0일 때<\/dt><dd>예상 변동성과 실제 변동성이 같음/);
+    assert.match(html,/최근 20일 변동성의 역사적 크기/);
     assert.match(html,/하락 확률은 아닙니다/);
-    assert.match(html,/모델 기준 충족은/);assert.match(html,/경보 후보/);assert.match(html,/최종 경보/);
+    assert.match(html,/원점수 \/ q90/);assert.match(html,/저점 공포 지표/);
     assert.deepEqual(mixed,before);
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);
-    assert.match(staleHtml,/오늘의 신규 신호가 아닙니다/);assert.match(staleHtml,/과거 기준일 발생/);
+    assert.match(staleHtml,/갱신 지연/);assert.match(staleHtml,/과거 기준일 발생/);
     Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
       failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
     const failedHtml=render(stale);
-    assert.match(failedHtml,/갱신 실패 · 이전 점수 유지/);
+    assert.match(failedHtml,/갱신 지연/);
     assert.doesNotMatch(failedHtml,/일부 미확보/);
     for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
       const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
@@ -377,9 +380,9 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     for(const args of [[false,false],[true,false],[false,true],[false,false,true]]) {
       const v=dailyFixture(...args),before=structuredClone(v),html=render(v);
       assert.ok(html.includes(`<strong>${v.gauge.score}</strong>`));
-      assert.ok(html.includes(v.gauge.level));assert.ok(html.includes(v.session));
+      assert.ok(html.includes(v.session));
       assert.deepEqual(v,before);
-      if(args[2])assert.match(html,/양쪽 모두 경보 후보 수준/);
+      if(args[2])assert.match(html,/양방향 조건 강함/);
     }
     const both=render(dailyFixture(true,true));
     assert.match(both,/양방향 경보 충돌/);assert.match(both,/<strong>—<\/strong>/);
@@ -390,7 +393,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     }
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     Object.assign(stale.observation,{expected_session:'2026-03-13',latest_session_input_missing:['VIX']});
-    const html=render(stale);assert.match(html,/2026-03-13 VIX 미확보/);
-    assert.match(html,/당시 신규 경보 저점 경보/);assert.match(html,/오늘의 신규 신호가 아닙니다/);
+    const html=render(stale);assert.match(html,/갱신 지연/);
+    assert.match(html,/저점 경보/);assert.match(html,/03.12 Updated/);
   } finally {await server.close();}
 });
