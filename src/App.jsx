@@ -20,7 +20,7 @@ import {
   LockKeyhole,
   LogOut,
   PanelRightOpen,
-  Radar,
+  Gauge,
   Search,
   TrendingUp,
   X,
@@ -30,6 +30,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
+import { RadarSummary } from "./features/radar/RadarSummary.jsx";
 import { RadarView } from "./features/radar/RadarView.jsx";
 import { loadOptionalRadarDelivery } from "./features/radar/radar-envelope.js";
 import { radarHeaderStatus } from "./features/radar/gauge-model.js";
@@ -88,8 +89,8 @@ const RISK_VALUES = Object.freeze({
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
 
 const NAV_ITEMS = Object.freeze([
-  { id: "radar", label: "RADAR", icon: Radar },
   { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
+  { id: "radar", label: "RADAR", icon: Gauge },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERFORMANCE", icon: BarChart3 },
@@ -97,8 +98,8 @@ const NAV_ITEMS = Object.freeze([
 ]);
 
 const MOBILE_NAV_ITEMS = Object.freeze([
-  { id: "radar", label: "RADAR", icon: Radar },
   { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
+  { id: "radar", label: "RADAR", icon: Gauge },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
   { id: "performance", label: "PERF", icon: BarChart3 },
@@ -1164,7 +1165,7 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   );
 }
 
-function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance, onHistory }) {
+function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail, onPerformance, onHistory }) {
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
     const strategyRuns = index.runsByStrategy.get(strategy) || [];
     const run = strategyRuns[0] || null;
@@ -1201,12 +1202,13 @@ function OverviewView({ payload, index, onStrategy, onOpenDetail, onPerformance,
   return (
     <section className="secondary-view overview-view overview-v2">
       <header className="overview-page-header">
-        <h1>최근 변경 사항</h1>
+        <h1>대시보드</h1>
         <button type="button" className="overview-history-link" onClick={onHistory}>
           실행 기록 <ChevronRight size={16} aria-hidden="true" />
         </button>
       </header>
 
+      <RadarSummary delivery={radar} onOpen={onRadar} />
       <section className="since-visit" aria-label="최근 실행 변화">
         <div className="visit-strategies">
           {latestRuns.map((item) => (
@@ -1704,6 +1706,8 @@ function Dashboard({ payload, radar, onLock }) {
   if (route.view === "overview") {
     content = (
       <OverviewView
+        radar={radar}
+        onRadar={() => navigate({ view: "radar", strategy })}
         payload={payload}
         index={index}
         onStrategy={selectStrategy}
