@@ -1058,7 +1058,6 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
         {isHistorical ? (
           <div className="historical-banner" role="status">
             <span>과거 선정 결과 · {formatDate(currentRun.report_date || currentRun.report_created_at)}</span>
-            <button type="button" onClick={onLatest}>최신 결과 보기 <ChevronRight size={16} aria-hidden="true" /></button>
           </div>
         ) : null}
       </section>

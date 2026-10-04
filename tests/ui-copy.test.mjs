@@ -83,6 +83,20 @@ test("uses Korean candidate labels and long-horizon performance tabs", () => {
   assert.match(appSource, /<dt>후보 상태<\/dt>/);
 });
 
+test("does not show a latest-result link on historical screener runs", () => {
+  const selectionView = appSource.slice(appSource.indexOf("function SelectionView("), appSource.indexOf("function OverviewView("));
+  const bannerStart = selectionView.indexOf('className="historical-banner"');
+  const bannerEnd = selectionView.indexOf("</div>", bannerStart);
+  assert.ok(bannerStart >= 0 && bannerEnd > bannerStart);
+  const historicalBanner = selectionView.slice(bannerStart, bannerEnd);
+  assert.match(historicalBanner, /과거 선정 결과/);
+  assert.doesNotMatch(historicalBanner, /최신 결과 보기|onClick=\{onLatest\}/);
+  assert.match(
+    appSource,
+    /function navigateItem\(id\) \{[\s\S]*?if \(id === "screener"\) \{\s*selectStrategy\(strategy\);\s*return;/,
+  );
+});
+
 test("offers a recoverable render-error state without exposing internals", () => {
   assert.match(appSource, /<AppErrorBoundary/);
   assert.match(errorBoundarySource, /다시 시도/);
