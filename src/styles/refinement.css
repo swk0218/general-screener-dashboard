@@ -467,7 +467,7 @@
 .app-shell { --secondary-action-size:11px; --status-label-size:11px; }
 .app-shell :is(.section-footer button,.mini-strategy-card>header button,.historical-banner button,.detail-open-full,details>summary) { font:500 var(--secondary-action-size)/1.5 var(--gs-sans); }
 .app-shell .historical-banner { margin:12px 0 0; padding:8px 0; flex-direction:row; align-items:center; gap:12px; border-color:var(--gs-divider); background:transparent; }
-.app-shell .historical-banner button { padding:0; }
+.app-shell .historical-banner button { padding:0; color:var(--gs-muted); }
 .app-shell :is(.recommendation-table .verdict-cell,.recommendation-table .delta-column,.mobile-security>span:last-child,.mobile-numbers>span) { font-size:var(--status-label-size); font-weight:500; }
 .app-shell .return-chart figcaption>span:only-child { color:var(--gs-text); font:500 12px/1.5 var(--gs-sans); }
 .app-shell .return-chart-description { font:400 11px/1.6 var(--gs-sans); color:var(--gs-muted); }

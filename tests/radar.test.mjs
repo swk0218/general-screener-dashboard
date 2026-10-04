@@ -337,6 +337,7 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const mixed=dailyFixture(false,false,true),before=structuredClone(mixed);
     const html=render(mixed);
     assert.match(html,/aria-valuenow="50"/);
+    assert.match(html,/중립 구간<\/strong>입니다/);
     assert.match(html,/양방향 조건 강함/);
     assert.match(html,/RSI \(14\)/);
     assert.ok(html.indexOf('시장 전환 지수')<html.indexOf('저점·고점 경보'));
@@ -362,6 +363,12 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     assert.match(activeHtml,/radar-alert-outcome is-issued/);
     assert.match(activeHtml,/radar-headline is-alert/);
     assert.match(html,/radar-headline is-normal/);
+    const sourceTransitionHold=dailyFixture();
+    sourceTransitionHold.timing.eligible=false;
+    sourceTransitionHold.timing.reason='SOURCE_TRANSITION_LATE_OBSERVATION';
+    for(const side of ['bottom','top'])sourceTransitionHold.native_details[side].block_reasons=['SOURCE_TRANSITION_LATE_OBSERVATION'];
+    const hiddenStatusHtml=render(sourceTransitionHold);
+    assert.doesNotMatch(hiddenStatusHtml,/SOURCE_TRANSITION_LATE_OBSERVATION|추가 확인 필요|마감 충족|차단 없음/);
     const firstInput=html.slice(html.indexOf('data-input="cnn_rank"'));
     assert.ok(firstInput.indexOf('radar-input-label')<firstInput.indexOf('radar-card-value'));
     assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-position'));
@@ -398,6 +405,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
       assert.ok(html.includes(v.session));
       assert.deepEqual(v,before);
       assert.match(html,args[0]||args[1]?/radar-headline is-alert/:/radar-headline is-normal/);
+      if(!args[0]&&!args[1]&&!args[2])assert.match(html,/중립 구간<\/strong>입니다/);
       assert.match(html,/지수 자세히/);
       if(args[2])assert.match(html,/양방향 조건 강함/);
     }

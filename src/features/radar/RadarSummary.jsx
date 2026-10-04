@@ -7,7 +7,7 @@ export function RadarUpdate({data}) {
   return <span className="radar-updated"><UpdateBadge date={data?.session}/></span>;
 }
 export function RadarHeadline({headline,alert=false}) {
-  const normal=['냉각 구간','중간 구간','과열 구간'].includes(headline);
+  const normal=['냉각 구간','중립 구간','과열 구간'].includes(headline);
   return <span className={`radar-headline ${alert?'is-alert':normal?'is-normal':'is-unavailable'}`}>
     {normal?<>S&P500은 현재 <span className="radar-headline-result"><strong>{headline}</strong>입니다</span></>:<strong>{headline}</strong>}
   </span>;

@@ -1,7 +1,7 @@
 import { validateRadarDelivery } from './radar-contract.js';
 
 const LEVEL_COPY = {
-  'Extreme Low':'저점 경보 발생', Low:'냉각 구간', Neutral:'중간 구간',
+  'Extreme Low':'저점 경보 발생', Low:'냉각 구간', Neutral:'중립 구간',
   High:'과열 구간', 'Extreme High':'고점 경보 발생',
 };
 
