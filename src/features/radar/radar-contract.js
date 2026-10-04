@@ -1,3 +1,4 @@
+import {validateSignalGauge} from './signal-contract.js';
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const validDate = value => typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
 export const FROZEN_MODEL_VERSION = 'dd19fa6f7834bb8f85b5b04b0c8b40c5b4419270969d752221d48a74a055770b';
@@ -15,9 +16,11 @@ export function validateRadarDelivery(value) {
   const date = new Date(`${value.session}T00:00:00Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value.session) fail();
   if (!value.events || !value.active || !value.gauge || !value.inputs || !value.references) fail();
-  const observation=value.operating_status==='OBSERVATION_COMPUTED';
+  const daily=value.operating_status==='DAILY_MODEL_COMPUTED';
+  const legacyObservation=value.operating_status==='OBSERVATION_COMPUTED';
+  const observation=legacyObservation||daily;
   for (const side of ['bottom','top']) {
-    if (typeof value.events[side] !== 'boolean' || (observation?value.active[side]!==null:typeof value.active[side] !== 'boolean')) fail();
+    if (typeof value.events[side] !== 'boolean' || (legacyObservation?value.active[side]!==null:typeof value.active[side] !== 'boolean')) fail();
     if (value.scores?.[side] !== null && (!finite(value.scores?.[side]) || value.scores[side]<0 || value.scores[side]>1)) fail();
   }
   for (const [key] of MODEL_INPUTS) if (!Object.hasOwn(value.inputs,key) || (value.inputs[key]!==null && !finite(value.inputs[key]))) fail();
@@ -38,7 +41,7 @@ export function validateRadarDelivery(value) {
   }
   if(value.native_details!==undefined) for(const side of ['bottom','top']) {
     const d=value.native_details?.[side];
-    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||(observation?d.vetoed!==null:typeof d.vetoed!=='boolean')) fail();
+    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||(legacyObservation?d.vetoed!==null:typeof d.vetoed!=='boolean')) fail();
   }
   if(value.input_metadata!==undefined) for(const m of Object.values(value.input_metadata)) {
     if(!m||typeof m.source!=='string'||(m.source_date!==null&&!/^\d{4}-\d{2}-\d{2}$/.test(m.source_date||''))
@@ -47,8 +50,8 @@ export function validateRadarDelivery(value) {
   const { score, level, mixed } = value.gauge;
   const { bottom, top } = value.events;
   const replay=value.operating_status==='REPLAY_NO_FORWARD_ISSUE';
-  if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW','OBSERVATION_COMPUTED'].includes(value.operating_status))fail();
-  if(observation&&(value.observation_only!==true||value.controller_evaluated!==false||value.evidence_ready!==false
+  if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW','OBSERVATION_COMPUTED','DAILY_MODEL_COMPUTED'].includes(value.operating_status))fail();
+  if(legacyObservation&&(value.observation_only!==true||value.controller_evaluated!==false||value.evidence_ready!==false
     ||bottom||top||value.active.bottom!==null||value.active.top!==null||score!==null&&(score<20||score>79)
     ||!value.observation||value.observation.policy!=='SCORE_ONLY_NO_OPERATIONAL_ALERT'
     ||typeof value.observation.computed_at_utc!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(value.observation.computed_at_utc)
@@ -61,9 +64,9 @@ export function validateRadarDelivery(value) {
       ||!['SOURCE_FETCH_FAILED','REVISION_QUARANTINED','PUBLICATION_FAILED','CANONICAL_RECOVERY_FAILED'].includes(o.failure_code)
       ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.last_attempt_at_utc||'')||!Number.isFinite(Date.parse(o.last_attempt_at_utc))
       ||Date.parse(o.last_attempt_at_utc)<Date.parse(o.computed_at_utc)||Date.parse(o.last_attempt_at_utc)>Date.now()+300000))fail();
-    if(v?.schema!=='dated_observation_math_v1'||v.immutable_panel_sha256!=='73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8'
+    if(v?.schema!==(daily?'daily_model_math_v2':'dated_observation_math_v1')||v.immutable_panel_sha256!=='73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8'
       ||v.independent_features!==true||v.raw_hashes_bound!==true||v.exact_session_inputs!==true
-      ||v.model_seal_verified!==true||v.controller_evaluated!==false||v.feature_tolerance!==1e-12
+      ||v.model_seal_verified!==true||v.controller_evaluated!==daily||v.feature_tolerance!==1e-12
       ||!validDate(o.expected_session)||o.expected_session<value.session
       ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.first_seen_at_utc||'')||!Number.isFinite(Date.parse(o.first_seen_at_utc))
       ||Date.parse(o.first_seen_at_utc)>Date.parse(o.computed_at_utc)
@@ -81,16 +84,17 @@ export function validateRadarDelivery(value) {
       for(const [key] of [...MODEL_INPUTS,...REFERENCE_INPUTS]) {
         if(value.inputs[key]===null||value.references[key]===null)continue;
         const m=value.input_metadata[key];
-        if(!m||m.source_date!==value.session||m.status!=='DATED_OBSERVATION_NOT_ALERT'||!m.received_at_utc)fail();
+        if(!m||m.source_date!==value.session||m.status!==(daily?'DAILY_MODEL_INPUT':'DATED_OBSERVATION_NOT_ALERT')||!m.received_at_utc)fail();
       }
     }
   }
+  if(daily)validateSignalGauge(value,fail);
   if(!replay&&!observation&&(!value.evidence_ready||['DATA_HOLD','NO_SIGNAL','SHADOW'].includes(value.operating_status)||value.gauge.data_status==='CACHED_STALE')) {
     if(bottom||top||score!==null||level!=='UNAVAILABLE'||value.scores.bottom!==null||value.scores.top!==null)fail();
   }
   if (typeof mixed !== 'boolean' || typeof value.gauge.reference_version !== 'string') fail();
   if (score === null) {
-    if (!['UNAVAILABLE','CONFLICT'].includes(level) || (level==='CONFLICT' && (!(bottom&&top)||!mixed))) fail();
+    if (!['UNAVAILABLE','CONFLICT'].includes(level) || (level==='CONFLICT' && ((!(bottom&&top)&&!(daily&&value.gauge.reason==='MIXED_DIRECTIONAL_CONTEXT'))||!mixed))) fail();
   } else {
     if (!Number.isInteger(score) || score<0 || score>100 || (bottom&&top)) fail();
     const expected = score<20?'Extreme Low':score<40?'Low':score<60?'Neutral':score<80?'High':'Extreme High';
