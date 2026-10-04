@@ -40,10 +40,12 @@ function DirectionSignal({side,data,stale}) {
   const calculated=!unavailable&&data?.operating_status==='DAILY_MODEL_COMPUTED'&&data.controller_evaluated===true&&Boolean(detail);
   const event=data?.events?.[side]===true;
   const operatingBlocks=(detail?.block_reasons||[]).filter(reason=>!['BELOW_Q90','CNN_CONFIRMATION'].includes(reason));
+  const hasHiddenOperationalReason=HIDDEN_STATUS_REASONS.has(data?.timing?.reason)||operatingBlocks.some(reason=>HIDDEN_STATUS_REASONS.has(reason));
+  const onlyHiddenOperationalReason=hasHiddenOperationalReason&&operatingBlocks.every(reason=>HIDDEN_STATUS_REASONS.has(reason));
   const cnnKnown=Number.isFinite(detail?.cnn_bottom_score)&&Number.isFinite(detail?.cnn_bottom_q90);
   const checks=[['모델 기준',!position?'미확인':position.above?'충족':'미달']];
   checks.push(['공포 지표',side==='top'?'적용 안 함':!calculated||!cnnKnown?'미확인':detail.cnn_bottom_score>=detail.cnn_bottom_q90?'충족':'미달']);
-  checks.push(['경보 제한',!calculated?'미계산':operatingBlocks.length?'보류':'없음']);
+  if(!onlyHiddenOperationalReason)checks.push(['경보 제한',!calculated?'미계산':operatingBlocks.length?'보류':'없음']);
   const reasons=operatingBlocks.filter(reason=>reason!=='LEGACY_OBSERVATION_ONLY').map(reason=>BLOCK_COPY[reason]||reasonCopy(reason)).filter(Boolean);
   const liveAlert=event&&!stale;
   return <section className={`radar-direction-card${liveAlert?' is-issued':''}`} aria-label={`${title} 경보 조건`}>
@@ -118,7 +120,7 @@ export function RadarView({delivery=null}) {
         <p>점수는 상승·하락 또는 안전한 매수의 확률이 아닙니다. 특정 고정 CNN 역사 자료에서는 6/8 포착·오경보 10회, 다른 버전에서는 5/8·10회였습니다. 회고 결과이며 실운영 성과나 안정적인 저점 4/4 성능이 아닙니다.</p>
       </Disclosure>
       {data?.gauge.reason&&<Disclosure title="모델·자료 검증 정보">
-        <dl className="radar-provenance-list"><div><dt>모델 버전</dt><dd>{data.model_version}</dd></div><div><dt>표시 버전</dt><dd>{data.gauge.presentation_version}</dd></div><div><dt>자료 상태 / 표시 사유</dt><dd>{data.gauge.data_status} / {data.gauge.reason}</dd></div><div><dt>기준 버전</dt><dd>{data.gauge.reference_version}</dd></div></dl>
+        <dl className="radar-provenance-list"><div><dt>모델 버전</dt><dd>{data.model_version}</dd></div><div><dt>표시 버전</dt><dd>{data.gauge.presentation_version}</dd></div><div><dt>기준 버전</dt><dd>{data.gauge.reference_version}</dd></div></dl>
         {daily&&<><p>수신·계산 마감: {kstTime(data.timing.deadline_utc)}{timingStatus?` · ${timingStatus}`:''}</p><p>컨트롤러 초기 이력은 고정 연구 재현입니다. 과거 실제 수신·발행 이력으로 주장하지 않습니다.</p></>}
       </Disclosure>}
     </div>

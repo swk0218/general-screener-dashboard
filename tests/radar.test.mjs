@@ -338,6 +338,7 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const html=render(mixed);
     assert.match(html,/aria-valuenow="50"/);
     assert.match(html,/중립 구간<\/strong>입니다/);
+    assert.doesNotMatch(html,/DATED_OBSERVATION|MIXED_DIRECTIONAL_CONTEXT|자료 상태 \/ 표시 사유/);
     assert.match(html,/양방향 조건 강함/);
     assert.match(html,/RSI \(14\)/);
     assert.ok(html.indexOf('시장 전환 지수')<html.indexOf('저점·고점 경보'));
@@ -368,7 +369,10 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     sourceTransitionHold.timing.reason='SOURCE_TRANSITION_LATE_OBSERVATION';
     for(const side of ['bottom','top'])sourceTransitionHold.native_details[side].block_reasons=['SOURCE_TRANSITION_LATE_OBSERVATION'];
     const hiddenStatusHtml=render(sourceTransitionHold);
-    assert.doesNotMatch(hiddenStatusHtml,/SOURCE_TRANSITION_LATE_OBSERVATION|추가 확인 필요|마감 충족|차단 없음/);
+    assert.doesNotMatch(hiddenStatusHtml,/SOURCE_TRANSITION_LATE_OBSERVATION|추가 확인 필요|마감 충족|차단 없음|경보 제한/);
+    const timingOnlyHold=structuredClone(sourceTransitionHold);
+    for(const side of ['bottom','top'])timingOnlyHold.native_details[side].block_reasons=['BELOW_Q90'];
+    assert.doesNotMatch(render(timingOnlyHold),/경보 제한/);
     const firstInput=html.slice(html.indexOf('data-input="cnn_rank"'));
     assert.ok(firstInput.indexOf('radar-input-label')<firstInput.indexOf('radar-card-value'));
     assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-position'));
