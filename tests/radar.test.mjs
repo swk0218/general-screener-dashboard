@@ -16,7 +16,7 @@ function dailyFixture(bottom=false,top=false,mixed=false) {
       policy:'DAILY_NEXT_OPEN_MINUS_30M_V1',historical_first_seen_claimed:false,
       source_hashes:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,'a'.repeat(64)])),
       source_receipts:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,{raw_sha256:'a'.repeat(64),observation_date:v.session,received_at_utc:time}]))},
-    timing:{policy:'DAILY_NEXT_OPEN_MINUS_30M_V1',eligible:true,decision_at_utc:time,deadline_utc:'2026-03-13T13:00:00Z'},
+    timing:{policy:'DAILY_NEXT_OPEN_MINUS_30M_V1',eligible:true,reason:null,decision_at_utc:time,deadline_utc:'2026-03-13T13:00:00Z'},
     verification:{schema:'daily_model_math_v2',immutable_panel_sha256:'73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8',independent_features:true,raw_hashes_bound:true,exact_session_inputs:true,model_seal_verified:true,controller_evaluated:true,feature_tolerance:1e-12}});
   v.inputs=Object.fromEntries(MODEL_INPUTS.map(([k])=>[k,.5]));v.references={vix:16,rsi14:50};
   v.input_positions={version:'frozen-input-prior-midrank-v1',window_sessions:252,minimum_valid:126,excludes_current:true,vix_rank:.5};
