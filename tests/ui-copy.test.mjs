@@ -91,6 +91,10 @@ test("does not show a latest-result link on historical screener runs", () => {
   const historicalBanner = selectionView.slice(bannerStart, bannerEnd);
   assert.match(historicalBanner, /과거 선정 결과/);
   assert.doesNotMatch(historicalBanner, /최신 결과 보기|onClick=\{onLatest\}/);
+  assert.match(
+    appSource,
+    /function navigateItem\(id\) \{[\s\S]*?if \(id === "screener"\) \{\s*selectStrategy\(strategy\);\s*return;/,
+  );
 });
 
 test("offers a recoverable render-error state without exposing internals", () => {
