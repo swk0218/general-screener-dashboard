@@ -1,0 +1,43 @@
+import {SIGNAL_REFERENCES,REFERENCE_HASH} from './signal-references.js';
+export function validateSignalGauge(value,fail) {
+  const {gauge:g,events:e,timing:t,observation:o}=value;
+  if(value.controller_evaluated!==true||value.observation_only!==false||value.evidence_ready!==false
+    ||g.presentation_version!=='marketradar-signal-distance-v2'||g.reference_version!==REFERENCE_HASH
+    ||t?.policy!=='DAILY_NEXT_OPEN_MINUS_30M_V1'||o?.policy!==t.policy
+    ||typeof t.eligible!=='boolean'||o.historical_first_seen_claimed!==false
+    ||!Number.isFinite(Date.parse(t.deadline_utc))||!Number.isFinite(Date.parse(o.computed_at_utc))
+    ||Date.parse(o.computed_at_utc)>Date.now()+300000)fail();
+  if(t.eligible&&(!Number.isFinite(Date.parse(t.decision_at_utc))
+    ||Date.parse(t.decision_at_utc)>Date.parse(t.deadline_utc)
+    ||Date.parse(t.decision_at_utc)<Date.parse(o.first_seen_at_utc)))fail();
+  if((e.bottom||e.top)&&!t.eligible)fail();
+  const n=g.normalization, refs=SIGNAL_REFERENCES[value.session.slice(0,4)];
+  if(!refs)fail();
+  if(g.level==='UNAVAILABLE') {
+    if(e.bottom||e.top||!['MISSING_REQUIRED_CONTEXT_INPUT'].includes(g.reason))fail();
+    if(Object.values(value.scores).every(Number.isFinite))fail();
+    return;
+  }
+  for(const side of ['bottom','top']) {
+    const r=refs[side],s=value.scores[side],d=value.native_details[side];
+    const u=Math.max(0,Math.min(1,(s-r.q50)/(r.q90-r.q50)));
+    const x=Math.max(0,Math.min(1,(s-r.q90)/(1-r.q90)));
+    if(!Number.isFinite(s)||n?.[side]?.q50!==r.q50||n[side].q90!==r.q90||d.threshold!==r.q90
+      ||n[side].native_score!==s||Math.abs(n[side].proximity-u)>1e-12||Math.abs(n[side].excess-x)>1e-12
+      ||!Number.isFinite(n[side].proximity)||!Number.isFinite(n[side].excess)
+      ||n[side].conditional_score!==(e[side]?(side==='bottom'?19-Math.floor(19*x+.5+1e-12):80+Math.floor(20*x+.5+1e-12)):(side==='bottom'?50-Math.floor(30*u+.5+1e-12):50+Math.floor(29*u+.5+1e-12)))
+      ||!Array.isArray(d.block_reasons)||e[side]&&(!d.above_threshold||d.vetoed||!d.shadow_new||d.block_reasons.length))fail();
+  }
+  const b=n.bottom,p=n.top,mixed=b.proximity>0&&p.proximity>0;
+  const conflict=e.bottom&&e.top||!e.bottom&&!e.top&&mixed;
+  if(g.mixed!==mixed&&! (e.bottom&&e.top))fail();
+  if(conflict) {if(g.score!==null||g.level!=='CONFLICT')fail();return;}
+  const expected=e.bottom?19-Math.floor(19*b.excess+.5+1e-12):e.top?80+Math.floor(20*p.excess+.5+1e-12):
+    b.proximity>p.proximity?Math.max(20,50-Math.floor(30*b.proximity+.5+1e-12)):Math.min(79,50+Math.floor(29*p.proximity+.5+1e-12));
+  if(g.score!==expected)fail();
+}
+
+export const REASONS={BELOW_Q90:'원점수 q90 미만',CNN_CONFIRMATION:'CNN 저점 확인 미충족',
+  GAP_RECOVERY:'결측 후 첫 복귀일',QUARTER_LIMIT:'분기 원신호 2회 사용',COOLDOWN:'20거래일 간격 대기',
+  MISSING_INPUT:'필수 입력 결측',LATE_RECEIPT_OR_DECISION:'다음 개장 전 수신·계산 마감 초과',
+  LEGACY_OBSERVATION_ONLY:'이전 관찰 자료 · 당시 신호 미계산'};

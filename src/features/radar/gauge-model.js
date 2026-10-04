@@ -8,7 +8,7 @@ export function thresholdPosition(score,threshold) {
 }
 export function radarHeaderStatus(data) {
   return {date:data?.session||null,label:'Radar 기준',status:!data?'자료 없음':
-    data.operating_status==='OBSERVATION_COMPUTED'?'관찰 점수 · 경보 미발행':data.operating_status==='REPLAY_NO_FORWARD_ISSUE'?'동결 연구':
+    data.operating_status==='DAILY_MODEL_COMPUTED'?'일일 모델 판단 · 베타':data.operating_status==='OBSERVATION_COMPUTED'?'관찰 점수 · 경보 미발행':data.operating_status==='REPLAY_NO_FORWARD_ISSUE'?'동결 연구':
     data.gauge?.data_status==='CACHED_STALE'?'과거 자료':data.evidence_ready?'입력 검증':'관측 검증 대기',tone:'is-hold'};
 }
 export function inputGaugeCards(data) {

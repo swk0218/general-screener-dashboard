@@ -7,6 +7,48 @@ import {readFile} from 'node:fs/promises';
 import { createCipheriv, pbkdf2Sync, randomBytes, createHash } from 'node:crypto';
 import { inputGaugeCards,thresholdPosition,radarHeaderStatus } from '../src/features/radar/gauge-model.js';
 import {validateObservationStatus,observationState} from '../src/features/radar/observation-status.js';
+import {SIGNAL_REFERENCES,REFERENCE_HASH} from '../src/features/radar/signal-references.js';
+
+function dailyFixture(bottom=false,top=false,mixed=false) {
+  const v=fixture(null,'CONFLICT',bottom,top),time='2026-03-13T10:00:00Z';
+  Object.assign(v,{operating_status:'DAILY_MODEL_COMPUTED',observation_only:false,controller_evaluated:true,
+    observation:{computed_at_utc:time,first_seen_at_utc:time,expected_session:v.session,
+      policy:'DAILY_NEXT_OPEN_MINUS_30M_V1',historical_first_seen_claimed:false,
+      source_hashes:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,'a'.repeat(64)])),
+      source_receipts:Object.fromEntries(['CNN','SPY','VIX'].map(s=>[s,{raw_sha256:'a'.repeat(64),observation_date:v.session,received_at_utc:time}]))},
+    timing:{policy:'DAILY_NEXT_OPEN_MINUS_30M_V1',eligible:true,decision_at_utc:time,deadline_utc:'2026-03-13T13:00:00Z'},
+    verification:{schema:'daily_model_math_v2',immutable_panel_sha256:'73cf8db960ccee52b11adce0a39ea2789197bb997ca039fcf8d2d8c5a827f5d8',independent_features:true,raw_hashes_bound:true,exact_session_inputs:true,model_seal_verified:true,controller_evaluated:true,feature_tolerance:1e-12}});
+  v.inputs=Object.fromEntries(MODEL_INPUTS.map(([k])=>[k,.5]));v.references={vix:16,rsi14:50};
+  v.input_positions={version:'frozen-input-prior-midrank-v1',window_sessions:252,minimum_valid:126,excludes_current:true,vix_rank:.5};
+  v.input_metadata=Object.fromEntries([...MODEL_INPUTS,...REFERENCE_INPUTS].map(([k])=>[k,{source:'TEST_ONLY',source_date:v.session,status:'DAILY_MODEL_INPUT',received_at_utc:time}]));
+  v.native_details={};v.gauge={score:null,level:'CONFLICT',mixed:bottom&&top||mixed,
+    reference_version:REFERENCE_HASH,presentation_version:'marketradar-signal-distance-v2',data_status:'DATED_OBSERVATION',
+    reason:bottom&&top?'BOTH_ALERTS_TODAY':mixed?'MIXED_DIRECTIONAL_CONTEXT':'FINAL_MODEL_SIGNAL',normalization:{}};
+  for(const side of ['bottom','top']) {
+    const r=SIGNAL_REFERENCES['2026'][side],event=v.events[side],high=event||mixed;
+    v.scores[side]=high?r.q90:0;
+    v.native_details[side]={threshold:r.q90,vetoed:false,above_threshold:high,shadow_new:event,block_reasons:event?[]:['BELOW_Q90']};
+    v.gauge.normalization[side]={...r,native_score:v.scores[side],proximity:high?1:0,excess:0,
+      conditional_score:event?(side==='bottom'?19:80):high?(side==='bottom'?20:79):50};
+  }
+  if(!(bottom&&top)&&!mixed)Object.assign(v.gauge,{score:bottom?19:top?80:50,level:bottom?'Extreme Low':top?'Extreme High':'Neutral'});
+  return v;
+}
+
+test('daily model validates real signal extremes, conflicts and precise independent display math',()=>{
+  for(const args of [[true,false],[false,true],[true,true],[false,false,true],[false,false]]) {
+    const v=dailyFixture(...args);assert.equal(validateRadarDelivery(v),v);
+    for(const mutate of [x=>x.controller_evaluated=false,x=>x.gauge.normalization.bottom.q90=.9,
+      x=>x.gauge.normalization.top.proximity=NaN,x=>x.gauge.normalization.bottom.conditional_score=1,
+      x=>x.observation.historical_first_seen_claimed=true]) {
+      const bad=structuredClone(v);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
+    }
+  }
+  const event=dailyFixture(true,false);event.timing.eligible=false;
+  assert.throws(()=>validateRadarDelivery(event));
+  const blocked=dailyFixture(true,false);blocked.native_details.bottom.vetoed=true;
+  assert.throws(()=>validateRadarDelivery(blocked));
+});
 
 function fixture(score=50,level='Neutral',bottom=false,top=false) {
   return {schema_version:'frozen_radar_delivery_v1',model_version:FROZEN_MODEL_VERSION,session:'2026-03-12',evidence_ready:false,operating_status:'REPLAY_NO_FORWARD_ISSUE',
