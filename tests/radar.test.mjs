@@ -361,7 +361,10 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     assert.equal((activeHtml.match(/role="alert"/g)||[]).length,1);
     assert.match(activeHtml,/radar-alert-outcome is-issued/);
     const firstInput=html.slice(html.indexOf('data-input="cnn_rank"'));
-    assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-label'));
+    assert.ok(firstInput.indexOf('radar-input-label')<firstInput.indexOf('radar-card-value'));
+    assert.ok(firstInput.indexOf('radar-card-value')<firstInput.indexOf('radar-input-position'));
+    assert.ok(firstInput.indexOf('radar-input-position')<firstInput.indexOf('radar-input-meaning'));
+    assert.doesNotMatch(html,/radar-reference-rank/);
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);assert.doesNotMatch(staleHtml,/role="alert"/);

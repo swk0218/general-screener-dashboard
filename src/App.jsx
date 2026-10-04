@@ -568,7 +568,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
             <th scope="col">판정</th>
             <th scope="col" className="number-cell">점수</th>
             <th scope="col" className="number-cell">선정 당시 가격</th>
-            <th scope="col" className="number-cell delta-column">직전 대비</th>
+            <th scope="col" className="number-cell delta-column">점수 변화</th>
             <th scope="col"><span className="sr-only">상세</span></th>
           </tr>
         </thead>
@@ -625,7 +625,7 @@ function RecommendationTable({ recommendations, selectedSymbol, transitions, onP
               </span>
               <span className="mobile-numbers">
                 <strong><small>점수</small>{formatNumber(item.score)}</strong>
-                <span className={transitionTone(transition)}><small>직전 대비</small>{transitionLabel(transition)}</span>
+                <span className={transitionTone(transition)}><small>점수 변화</small>{transitionLabel(transition)}</span>
               </span>
               <ChevronRight size={22} strokeWidth={1.7} aria-hidden="true" />
             </button>
@@ -756,16 +756,14 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
       <article className={`detail-dossier dossier-v2${nativeTenx ? " is-tenx" : ""}`} aria-label={`${recommendation.symbol} 전체 상세`}>
         <header className="dossier-hero">
           <div>
-            <p>{strategy || recommendation.strategy} · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
             <h1>{recommendation.symbol}</h1>
             {recommendation.company_name ? <span>{recommendation.company_name}</span> : null}
           </div>
           <dl>
+            <div className="dossier-primary-score"><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
             <div><dt>순위</dt><dd>{String(recommendation.recommendation_rank).padStart(2, "0")}</dd></div>
             <div><dt>후보 상태</dt><dd className={verdictClass(recommendation.verdict)}>{verdictLabel(recommendation.verdict)}</dd></div>
-            <div><dt>전략 점수</dt><dd>{formatNumber(recommendation.score)}</dd></div>
             <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
-            <div><dt>선정일</dt><dd>{formatDate(run?.report_date || run?.report_created_at)}</dd></div>
           </dl>
         </header>
         <div className="dossier-grid">
@@ -822,7 +820,6 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
         <button type="button" className="detail-close" onClick={onClose} aria-label="상세 닫기" autoFocus><X size={20} /></button>
       ) : null}
       <div className="detail-heading">
-        <p className="detail-kicker">종목 요약 · {STRATEGIES[strategy || recommendation.strategy]?.label || recommendation.strategy}</p>
         <h2>{recommendation.symbol}</h2>
         <p>{recommendation.company_name || "회사명 미수록"}</p>
       </div>
@@ -879,12 +876,9 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
     <section className="performance-panel performance-panel-v2" aria-labelledby="performance-title">
       <header className="performance-panel-header">
         <div>
-          <p>{range} BENCHMARK SNAPSHOT</p>
           <h2 id="performance-title">{strategy} vs {benchmarkLabel}</h2>
         </div>
         {!aggregate ? <Badge variant={sourceVariant} label={sourceLabel} /> : null}
-      </header>
-
       <div className="performance-controls">
         <div>
           <SegmentedControl value={range} onChange={setRange} label="추천 후 보유 기간" size="md" layout="fill">
@@ -892,6 +886,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
           </SegmentedControl>
         </div>
       </div>
+      </header>
 
       <div id={`performance-panel-${strategy}`} role="region" aria-live="polite">
         {aggregate ? (
@@ -946,7 +941,7 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
             </details>
 
             <details className="calculation-details">
-              <summary>산정 방식 및 데이터 등급</summary>
+              <summary>산정 방식 및 데이터 등급<ChevronRight size={16} aria-hidden="true"/></summary>
               <div>
                 <p>추천별 보유 기간이 겹치고 같은 종목이 반복될 수 있어 각 측정은 독립적인 표본이 아닙니다. 표시한 평균은 실제 계좌의 누적수익률이 아닙니다.</p>
                 <p>진입 기준은 {entryBasisLabel}입니다. 동일한 진입·측정 세션의 {benchmarkLabel}과 비교하며, 실행당 {expectedSignals}종목 전체가 갖춰진 경우만 동일가중 평균에 포함합니다. 수수료와 슬리피지는 반영하지 않습니다.</p>
@@ -961,12 +956,12 @@ export function PerformancePanel({ strategy, performance, backcast, evidenceStat
           </>
         ) : (
           <div className="performance-empty">
-            <strong>{strategy} {range} {isHeld ? "성과의 데이터 검증이 필요합니다." : "측정이 완료된 추천이 아직 없습니다."}</strong>
+            <strong>{strategy} {range.replace("D", "거래일")} {isHeld ? "성과의 데이터 검증이 필요합니다." : "측정이 완료된 추천이 아직 없습니다."}</strong>
             <p>{isHeld
               ? "가격 누락 또는 검증 보류 상태입니다. 단순한 기간 대기와 구분하여 확인해야 합니다."
               : `추천 이후 ${range.replace("D", "거래일")}이 지나고, ${expectedSignals}개 종목과 ${benchmarkLabel}의 가격이 모두 수집되면 표시됩니다.`}</p>
             {strategy === "TENX" ? <p>TENX2부터 측정하며 이전 엔진의 성과는 포함하지 않습니다.</p> : null}
-            {selectedStatus?.reason_code ? <small>상태: {selectedStatus.reason_code}</small> : null}
+            {selectedStatus?.reason_code ? <details className="performance-empty-details"><summary>자료 상태<ChevronRight size={16} aria-hidden="true"/></summary><small>{selectedStatus.reason_code}</small></details> : null}
           </div>
         )}
       </div>
@@ -1189,9 +1184,7 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
   const benchmarkLabel = benchmarkDisplayName(payload.benchmark);
   return (
     <section className="secondary-view overview-view overview-v2">
-      <header className="overview-page-header">
-        <h1>대시보드</h1>
-      </header>
+      <h1 className="sr-only">대시보드</h1>
 
       <RadarSummary delivery={radar} onOpen={onRadar} />
       <section className="overview-screening" aria-labelledby="screening-changes-title">
@@ -1310,9 +1303,7 @@ function HistoryView({ payload, index, onStrategy }) {
 
   return (
     <section className="secondary-view history-view">
-      <header>
-        <h1>실행 기록</h1>
-      </header>
+      <h1 className="sr-only">실행 기록</h1>
       <div className="history-controls">
         <div className="history-strategy-control"><StrategyModeControl strategy={filter} onChange={setFilter} label="엔진 필터" includeAll /></div>
         <TextInput
@@ -1376,9 +1367,7 @@ function StandalonePerformanceView({ payload, strategy, onStrategy }) {
   const [range, setRange] = useState("20D");
   return (
     <section className="secondary-view performance-view">
-      <header>
-        <h1>벤치마크 비교</h1>
-      </header>
+      <h1 className="sr-only">벤치마크 비교</h1>
       <div className="performance-strategy-control">
         <StrategyModeControl strategy={strategy} onChange={onStrategy} label="성과 비교 전략" />
       </div>
@@ -1492,7 +1481,7 @@ function MethodologyView({ benchmark, section, onSection }) {
                   <div><dt>현금 기여</dt><dd>최대 25점</dd></div>
                 </dl>
                 <details className="method-formula-details">
-                  <summary>배점 산정식 보기</summary>
+                  <summary>배점 산정식 보기<ChevronRight size={16} aria-hidden="true"/></summary>
                   <p className="tenx-score-formula">42GV + 33GY + 25GCV</p>
                   <p>G 성장 전망 · Y 비용·가격 대비 사업기여<br />C 조정 영업현금 · V 가격부담 반영</p>
                   <p>V = 두 전망연도 (1+B)<sup>−0.25</sup>의 평균<br />B = 전망 매출총이익 대비 가격부담 ÷ 20</p>
@@ -1565,7 +1554,7 @@ function MethodologyView({ benchmark, section, onSection }) {
       </div>
 
       <details className="method-data-grades">
-        <summary>데이터 등급과 표시 원칙</summary>
+        <summary>데이터 등급과 표시 원칙<ChevronRight size={16} aria-hidden="true"/></summary>
         <dl>
           <div><dt>공식 측정</dt><dd>실제 발송 또는 전달 결정 뒤 기록된 공개시각을 기준으로 계산합니다.</dd></div>
           <div><dt>과거 실행 역산</dt><dd>기록이 저장소에 확정된 이후 첫 정규장을 진입 시점으로 사용합니다.</dd></div>

@@ -57,9 +57,9 @@ export function RadarView({delivery=null}) {
   const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,notice}=radarPresentation(delivery);
   const cards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   return <section className="secondary-view radar-view">
-    <header className="radar-page-header"><h1>시장 신호 (Beta)</h1></header>
+    <h1 className="sr-only">시장 신호 (Beta)</h1>
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
-      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수</h2><RadarUpdate data={data} delayed={stale||failed}/></div>
+      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data} delayed={stale||failed}/></div>
       <div className="radar-hero-content"><MarketGauge score={data?.gauge.score??null} level={unavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
         <div className="radar-reading"><h3>{headline}</h3>
           {(unavailable||conflict||level==='CONFLICT'||observation)&&<p>{unavailable?(data?'계산 불가 · 필수 입력 결측':'유효한 자료 미확인'):conflict?'양쪽 경보가 동시에 발생해 단일 점수를 표시하지 않습니다.':observation?'점수만 계산한 자료이며 경보는 미계산입니다.':'최신 자료를 확인해 주세요.'}</p>}
