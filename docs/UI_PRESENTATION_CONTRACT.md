@@ -12,3 +12,4 @@
 ## Release checks
 
 Run npm run check. With real encrypted input, inspect Overview, Radar, Screener (MLG/TENX), History, Performance, a historical run and full stock detail at 360/390px and 1440/1920px. Compare computed control position/size/font across routes; verify search is visible and keyboard usable, badges share right edges, disclosures open, and no horizontal overflow occurs. Confirm the deployed commit and live Pages UI. Device-specific installed-app cache refresh is separate from published asset verification.
+- Follow-up: period controls use the same radio typography as strategy controls; all search inputs use 13px. Radar headlines are green for ordinary valid bands, red for validated issued events, muted for unavailable states. Overview secondary navigation stays muted until hover/focus. Mobile detail metrics have no outside right border.

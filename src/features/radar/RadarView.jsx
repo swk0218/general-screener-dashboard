@@ -61,7 +61,7 @@ export function RadarView({delivery=null}) {
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
       <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data}/></div>
       <div className="radar-hero-content"><MarketGauge score={data?.gauge.score??null} level={unavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
-        <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline}/></h3>
+        <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline} alert={Boolean(data?.events.bottom||data?.events.top)}/></h3>
           {(unavailable||conflict||level==='CONFLICT'||observation)&&<p>{unavailable?(data?'계산 불가 · 필수 입력 결측':'유효한 자료 미확인'):conflict?'양쪽 경보가 동시에 발생해 단일 점수를 표시하지 않습니다.':observation?'점수만 계산한 자료이며 경보는 미계산입니다.':'최신 자료를 확인해 주세요.'}</p>}
           <dl className="radar-event-summary"><dd><RadarEventLabel label={eventLabel}/></dd></dl>
         </div>

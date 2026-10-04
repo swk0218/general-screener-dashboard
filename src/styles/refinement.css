@@ -415,10 +415,10 @@
 .app-shell .selection-view>.selection-filter { height:auto; max-width:none; padding:0; margin:12px var(--desktop-gutter,16px) 0; border:0; }
 .app-shell .selection-content :is(.table-panel,.desktop-detail) { margin-top:8px; }
 .app-shell .screener-mode-bar { min-height:0; padding-block:0; border:0; }
-.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control) .astryx-segmented-control { display:flex; width:100%; }
-.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control) [role="radio"] { flex:1; min-height:40px; font:600 12px/1.4 var(--gs-sans); letter-spacing:.005em; padding:8px; }
-.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control) [role="radio"] * { font:inherit; color:inherit; }
-.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control) [role="radio"][aria-checked="true"] { font-weight:700; }
+.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control,.performance-controls) .astryx-segmented-control { display:flex; width:100%; }
+.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control,.performance-controls) [role="radio"] { flex:1; min-height:40px; font:600 12px/1.4 var(--gs-sans); letter-spacing:.005em; padding:8px; }
+.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control,.performance-controls) [role="radio"] * { font:inherit; color:inherit; }
+.app-shell :is(.screener-mode-bar,.performance-strategy-control,.history-strategy-control,.performance-controls) [role="radio"][aria-checked="true"] { font-weight:700; }
 .app-shell :is(.signals-details,.calculation-details) { margin:0; padding:0; border:0; border-top:1px solid var(--gs-divider); background:transparent; }
 .app-shell :is(.signals-details,.calculation-details)>summary { min-height:48px; width:auto; padding:0; font:12px/1.5 var(--gs-sans); color:var(--gs-muted); }
 @media(min-width:1181px) {
@@ -478,4 +478,16 @@
 .app-shell .dossier-v2 .dossier-hero h1 { margin-top:0; }
 @media(max-width:720px) {
   .app-shell .dossier-v2 .dossier-hero>div,.app-shell .dossier-v2 .dossier-hero dl>div { padding:20px var(--detail-gutter); }
+}
+
+/* Radar accent describes validated event state; navigation stays secondary. */
+.app-shell .market-insight .radar-headline { margin:0; font:inherit; }
+.app-shell .market-insight .radar-headline.is-normal { color:var(--gs-green); }
+.app-shell .market-insight .radar-headline.is-alert { color:var(--gs-negative); }
+.app-shell .market-insight .radar-headline.is-unavailable { color:var(--gs-muted); }
+.app-shell .market-insight .radar-headline strong { color:inherit; }
+.app-shell .mini-strategy-card>header button { color:var(--gs-muted); }
+.app-shell .mini-strategy-card>header button:hover,.app-shell .mini-strategy-card>header button:focus-visible { color:var(--gs-green); }
+@media(max-width:720px) {
+  .app-shell .dossier-v2 .dossier-hero dl>div:nth-child(2n) { border-right:0; }
 }
