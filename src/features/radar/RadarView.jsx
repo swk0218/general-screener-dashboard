@@ -98,10 +98,6 @@ export function RadarView({delivery=null}) {
       </Disclosure>
     </section>
 
-    <section className="radar-section" aria-labelledby="radar-inputs-title">
-      <div className="radar-section-heading"><h2 id="radar-inputs-title">보조 지표</h2><p>종합 지표와 같은 기준일의 원값 · 참고 수치</p></div>
-      <div className="radar-reference-grid">{cards.reference.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
-    </section>
     <section className="radar-section" aria-labelledby="radar-model-title">
       <div className="radar-section-heading"><h2 id="radar-model-title">개별 지표</h2><p>모델이 읽는 5가지 시장 상태</p></div>
       <p className="radar-input-intro">SPY 가격·CNN 공포·탐욕·VIX를 가공한 지표입니다. 높고 낮음은 각각 아래의 시장 상태를 뜻하며, 하나만으로 저점·고점 경보를 판단하지 않습니다.</p>
@@ -111,6 +107,10 @@ export function RadarView({delivery=null}) {
         <p>CNN·실현 변동성·VIX의 과거 순위는 모델 입력입니다. 가격 흐름·장기 추세·예상/실제 변동성 비교의 과거 위치는 읽기를 돕는 화면 전용 순위입니다. 오늘을 제외한 직전 252세션 중 최소 126개 유효값을 사용하며, 검증된 순위가 없으면 위치를 추정하지 않습니다. RSI는 모델 입력이 아닙니다.</p>
         <InputProvenance cards={[...cards.reference,...cards.model]}/>
       </Disclosure>
+    </section>
+    <section className="radar-section" aria-labelledby="radar-inputs-title">
+      <div className="radar-section-heading"><h2 id="radar-inputs-title">보조 지표</h2><p>종합 지표와 같은 기준일의 원값 · 참고 수치</p></div>
+      <div className="radar-reference-grid">{cards.reference.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
     </section>
 
     <div className="radar-support">
