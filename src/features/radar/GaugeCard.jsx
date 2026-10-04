@@ -28,24 +28,22 @@ export function GaugeCard({card, model=false}) {
   const signed=['return20_risk','trend200_risk','log_implied_realized'].includes(card.key);
   const ratio=card.key==='log_implied_realized';
   const rankInput=['cnn_rank','RV20_rank'].includes(card.key);
-  const value=<div className="radar-card-value"><strong>{formatRadarNumber(card.value,model?3:2)}</strong><span>{card.key==='log_implied_realized'?'로그값':card.unit}</span></div>;
+  const value=<div className="radar-card-value"><strong>{formatRadarNumber(card.value,model?3:2)}</strong><span>{card.key==='log_implied_realized'?'로그값':signed?'변동성 조정값':card.unit}</span></div>;
   return <article className={model?'radar-input-row':'radar-reference-item'} data-input={card.key}>
-    {model&&value}
-    <div className="radar-input-label"><h3>{title}</h3></div>
-    {!model&&value}
-    {!model&&card.key==='vix'&&<p className="radar-reference-rank">과거 위치 {card.position===null?'미확인':`${formatRadarNumber(card.position,1)} /100`} · 모델 입력</p>}
-    {model&&<div className="radar-input-position">
-      <span>{card.position===null?'과거 위치 미확인':rankInput?'과거 대비 위치':`과거 위치 ${formatRadarNumber(card.position,1)} /100`}</span>
+    <div className="radar-input-heading"><div className="radar-input-label"><h3>{title}</h3></div>{value}</div>
+    {model&&<div className="radar-input-reading">{rankInput&&<div className="radar-input-position">
+      <span>{card.position===null?'과거 위치 미확인':'과거 대비 위치'}</span>
       <div className="radar-mini-track" role={card.position===null?undefined:'meter'} aria-label={`${title} 과거 위치 · 경보 아님`}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={card.position??undefined}>
         {card.position!==null&&<i style={{left:`${card.position}%`}} />}
       </div>
+      <div className="radar-input-scale" aria-hidden="true"><span>0</span><span>100</span></div>
     </div>}
-    {model&&<div className="radar-input-meaning"><dl className={ratio?'is-ratio':undefined}>
-      <div><dt>{signed?'음수일 때':'낮을수록'}</dt><dd>{low}</dd></div>
-      {ratio&&<div><dt>0일 때</dt><dd>예상 변동성과 실제 변동성이 같음</dd></div>}
-      <div><dt>{signed?'양수일 때':'높을수록'}</dt><dd>{high}</dd></div>
-    </dl></div>}
+    <div className="radar-input-meaning"><dl className={ratio?'is-ratio':undefined}>
+      <div className={signed&&Number.isFinite(card.value)&&card.value<0?'is-current':undefined}><dt>{signed?'음수일 때':'낮을수록'}</dt><dd>{low}</dd></div>
+      {ratio&&<div className={card.value===0?'is-current':undefined}><dt>0일 때</dt><dd>예상 변동성과 실제 변동성이 같음</dd></div>}
+      <div className={signed&&Number.isFinite(card.value)&&card.value>0?'is-current':undefined}><dt>{signed?'양수일 때':'높을수록'}</dt><dd>{high}</dd></div>
+    </dl></div></div>}
   </article>;
 }
 

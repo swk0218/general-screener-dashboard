@@ -103,7 +103,7 @@ test("shows matching unified MLG and TENX 20-day performance summaries on overvi
 });
 
 test("uses concise Korean history, transition, and TENX method copy", () => {
-  assert.match(appSource, /<h1>실행 기록<\/h1>/);
+  assert.match(appSource, /<h1 className="sr-only">실행 기록<\/h1>/);
   assert.match(appSource, /return "신규 진입"/);
   assert.match(appSource, /return "재진입"/);
   assert.match(appSource, /투자대상 확인/);
