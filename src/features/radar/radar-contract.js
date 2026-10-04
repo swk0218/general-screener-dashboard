@@ -25,6 +25,11 @@ export function validateRadarDelivery(value) {
   }
   for (const [key] of MODEL_INPUTS) if (!Object.hasOwn(value.inputs,key) || (value.inputs[key]!==null && !finite(value.inputs[key]))) fail();
   for (const [key] of REFERENCE_INPUTS) if (!Object.hasOwn(value.references,key) || (value.references[key]!==null && !finite(value.references[key]))) fail();
+  for(const [v,min,max] of [[value.inputs.cnn_score,0,100],[value.inputs.cnn_rank,0,1],
+    [value.inputs.RV20_rank,0,1],[value.references.rsi14,0,100]]) {
+    if(v!==null&&(v<min||v>max))fail();
+  }
+  if(value.references.vix!==null&&value.references.vix<=0)fail();
   if(value.input_positions!==undefined) {
     const p=value.input_positions;
     if(!p||!['frozen-input-prior-midrank-v1','frozen-input-prior-midrank-v2'].includes(p.version)||p.window_sessions!==252||p.minimum_valid!==126||p.excludes_current!==true
@@ -41,13 +46,14 @@ export function validateRadarDelivery(value) {
   }
   if(value.native_details!==undefined) for(const side of ['bottom','top']) {
     const d=value.native_details?.[side];
-    if(!d||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||(legacyObservation?d.vetoed!==null:typeof d.vetoed!=='boolean')) fail();
+    if(!d||(d.availability_reason!==undefined&&typeof d.availability_reason!=='string')||(d.threshold!==null&&(!finite(d.threshold)||d.threshold<0||d.threshold>1))||(legacyObservation?d.vetoed!==null:typeof d.vetoed!=='boolean')) fail();
   }
   if(value.input_metadata!==undefined) for(const m of Object.values(value.input_metadata)) {
     if(!m||typeof m.source!=='string'||(m.source_date!==null&&!/^\d{4}-\d{2}-\d{2}$/.test(m.source_date||''))
       ||(m.received_at_utc!==null&&(typeof m.received_at_utc!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(m.received_at_utc)||!Number.isFinite(Date.parse(m.received_at_utc))))) fail();
   }
   const { score, level, mixed } = value.gauge;
+  for(const key of ['reason','presentation_version'])if(value.gauge[key]!==undefined&&typeof value.gauge[key]!=='string')fail();
   const { bottom, top } = value.events;
   const replay=value.operating_status==='REPLAY_NO_FORWARD_ISSUE';
   if(value.operating_status!==undefined&&!['REPLAY_NO_FORWARD_ISSUE','SHADOW_VERIFIED','DATA_HOLD','NO_SIGNAL','SHADOW','OBSERVATION_COMPUTED','DAILY_MODEL_COMPUTED'].includes(value.operating_status))fail();
@@ -60,6 +66,8 @@ export function validateRadarDelivery(value) {
     ||value.observation.historical_first_seen_claimed!==false))fail();
   if(observation) {
     const v=value.verification,o=value.observation;
+    if(!o)fail();
+    if(o.latest_session_input_missing!==undefined&&(!Array.isArray(o.latest_session_input_missing)||o.latest_session_input_missing.some(s=>!['CNN','SPY','VIX'].includes(s))))fail();
     if(o.collection_status!==undefined&&(o.collection_status!=='FAILED_RETAINED_DATED'
       ||!['SOURCE_FETCH_FAILED','REVISION_QUARANTINED','PUBLICATION_FAILED','CANONICAL_RECOVERY_FAILED'].includes(o.failure_code)
       ||!/(Z|[+-]\d{2}:\d{2})$/.test(o.last_attempt_at_utc||'')||!Number.isFinite(Date.parse(o.last_attempt_at_utc))
@@ -78,14 +86,18 @@ export function validateRadarDelivery(value) {
         ||!/(Z|[+-]\d{2}:\d{2})$/.test(r.received_at_utc||'')||!Number.isFinite(Date.parse(r.received_at_utc))
         ||Date.parse(r.received_at_utc)>Date.parse(o.computed_at_utc))fail();
     }
-    if(score!==null) {
+    // A conflict has no scalar but remains an available model decision.
+    const available=daily?level!=='UNAVAILABLE':score!==null;
+    if(available) {
       for(const [key] of MODEL_INPUTS)if(!finite(value.inputs[key]))fail();
       if(!finite(value.references.vix)||!value.input_metadata||!value.input_positions||!value.native_details)fail();
-      for(const [key] of [...MODEL_INPUTS,...REFERENCE_INPUTS]) {
-        if(value.inputs[key]===null||value.references[key]===null)continue;
-        const m=value.input_metadata[key];
-        if(!m||m.source_date!==value.session||m.status!==(daily?'DAILY_MODEL_INPUT':'DATED_OBSERVATION_NOT_ALERT')||!m.received_at_utc)fail();
-      }
+    }
+    // Partially unavailable packets also need provenance for every finite input.
+    for(const [key] of [...MODEL_INPUTS,...REFERENCE_INPUTS]) {
+      if(value.inputs[key]===null||value.references[key]===null)continue;
+      const m=value.input_metadata?.[key];
+      if(!m||!m.source.trim()||m.source_date!==value.session||m.status!==(daily?'DAILY_MODEL_INPUT':'DATED_OBSERVATION_NOT_ALERT')||!m.received_at_utc
+        ||Date.parse(m.received_at_utc)>Date.parse(o.computed_at_utc))fail();
     }
   }
   if(daily)validateSignalGauge(value,fail);
@@ -94,7 +106,7 @@ export function validateRadarDelivery(value) {
   }
   if (typeof mixed !== 'boolean' || typeof value.gauge.reference_version !== 'string') fail();
   if (score === null) {
-    if (!['UNAVAILABLE','CONFLICT'].includes(level) || (level==='CONFLICT' && ((!(bottom&&top)&&!(daily&&value.gauge.reason==='MIXED_DIRECTIONAL_CONTEXT'))||!mixed))) fail();
+    if (!['UNAVAILABLE','CONFLICT'].includes(level) || (level==='CONFLICT' && ((!(bottom&&top)&&!(daily&&value.gauge.presentation_version==='marketradar-signal-distance-v2'&&value.gauge.reason==='MIXED_DIRECTIONAL_CONTEXT'))||!mixed))) fail();
   } else {
     if (!Number.isInteger(score) || score<0 || score>100 || (bottom&&top)) fail();
     const expected = score<20?'Extreme Low':score<40?'Low':score<60?'Neutral':score<80?'High':'Extreme High';

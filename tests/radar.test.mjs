@@ -22,8 +22,8 @@ function dailyFixture(bottom=false,top=false,mixed=false) {
   v.input_positions={version:'frozen-input-prior-midrank-v1',window_sessions:252,minimum_valid:126,excludes_current:true,vix_rank:.5};
   v.input_metadata=Object.fromEntries([...MODEL_INPUTS,...REFERENCE_INPUTS].map(([k])=>[k,{source:'TEST_ONLY',source_date:v.session,status:'DAILY_MODEL_INPUT',received_at_utc:time}]));
   v.native_details={};v.gauge={score:null,level:'CONFLICT',mixed:bottom&&top||mixed,
-    reference_version:REFERENCE_HASH,presentation_version:'marketradar-signal-distance-v2',data_status:'DATED_OBSERVATION',
-    reason:bottom&&top?'BOTH_ALERTS_TODAY':mixed?'MIXED_DIRECTIONAL_CONTEXT':'FINAL_MODEL_SIGNAL',normalization:{}};
+    reference_version:REFERENCE_HASH,presentation_version:'marketradar-signal-distance-v3',mixed_strength:bottom&&top||mixed?1:0,data_status:'DATED_OBSERVATION',
+    reason:bottom&&top?'BOTH_ALERTS_TODAY':(bottom||top)?'FINAL_MODEL_SIGNAL':mixed?'MIXED_DIRECTIONAL_CONTEXT':'MODEL_CONDITIONS',normalization:{}};
   for(const side of ['bottom','top']) {
     const r=SIGNAL_REFERENCES['2026'][side],event=v.events[side],high=event||mixed;
     v.scores[side]=high?r.q90:0;
@@ -31,7 +31,7 @@ function dailyFixture(bottom=false,top=false,mixed=false) {
     v.gauge.normalization[side]={...r,native_score:v.scores[side],proximity:high?1:0,excess:0,
       conditional_score:event?(side==='bottom'?19:80):high?(side==='bottom'?20:79):50};
   }
-  if(!(bottom&&top)&&!mixed)Object.assign(v.gauge,{score:bottom?19:top?80:50,level:bottom?'Extreme Low':top?'Extreme High':'Neutral'});
+  if(!(bottom&&top))Object.assign(v.gauge,{score:bottom?19:top?80:50,level:bottom?'Extreme Low':top?'Extreme High':'Neutral'});
   return v;
 }
 
@@ -48,6 +48,70 @@ test('daily model validates real signal extremes, conflicts and precise independ
   assert.throws(()=>validateRadarDelivery(event));
   const blocked=dailyFixture(true,false);blocked.native_details.bottom.vetoed=true;
   assert.throws(()=>validateRadarDelivery(blocked));
+});
+
+function unavailableDailyFixture() {
+  const v=dailyFixture();
+  v.scores={bottom:null,top:null};v.inputs.cnn_rank=null;
+  Object.assign(v.gauge,{score:null,level:'UNAVAILABLE',mixed:false,reason:'MISSING_REQUIRED_CONTEXT_INPUT'});
+  delete v.gauge.normalization;delete v.native_details;
+  return v;
+}
+
+test('mixed and dual-event results require complete inputs and provenance regardless of scalar availability',()=>{
+  for(const args of [[false,false,true],[true,true],[true,false],[false,true],[false,false]]) {
+    const value=dailyFixture(...args);
+    const mutations=[...MODEL_INPUTS.map(([key])=>v=>{v.inputs[key]=null;}),
+      v=>v.references.vix=null,v=>delete v.input_metadata,v=>delete v.input_positions,
+      v=>delete v.native_details,v=>delete v.observation.source_receipts,
+      v=>delete v.observation.source_hashes,
+      ...MODEL_INPUTS.map(([key])=>v=>{delete v.input_metadata[key];}),
+      v=>v.input_metadata.cnn_rank.source_date='2026-03-11',
+      v=>v.input_metadata.cnn_rank.source='',v=>v.input_metadata.cnn_rank.received_at_utc='2026-03-14T10:00:00Z',
+      v=>v.inputs.cnn_rank=1.01,v=>v.inputs.cnn_score=101,v=>v.references.vix=0,v=>v.observation.latest_session_input_missing='VIX',
+      v=>v.native_details.bottom.block_reasons=[{}]];
+    for(const mutate of mutations) {
+      const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
+    }
+  }
+  const partial=unavailableDailyFixture();delete partial.input_metadata;
+  assert.throws(()=>validateRadarDelivery(partial));
+});
+
+test('Extreme requires the actual native score to meet sealed q90, never a supplied flag',()=>{
+  for(const side of ['bottom','top']) {
+    const value=dailyFixture(side==='bottom',side==='top');
+    for(const score of [0,SIGNAL_REFERENCES['2026'][side].q90-1e-12]) {
+      const bad=structuredClone(value),r=SIGNAL_REFERENCES['2026'][side];
+      bad.scores[side]=score;
+      Object.assign(bad.gauge.normalization[side],{native_score:score,
+        proximity:Math.max(0,Math.min(1,(score-r.q50)/(r.q90-r.q50))),excess:0});
+      // Keep every displayed value consistent with the old mapping; only the native event is false.
+      assert.equal(bad.native_details[side].above_threshold,true);
+      assert.throws(()=>validateRadarDelivery(bad));
+    }
+    assert.equal(validateRadarDelivery(value),value); // exact q90 equality is valid
+    const wrongFlag=dailyFixture();wrongFlag.native_details[side].above_threshold=true;
+    assert.throws(()=>validateRadarDelivery(wrongFlag));
+  }
+});
+
+test('unavailable packets without native details render safely and explain missing inputs',async()=>{
+  const value=unavailableDailyFixture();assert.equal(validateRadarDelivery(value),value);
+  const {createServer}=await import('vite');
+  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  try {
+    const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    const {createElement}=await import('react');
+    const {renderToStaticMarkup}=await import('react-dom/server');
+    for(const packet of [value,null,{...value,native_details:{bottom:null}},{...value,gauge:{...value.gauge,reason:{}}},dailyFixture(false,false,true),dailyFixture(true,true)]) {
+      const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet}));
+      assert.match(html,/시장 전환 신호/);
+      if(packet===value)assert.match(html,/계산 불가 · 필수 입력 결측/);
+      if(packet?.gauge?.mixed_strength===1&&packet.events.bottom===false)assert.match(html,/조건이 약한 중립은 아닙니다/);
+      if(packet?.events?.bottom&&packet.events.top)assert.match(html,/양방향 경보 충돌/);
+    }
+  } finally {await server.close();}
 });
 
 function fixture(score=50,level='Neutral',bottom=false,top=false) {
@@ -217,4 +281,20 @@ test('Radar authenticates ciphertext, password and payload digest',async()=>{
   await assert.rejects(()=>decryptRadarEnvelope({...envelope,payload_hash:'0'.repeat(64)},passphrase));
   ciphertext[0]^=1;
   await assert.rejects(()=>decryptRadarEnvelope({...envelope,ciphertext:ciphertext.toString('base64')},passphrase));
+});
+
+
+test('v3 keeps a scalar for weak and strong mixed context and reserves conflict for both final alerts',()=>{
+  for(const [b,t,score] of [[.001,.002,50],[.5,.5,50],[1,1,50],[.5,.501,50],[.501,.5,50],[.9,.1,26],[.1,.9,74]]) {
+    const v=dailyFixture(false,false,true);v.gauge.score=score;v.gauge.level=score<40?'Low':score<60?'Neutral':'High';v.gauge.mixed_strength=Math.min(b,t);
+    for(const [side,u] of [['bottom',b],['top',t]]) {
+      const r=SIGNAL_REFERENCES['2026'][side],s=r.q50+u*(r.q90-r.q50);v.scores[side]=s;
+      Object.assign(v.gauge.normalization[side],{native_score:s,proximity:u,conditional_score:Math.max(20,Math.min(79,Math.floor(50+(side==='bottom'?-30:30)*u+.5+1e-12)))});
+      v.native_details[side].above_threshold=s>=r.q90;
+    }
+    assert.equal(validateRadarDelivery(v).gauge.score,score);
+    const hidden=structuredClone(v);hidden.gauge.score=null;hidden.gauge.level='CONFLICT';assert.throws(()=>validateRadarDelivery(hidden));
+  }
+  const legacy=dailyFixture(false,false,true);legacy.gauge.presentation_version='marketradar-signal-distance-v2';legacy.gauge.score=null;legacy.gauge.level='CONFLICT';
+  assert.equal(validateRadarDelivery(legacy),legacy); // immutable historical v2 envelopes remain readable
 });

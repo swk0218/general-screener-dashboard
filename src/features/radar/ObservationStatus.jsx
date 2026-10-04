@@ -25,6 +25,7 @@ export function ObservationStatus({delivery=null}) {
       <div><dt>최초 관찰 수신</dt><dd>{kstTime(delivery?.observation?.first_seen_at_utc||data?.first_seen_at_utc)}</dd></div>
       <div><dt>이번 수신</dt><dd>{kstTime(data?.received_at_utc)}{delay!==null?` · 마감 후 ${delay.toFixed(1)}시간`:''}</dd></div>
       <div><dt>관찰 상태 계산 완료</dt><dd>{kstTime(delivery?.observation?.computed_at_utc||data?.computed_at_utc)}</dd></div>
+      {delivery?.gauge.presentation_computed_at_utc&&<div><dt>표시 변환 갱신</dt><dd>{kstTime(delivery.gauge.presentation_computed_at_utc)} · 원점수 계산·수신 시각 유지</dd></div>}
       <div><dt>빌드 완료</dt><dd>{kstTime(data?.built_at_utc)}</dd></div>
       <div><dt>Pages 게시 확인</dt><dd>{kstTime(data?.published_at_utc)}</dd></div>
       <div><dt>다음 예정 갱신</dt><dd>{kstTime(data?.next_scheduled_at_utc)} · Actions 실행 지연 가능</dd></div>
