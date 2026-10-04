@@ -305,3 +305,62 @@ test('missing VIX rank makes calculation unavailable even when other scalar inpu
   assert.equal(validateRadarDelivery(v),v);
   v.input_positions.vix_rank=.5;assert.throws(()=>validateRadarDelivery(v));
 });
+
+test('dial endpoints and every band boundary have one accurate needle; unavailable has none',async()=>{
+  const {createServer}=await import('vite');
+  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  try {
+    const {MarketGauge}=await server.ssrLoadModule('/src/features/radar/MarketGauge.jsx');
+    const {createElement}=await import('react');
+    const {renderToStaticMarkup}=await import('react-dom/server');
+    for(const score of [0,19,20,39,40,59,60,79,80,100]) {
+      const html=renderToStaticMarkup(createElement(MarketGauge,{score,level:'TEST_ONLY'}));
+      assert.match(html,new RegExp(`aria-valuenow="${score}"`));
+      assert.equal((html.match(/radar-dial-band is-current/g)||[]).length,1);
+      assert.ok(html.includes(`rotate(${score*1.8-90}deg)`));
+    }
+    for(const score of [null,undefined,NaN,-1,101,19.5]) {
+      const html=renderToStaticMarkup(createElement(MarketGauge,{score}));
+      assert.doesNotMatch(html,/aria-valuenow|radar-dial-needle|is-current/);
+    }
+  } finally {await server.close();}
+});
+
+test('redesigned information hierarchy preserves conflict, stale, missing and raw-input distinctions',async()=>{
+  const {createServer}=await import('vite');
+  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  try {
+    const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    const {createElement}=await import('react');
+    const {renderToStaticMarkup}=await import('react-dom/server');
+    const render=value=>renderToStaticMarkup(createElement(RadarView,{delivery:value}));
+    const mixed=dailyFixture(false,false,true),before=structuredClone(mixed);
+    const html=render(mixed);
+    assert.match(html,/aria-valuenow="50"/);
+    assert.match(html,/혼합 성향/);assert.match(html,/조건이 약한 중립은 아닙니다/);
+    assert.match(html,/참고 지표 · 모델 점수에 미반영/);
+    assert.ok(html.indexOf('시장 전환 종합 지표')<html.indexOf('경보까지 남은 조건'));
+    assert.ok(html.indexOf('CNN 원값')<html.indexOf('모델이 읽는 5가지 시장 상태'));
+    assert.match(html,/>보조 지표<\/h2>/);assert.match(html,/>개별 지표<\/h2>/);
+    assert.doesNotMatch(html,/시장 보조 지표|시장 전환 개별 지표/);
+    assert.equal((html.match(/<dt>낮을수록<\/dt>/g)||[]).length,5);
+    assert.equal((html.match(/<dt>높을수록<\/dt>/g)||[]).length,5);
+    assert.match(html,/높아도 상승인지 하락인지는 알 수 없습니다/);
+    assert.match(html,/하락 확률은 아닙니다/);
+    assert.match(html,/모델 기준을 넘으면/);assert.match(html,/경보 후보/);assert.match(html,/최종 경보/);
+    assert.deepEqual(mixed,before);
+    const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
+    stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
+    const staleHtml=render(stale);
+    assert.match(staleHtml,/오늘의 신규 신호가 아닙니다/);assert.match(staleHtml,/과거 기준일 발생/);
+    Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
+      failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
+    const failedHtml=render(stale);
+    assert.match(failedHtml,/갱신 실패 · 이전 점수 유지/);
+    assert.doesNotMatch(failedHtml,/일부 미확보/);
+    for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
+      const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
+      if(!v||v.gauge.level==='UNAVAILABLE')assert.doesNotMatch(output,/>제한 없음<|>유지 중</);
+    }
+  } finally {await server.close();}
+});
