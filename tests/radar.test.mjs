@@ -368,11 +368,11 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);assert.doesNotMatch(staleHtml,/role="alert"/);
-    assert.match(staleHtml,/갱신 지연/);assert.match(staleHtml,/과거 기준일 발생/);
+    assert.match(staleHtml,/03.12 Updated/);assert.match(staleHtml,/과거 기준일 발생/);
     Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
       failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
     const failedHtml=render(stale);
-    assert.match(failedHtml,/갱신 지연/);
+    assert.match(failedHtml,/03.12 Updated/);
     assert.doesNotMatch(failedHtml,/일부 미확보/);
     for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
       const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
@@ -406,7 +406,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     }
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     Object.assign(stale.observation,{expected_session:'2026-03-13',latest_session_input_missing:['VIX']});
-    const html=render(stale);assert.match(html,/갱신 지연/);
+    const html=render(stale);assert.doesNotMatch(html,/갱신 지연/);
     assert.match(html,/저점 경보/);assert.match(html,/03.12 Updated/);
   } finally {await server.close();}
 });

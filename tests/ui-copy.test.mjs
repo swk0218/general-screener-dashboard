@@ -12,6 +12,13 @@ test("ships install icons with valid sizes and subdirectory-safe paths", async (
   assert.match(indexSource, /rel="apple-touch-icon" href="\.\/icons\/screener-180\.png"/);
   assert.match(indexSource, /rel="manifest" href="\.\/manifest\.webmanifest"/);
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.name, "General Screener");
+  assert.equal(manifest.short_name, "General Screener");
+  const productBackground = /--gs-bg:\s*(#[a-f0-9]+)/i.exec(stylesSource)[1];
+  assert.equal(manifest.background_color, productBackground);
+  assert.equal(manifest.theme_color, productBackground);
+  assert.ok(indexSource.includes(`name="theme-color" content="${productBackground}"`));
+  assert.match(indexSource, /apple-mobile-web-app-title" content="General Screener"/);
   assert.equal(manifest.scope, "./");
   assert.equal(manifest.start_url, "./#/overview");
   assert.ok(manifest.icons.some(icon => icon.purpose === "maskable"));
@@ -87,8 +94,7 @@ test("keeps reconstructed entry timing and removes noisy overview annotations", 
   assert.match(appSource, /저장소 확정 이후 첫 정규장/);
   assert.match(appSource, /formatPercentPoints\(item\.excess_return\)/);
   assert.match(appSource, /스크리너 성과/);
-  assert.match(appSource, /formatMonthDay\(item\.run\.report_date \|\| item\.run\.report_created_at\)/);
-  assert.match(appSource, /Updated<\/small>/);
+  assert.match(appSource, /<UpdateBadge date=\{item.run.report_date \|\| item.run.report_created_at\}/);
   assert.doesNotMatch(appSource, /우측은 점수/);
 });
 
@@ -140,8 +146,7 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
 });
 
 test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
-  assert.match(appSource, /radarStatus\?'Radar Update':'Screener Update'/);
-  assert.match(appSource, /formatKstDate\(generatedAt\)/);
+  assert.doesNotMatch(appSource, /Radar Update|Screener Update/);
   assert.doesNotMatch(appSource, /LAST SYNC/);
   assert.match(stylesSource, /--sidebar-width: 208px;/);
   assert.match(stylesSource, /\.top-search input \{\s*font-size: 13px !important;/);

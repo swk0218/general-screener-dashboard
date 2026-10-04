@@ -2913,10 +2913,7 @@ input:focus-visible,
     margin-left: 2px;
   }
 
-  .view-selection .top-search {
-    visibility: hidden;
-    pointer-events: none;
-  }
+
 
   .side-nav-items {
     padding-top: 16px;

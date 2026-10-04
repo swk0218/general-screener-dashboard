@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Grid2X2,
   History,
-  LayoutDashboard,
   LockKeyhole,
   LogOut,
   PanelRightOpen,
@@ -30,10 +29,10 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
 import { ReturnComparisonChart } from "./features/performance/ReturnComparisonChart.jsx";
+import { UpdateBadge, SectionFooter } from "./components/SectionElements.jsx";
 import { RadarSummary } from "./features/radar/RadarSummary.jsx";
 import { RadarView } from "./features/radar/RadarView.jsx";
 import { loadOptionalRadarDelivery } from "./features/radar/radar-envelope.js";
-import { radarHeaderStatus } from "./features/radar/gauge-model.js";
 import {
   getPerformanceState,
   createDashboardIndex,
@@ -89,7 +88,7 @@ const RISK_VALUES = Object.freeze({
 const HEAT_LABELS = Object.freeze({ low: "낮음", medium: "보통", high: "높음" });
 
 const NAV_ITEMS = Object.freeze([
-  { id: "overview", label: "OVERVIEW", icon: LayoutDashboard },
+  { id: "overview", label: "OVERVIEW", icon: Grid2X2 },
   { id: "radar", label: "RADAR", icon: Gauge },
   { id: "screener", label: "SCREENER", icon: TrendingUp },
   { id: "history", label: "HISTORY", icon: History },
@@ -131,21 +130,9 @@ function formatKst(value) {
   return `${DATE_FORMATTER.format(date).replace(",", "")} KST`;
 }
 
-function formatKstDate(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return DATE_FORMATTER.format(date).slice(0, 10);
-}
-
 function formatDate(value) {
   if (!value) return "—";
   return String(value).slice(0, 10);
-}
-
-function formatMonthDay(value) {
-  const match = /^(?:\d{4})-(\d{2})-(\d{2})/.exec(formatDate(value));
-  return match ? `${match[1]}.${match[2]}` : "—";
 }
 
 function formatNumber(value, digits = 2) {
@@ -175,7 +162,7 @@ function formatPercentPoints(value) {
   if (value === null || value === undefined || value === "") return "—";
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  return `${number > 0 ? "+" : ""}${(number * 100).toFixed(2)}%p`;
+  return `${number > 0 ? "+" : ""}${(number * 100).toFixed(2)}%`;
 }
 
 function hasValue(value) {
@@ -215,14 +202,14 @@ function benchmarkComparisonCopy(benchmarkLabel, excessReturn) {
   if (!Number.isFinite(Number(excessReturn))) return "비교 가능한 실행을 기다리는 중입니다";
   const value = Number(excessReturn);
   return value >= 0
-    ? `${benchmarkLabel} 대비 평균 ${(value * 100).toFixed(2)}%p 앞섰습니다`
-    : `${benchmarkLabel} 대비 평균 ${(Math.abs(value) * 100).toFixed(2)}%p 뒤처졌습니다`;
+    ? `${benchmarkLabel} 대비 평균 ${(value * 100).toFixed(2)}% 앞섰습니다`
+    : `${benchmarkLabel} 대비 평균 ${(Math.abs(value) * 100).toFixed(2)}% 뒤처졌습니다`;
 }
 
 function BenchmarkComparisonCopy({ benchmarkLabel, excessReturn }) {
   if (!Number.isFinite(Number(excessReturn))) return benchmarkComparisonCopy(benchmarkLabel, excessReturn);
   const value = Number(excessReturn);
-  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%p`;
+  const displayValue = `${(Math.abs(value) * 100).toFixed(2)}%`;
   return (
     <>
       <span className="benchmark-copy-prefix">{benchmarkLabel} 대비 평균</span>{" "}
@@ -392,11 +379,8 @@ function BrandHeader({
   setQuery,
   searchResults,
   onOpenSearchResult,
-  generatedAt,
-  radar,
   onLock,
 }) {
-  const radarStatus=activeView==='radar'?radarHeaderStatus(radar):null;
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchTriggerRef = useRef(null);
   const searchWrapRef = useRef(null);
@@ -454,7 +438,7 @@ function BrandHeader({
             event.preventDefault();
             searchWrapRef.current?.querySelector(".global-search-results button")?.focus();
           }}
-          placeholder="Search ticker or company..."
+          placeholder="전체 기록에서 티커·회사명 검색"
           startIcon={<Search size={16} strokeWidth={1.8} />}
           hasClear
           width="100%"
@@ -490,13 +474,8 @@ function BrandHeader({
         aria-controls={searchPanelId}
         onClick={() => setMobileSearchOpen(true)}
       >
-        <Search size={24} strokeWidth={1.8} />
+        <Search size={18} strokeWidth={1.8} />
       </button>
-      <div className={`sync-status${radarStatus?' is-radar':''}`}>
-        <span className="sync-label">{radarStatus?'Radar Update':'Screener Update'}</span>
-        <time dateTime={radarStatus?(radarStatus.date||undefined):(generatedAt||undefined)}>{radarStatus?(radarStatus.date||'—'):formatKstDate(generatedAt)}</time>
-        {!radarStatus&&<span className="status-dot" aria-label="데이터 동기화 완료" />}
-      </div>
       <button type="button" className="mobile-lock" onClick={onLock} aria-label="스크리너 잠금">
         <LockKeyhole size={18} />
       </button>
@@ -1053,15 +1032,28 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
       <section className="screener-mode-bar" aria-label="스크리너 선택">
         <StrategyModeControl strategy={strategy} onChange={onStrategy} />
       </section>
+          <div className="selection-filter">
+            <TextInput
+              label="현재 실행 종목 필터"
+              isLabelHidden
+              value={query}
+              onChange={setQuery}
+              placeholder="티커 또는 회사명 검색"
+              startIcon={<Search size={16} strokeWidth={1.8} />}
+              hasClear
+              width="100%"
+              size="md"
+            />
+          </div>
       <section className="run-header">
         <div className="run-title-row">
           <div>
             <h1>
               <span>{strategy}</span>
-              <span className="run-date">{formatDate(currentRun.report_date || currentRun.report_created_at)}</span>
             </h1>
             <p className="strategy-descriptor">{STRATEGIES[strategy].label}</p>
           </div>
+          <UpdateBadge date={currentRun.report_date || currentRun.report_created_at} />
         </div>
         {isHistorical ? (
           <div className="historical-banner" role="status">
@@ -1076,19 +1068,6 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
           <div className="section-heading-row table-heading">
             <h2 id="current-selection-title">{isHistorical ? "과거 실행 종목" : "현재 선정 종목"}</h2>
             {query ? <span className="row-hint" aria-live="polite">{recommendations.length} / {allRecommendations.length}개 일치</span> : null}
-          </div>
-          <div className="selection-filter">
-            <TextInput
-              label="현재 실행 종목 필터"
-              isLabelHidden
-              value={query}
-              onChange={setQuery}
-              placeholder="티커 또는 회사명 검색"
-              startIcon={<Search size={16} strokeWidth={1.8} />}
-              hasClear
-              width="100%"
-              size="md"
-            />
           </div>
           <RecommendationTable
             recommendations={recommendations}
@@ -1195,8 +1174,8 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
             <button type="button" className="visit-strategy" key={item.strategy} onClick={() => onStrategy(item.strategy)} disabled={!item.run}>
               <span className="visit-strategy-heading">
                 <strong>{item.strategy}</strong><span>{STRATEGIES[item.strategy].label}</span>
-                {item.run ? <small className="visit-updated-badge">{formatMonthDay(item.run.report_date || item.run.report_created_at)} Updated</small> : null}
                 <ChevronRight size={16} aria-hidden="true" />
+                {item.run ? <UpdateBadge date={item.run.report_date || item.run.report_created_at} /> : null}
               </span>
               <dl className="visit-changes">
                 <div><dt>새 진입</dt><dd className={`is-added${item.added.length ? " has-change" : ""}`}>{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
@@ -1206,9 +1185,7 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
             </button>
           ))}
         </div>
-        <footer className="since-visit-footer">
-          <button type="button" onClick={onHistory}>전체 실행 기록 <ChevronRight size={16} aria-hidden="true" /></button>
-        </footer>
+        <SectionFooter onClick={onHistory}>전체 실행 기록</SectionFooter>
       </section>
 
       </section>
@@ -1255,7 +1232,7 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
                         <span>vs</span>
                         <strong>{benchmarkLabel} <span className={returnTone(aggregate.qqq_equal_weight_return)}>{formatPercent(aggregate.qqq_equal_weight_return)}</span></strong>
                       </p>
-                      <p className={`backcast-outcome ${returnTone(aggregate.equal_weight_excess_return)}`}>
+                      <p className={`backcast-outcome market-insight ${returnTone(aggregate.equal_weight_excess_return)}`}>
                         <BenchmarkComparisonCopy benchmarkLabel={benchmarkLabel} excessReturn={aggregate.equal_weight_excess_return} />
                       </p>
                       <span className="backcast-meta">최근 {aggregate.run_count}회 측정 · 최대 {PERFORMANCE_RUN_LIMIT}회 · 벤치마크 상회 {cell.runSeries.filter((item) => Number(item.excess_return) > 0).length}/{aggregate.run_count}회</span>
@@ -1270,8 +1247,8 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
                 );
               })}
             </div>
-            <button type="button" className="backcast-open" onClick={() => onPerformance("MLG")}>성과 자세히 <ChevronRight size={16} /></button>
           </div>
+          <SectionFooter onClick={() => onPerformance("MLG")}>성과 자세히</SectionFooter>
         </section>
       </div>
     </section>
@@ -1317,7 +1294,7 @@ function HistoryView({ payload, index, onStrategy }) {
           width="100%"
           size="md"
         />
-        <p className="history-result-count" aria-live="polite">{historyQuery.trim() ? "검색 결과" : "전체"} {filteredRuns.length}건</p>
+        <p className="history-result-count sr-only" aria-live="polite">{historyQuery.trim() ? "검색 결과" : "전체"} {filteredRuns.length}건</p>
       </div>
       <div className="history-column-head" aria-hidden="true">
         <span>전략</span>
@@ -1737,8 +1714,6 @@ function Dashboard({ payload, radar, onLock }) {
         setQuery={setGlobalQuery}
         searchResults={searchResults}
         onOpenSearchResult={openSearchResult}
-        generatedAt={payload.generated_at}
-        radar={radar}
         onLock={onLock}
       />
       <SideNav activeView={route.view} onNavigate={navigateItem} onLock={onLock} />
