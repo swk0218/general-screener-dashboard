@@ -84,7 +84,7 @@ test("offers a recoverable render-error state without exposing internals", () =>
 });
 
 test("keeps reconstructed entry timing and removes noisy overview annotations", () => {
-  assert.match(appSource, /저장소 확정 이후 첫 정규장부터/);
+  assert.match(appSource, /저장소 확정 이후 첫 정규장/);
   assert.match(appSource, /formatPercentPoints\(item\.excess_return\)/);
   assert.match(appSource, /스크리너 성과/);
   assert.match(appSource, /formatMonthDay\(item\.run\.report_date \|\| item\.run\.report_created_at\)/);
@@ -131,7 +131,7 @@ test("uses concise Korean history, transition, and TENX method copy", () => {
 
 test("isolates the desktop workstation layout from the reviewed mobile views", () => {
   assert.match(appSource, /className=\{`app-shell view-\$\{route\.view\}`\}/);
-  assert.match(appSource, /className="overview-history-link"/);
+  assert.doesNotMatch(appSource, /className="overview-history-link"/);
   assert.match(appSource, /className="history-column-head"/);
   assert.match(stylesSource, /Desktop workstation recomposition/);
   assert.match(stylesSource, /\.overview-history-link,\s*\.history-column-head \{\s*display: none;/);
@@ -140,7 +140,7 @@ test("isolates the desktop workstation layout from the reviewed mobile views", (
 });
 
 test("keeps desktop chrome compact and aligns the screener inspector grid", () => {
-  assert.match(appSource, /radarStatus\.label:'Screener Update'/);
+  assert.match(appSource, /radarStatus\?'Radar Update':'Screener Update'/);
   assert.match(appSource, /formatKstDate\(generatedAt\)/);
   assert.doesNotMatch(appSource, /LAST SYNC/);
   assert.match(stylesSource, /--sidebar-width: 208px;/);

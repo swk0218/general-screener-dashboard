@@ -8,12 +8,13 @@ const arc = (start,end) => {
 };
 
 export function MarketGauge({score=null,level='계산 불가'}) {
+  const displayLevel=({Low:'냉각 구간',High:'과열 구간',Neutral:'중립 구간','Extreme Low':'저점 경보','Extreme High':'고점 경보'})[level]||level;
   const hasScore=Number.isInteger(score)&&score>=0&&score<=100;
   const band=hasScore?Math.min(4,Math.floor(score/20)):null;
   return <div className={`radar-dial${hasScore?'':' is-unavailable'}`} role={hasScore?'meter':undefined}
-    aria-label={`시장 전환 종합 지표 · ${level} · 확률 아님`} aria-valuemin={0} aria-valuemax={100}
-    aria-valuenow={hasScore?score:undefined} aria-valuetext={hasScore?`${score} /100 · ${level}`:undefined}>
-    <svg viewBox="0 0 360 248" aria-hidden="true">
+    aria-label={`시장 전환 지수 · ${displayLevel} · 확률 아님`} aria-valuemin={0} aria-valuemax={100}
+    aria-valuenow={hasScore?score:undefined} aria-valuetext={hasScore?`${score} /100 · ${displayLevel}`:undefined}>
+    <svg viewBox="0 0 360 232" aria-hidden="true">
       {[0,1,2,3,4].map(i=><path key={i} d={arc(i*20+.7,(i+1)*20-.7)} className={`radar-dial-band${band===i?' is-current':''}`} />)}
       {[0,20,40,60,80,100].map(value=>{
         const a=point(value,120),b=point(value,127),text=point(value,156);
@@ -24,8 +25,7 @@ export function MarketGauge({score=null,level='계산 불가'}) {
         <path d="M 177 166 L 180 49 L 183 166 Z"/><circle cx="180" cy="166" r="5"/>
       </g>}
       <text x="180" y="213" textAnchor="middle" className="radar-dial-number">{hasScore?score:'—'}<tspan dx="6" className="radar-dial-denominator">/100</tspan></text>
-      <text x="180" y="241" textAnchor="middle" className="radar-dial-level">{level}</text>
     </svg>
-    <span className="sr-only">{hasScore?`${score} /100 · ${level}`:'단일 점수 없음'}</span>
+    <span className="sr-only">{hasScore?`${score} /100 · ${displayLevel}`:'단일 점수 없음'}</span>
   </div>;
 }
