@@ -14,7 +14,7 @@ export function validateSignalGauge(value,fail) {
   if((e.bottom||e.top)&&!t.eligible)fail();
   const n=g.normalization, refs=SIGNAL_REFERENCES[value.session.slice(0,4)];
   if(!refs)fail();
-  if(t.reason!==undefined&&typeof t.reason!=='string')fail();
+  if(t.reason!==undefined&&t.reason!==null&&typeof t.reason!=='string')fail();
   if(g.presentation_computed_at_utc!==undefined&&(!Number.isFinite(Date.parse(g.presentation_computed_at_utc))||Date.parse(g.presentation_computed_at_utc)<Date.parse(o.computed_at_utc)||Date.parse(g.presentation_computed_at_utc)>Date.now()+300000))fail();
   if(g.level==='UNAVAILABLE') {
     if(e.bottom||e.top||!['MISSING_REQUIRED_CONTEXT_INPUT'].includes(g.reason))fail();
