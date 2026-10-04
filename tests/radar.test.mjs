@@ -97,7 +97,7 @@ test('Extreme requires the actual native score to meet sealed q90, never a suppl
 });
 
 test('unavailable packets without native details render safely and explain missing inputs',async()=>{
-  const value=unavailableDailyFixture();assert.equal(validateRadarDelivery(value),value);
+  const value=unavailableDailyFixture();value.observation.source_market_close_utc='2026-03-12T20:00:00Z';assert.equal(validateRadarDelivery(value),value);
   const {createServer}=await import('vite');
   const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
   try {
@@ -107,7 +107,7 @@ test('unavailable packets without native details render safely and explain missi
     for(const packet of [value,null,{...value,native_details:{bottom:null}},{...value,gauge:{...value.gauge,reason:{}}},dailyFixture(false,false,true),dailyFixture(true,true)]) {
       const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet}));
       assert.match(html,/시장 전환 신호/);
-      if(packet===value)assert.match(html,/계산 불가 · 필수 입력 결측/);
+      if(packet===value){assert.match(html,/계산 불가 · 필수 입력 결측/);assert.match(html,/03\. 13\. 05:00 KST/);}
       if(packet?.gauge?.mixed_strength===1&&packet.events.bottom===false)assert.match(html,/조건이 약한 중립은 아닙니다/);
       if(packet?.events?.bottom&&packet.events.top)assert.match(html,/양방향 경보 충돌/);
     }

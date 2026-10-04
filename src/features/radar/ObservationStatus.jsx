@@ -20,10 +20,10 @@ export function ObservationStatus({delivery=null}) {
     <p>화–토 19:00 KST에 직전 미국 거래일 자료를 수집합니다. 일일 제품의 수신·계산 마감은 다음 XNYS 개장 30분 전입니다. 연구 당시 마감 +90분 평가 전제와 다르며 모델 계수·신호 기준은 유지합니다.</p>
     <dl>
       <div><dt>시장 기준 세션</dt><dd>{delivery?.session||data?.source_session||'확인 불가'} · XNYS</dd></div>
-      <div><dt>시장 마감</dt><dd>{kstTime(data?.source_market_close_utc)}</dd></div>
-      <div><dt>원천 업데이트 시각</dt><dd>{kstTime(data?.provider_updated_at_utc)}</dd></div>
+      <div><dt>시장 마감</dt><dd>{kstTime(delivery?.observation?.source_market_close_utc||data?.source_market_close_utc)}</dd></div>
+      <div><dt>최신 CNN 원천 업데이트</dt><dd>{kstTime(data?.provider_updated_at_utc)}</dd></div>
       <div><dt>최초 관찰 수신</dt><dd>{kstTime(delivery?.observation?.first_seen_at_utc||data?.first_seen_at_utc)}</dd></div>
-      <div><dt>이번 수신</dt><dd>{kstTime(data?.received_at_utc)}{delay!==null?` · 마감 후 ${delay.toFixed(1)}시간`:''}</dd></div>
+      <div><dt>최신 CNN 관찰 수신</dt><dd>{kstTime(data?.received_at_utc)}{delay!==null?` · 마감 후 ${delay.toFixed(1)}시간`:''}</dd></div>
       <div><dt>관찰 상태 계산 완료</dt><dd>{kstTime(delivery?.observation?.computed_at_utc||data?.computed_at_utc)}</dd></div>
       {delivery?.gauge.presentation_computed_at_utc&&<div><dt>표시 변환 갱신</dt><dd>{kstTime(delivery.gauge.presentation_computed_at_utc)} · 원점수 계산·수신 시각 유지</dd></div>}
       <div><dt>빌드 완료</dt><dd>{kstTime(data?.built_at_utc)}</dd></div>
