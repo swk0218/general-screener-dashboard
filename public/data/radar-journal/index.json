@@ -1,1 +1,1 @@
-{"authentication": "d23be12cae3dac35e0c8a580e368904e57219dcf93c1ab04c732ad6b90308c9b", "entries": [], "failures": [], "identity": "7b3f3d8f31a407726021c1981c05c13e4a2823cc21a20c2a1e2b772f89bf05c1"}
+{"authentication": "fc823b337b15c795945c420bb6274f12f79980502aa34b1b49dd3912df530acd", "entries": [], "failures": [{"cipher_file_sha256": "6a48d5f190f59e90ac603f9f68b80a3272f9b223958426b5f571f8b115da8fc3", "file": "failure-00000.enc.json"}], "identity": "7b3f3d8f31a407726021c1981c05c13e4a2823cc21a20c2a1e2b772f89bf05c1"}
