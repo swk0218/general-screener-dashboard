@@ -113,12 +113,24 @@ test('daily status always remains NO_SIGNAL and expires at next open',()=>{
 });
 test('observation-only configuration never requests an absent model feed',async(t)=>{
   const status=JSON.parse(await readFile(new URL('../public/data/radar-observation.json',import.meta.url),'utf8'));
+  // This case models an absent feed, even after a real feed has been published.
+  status.score_delivery_available=false;
   const requested=[];
   t.mock.method(globalThis,'fetch',async url=>{
     requested.push(url);assert.equal(url,'/status');return {ok:true,json:async()=>status};
   });
   assert.equal(await loadOptionalRadarDelivery('/status','/model-feed','TEST_ONLY_NOT_REAL'),null);
   assert.deepEqual(requested,['/status']);
+});
+test('published observation configuration requests the encrypted model feed',async(t)=>{
+  const status=JSON.parse(await readFile(new URL('../public/data/radar-observation.json',import.meta.url),'utf8'));
+  status.score_delivery_available=true;
+  const requested=[];
+  t.mock.method(globalThis,'fetch',async url=>{
+    requested.push(url);return url==='/status'?{ok:true,json:async()=>status}:{ok:false};
+  });
+  await assert.rejects(loadOptionalRadarDelivery('/status','/model-feed','TEST_ONLY_NOT_REAL'),/RADAR_UNAVAILABLE/);
+  assert.deepEqual(requested,['/status','/model-feed']);
 });
 test('Extreme equals actual same-day event; active state is independent',()=>{
   for(const [score,level,b,t] of [[0,'Extreme Low',true,false],[19,'Extreme Low',true,false],[80,'Extreme High',false,true],[100,'Extreme High',false,true],[20,'Low',false,false],[50,'Neutral',false,false],[79,'High',false,false]]) {
