@@ -47,6 +47,7 @@ jobs:
           python -c "import json,pathlib; p=pathlib.Path('public/data/radar-observation.json'); d=json.loads(p.read_text()); d['score_delivery_available']=pathlib.Path('public/data/market-radar.enc.json').is_file(); p.write_text(json.dumps(d,indent=2))"
 
       - name: Verify and build
+        timeout-minutes: 10
         run: npm run check
 
       - name: Stamp actual build completion (publication remains unknown until deployment)

@@ -9,6 +9,30 @@ import { inputGaugeCards,thresholdPosition,radarHeaderStatus } from '../src/feat
 import {validateObservationStatus,observationState} from '../src/features/radar/observation-status.js';
 import {SIGNAL_REFERENCES,REFERENCE_HASH} from '../src/features/radar/signal-references.js';
 
+async function createRadarTestServer() {
+  const {createServer}=await import('vite');
+  const {default:appConfig}=await import('../vite.config.mjs');
+  return createServer({...appConfig,configFile:false,
+    // React's plugin adds browser pre-bundles, so clear them after its config hook.
+    plugins:[...appConfig.plugins,{name:'radar-ssr-test-only',enforce:'post',config(config) {
+      config.optimizeDeps={noDiscovery:true,include:[]};
+    }}],
+    server:{middlewareMode:true,hmr:false,watch:null},appType:'custom',logLevel:'error'});
+}
+
+test('SSR-only test servers do not start browser dependency scans or warmup',async()=>{
+  const server=await createRadarTestServer();
+  try {
+    assert.equal(server.config.optimizeDeps.noDiscovery,true);
+    assert.deepEqual(server.config.optimizeDeps.include,[]);
+    assert.equal(server.environments.client.depsOptimizer,undefined);
+    assert.equal(server.config.server.warmup?.clientFiles?.length||0,0);
+    assert.equal(server.config.server.hmr,false);
+    assert.equal(server.config.server.watch,null);
+  } finally {await server.close();}
+});
+
+
 function dailyFixture(bottom=false,top=false,mixed=false) {
   const v=fixture(null,'CONFLICT',bottom,top),time='2026-03-13T10:00:00Z';
   Object.assign(v,{operating_status:'DAILY_MODEL_COMPUTED',observation_only:false,controller_evaluated:true,
@@ -98,8 +122,7 @@ test('Extreme requires the actual native score to meet sealed q90, never a suppl
 
 test('unavailable packets without native details render safely and explain missing inputs',async()=>{
   const value=unavailableDailyFixture();value.observation.source_market_close_utc='2026-03-12T20:00:00Z';assert.equal(validateRadarDelivery(value),value);
-  const {createServer}=await import('vite');
-  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  const server=await createRadarTestServer();
   try {
     const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
     const {createElement}=await import('react');
@@ -307,8 +330,7 @@ test('missing VIX rank makes calculation unavailable even when other scalar inpu
 });
 
 test('dial endpoints and every band boundary have one accurate needle; unavailable has none',async()=>{
-  const {createServer}=await import('vite');
-  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  const server=await createRadarTestServer();
   try {
     const {MarketGauge}=await server.ssrLoadModule('/src/features/radar/MarketGauge.jsx');
     const {createElement}=await import('react');
@@ -327,8 +349,7 @@ test('dial endpoints and every band boundary have one accurate needle; unavailab
 });
 
 test('redesigned information hierarchy preserves conflict, stale, missing and raw-input distinctions',async()=>{
-  const {createServer}=await import('vite');
-  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  const server=await createRadarTestServer();
   try {
     const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
     const {createElement}=await import('react');
@@ -396,8 +417,7 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
 
 
 test('Overview score uses the Radar contract and preserves invalid, stale, mixed and conflicting states',async()=>{
-  const {createServer}=await import('vite');
-  const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error'});
+  const server=await createRadarTestServer();
   try {
     const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
     const {createElement}=await import('react');
