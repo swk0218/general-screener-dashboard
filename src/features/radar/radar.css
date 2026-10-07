@@ -155,3 +155,25 @@
   .overview-radar-reading { gap:16px; }
   .overview-radar h2 { font-size:14px; }
 }
+
+/* Historical monthly means are an isolated optional encrypted reference. */
+.radar-seasonality { padding:22px 0 4px; }
+.radar-seasonality-heading { display:flex; align-items:baseline; justify-content:space-between; gap:8px 16px; flex-wrap:wrap; }
+.radar-seasonality-heading h3 { margin:0; font:500 13px/1.5 var(--gs-sans); }
+.radar-seasonality-heading>span { color:var(--gs-muted); font:11px/1.5 var(--gs-sans); }
+.radar-seasonality-months { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:8px; margin:18px 0 0; }
+.radar-seasonality-month { min-width:0; text-align:center; border-top:1px solid transparent; padding-top:8px; }
+.radar-seasonality-month.is-current { border-color:var(--gs-text); }
+.radar-seasonality-month dt { color:var(--gs-muted); font:11px/1.5 var(--gs-sans); }
+.radar-seasonality-month.is-current dt { color:var(--gs-text); font-weight:600; }
+.radar-seasonality-month dd { margin:0; }
+.radar-seasonality-month strong { display:block; white-space:nowrap; font:400 11px/1.5 var(--gs-mono); }
+.radar-seasonality-month strong.is-positive { color:var(--gs-text); }
+.radar-seasonality-month strong.is-negative { color:var(--gs-muted); }
+.radar-seasonality-bar { display:block; position:relative; height:62px; margin:6px 0; }
+.radar-seasonality-bar::before { content:""; position:absolute; top:50%; inset-inline:0; border-top:1px solid var(--gs-divider); }
+.radar-seasonality-bar i { position:absolute; left:50%; width:12px; transform:translateX(-50%); background:var(--gs-muted); }
+.radar-seasonality-bar .is-positive { bottom:50%; background:var(--gs-text); opacity:.65; }
+.radar-seasonality-bar .is-negative { top:50%; }
+.radar-seasonality-month.is-current .radar-seasonality-bar i { opacity:1; }
+@media(max-width:720px) { .radar-seasonality-months { grid-template-columns:repeat(6,minmax(0,1fr)); row-gap:18px; } }

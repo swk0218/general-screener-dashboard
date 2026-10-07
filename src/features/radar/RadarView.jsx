@@ -5,6 +5,7 @@ import { inputGaugeCards, thresholdPosition } from './gauge-model.js';
 import { GaugeCard, InputProvenance, formatRadarNumber as number } from './GaugeCard.jsx';
 import { RadarUpdate, RadarHeadline, RadarEventLabel } from './RadarSummary.jsx';
 import { MarketGauge } from './MarketGauge.jsx';
+import { SeasonalityCard } from './SeasonalityCard.jsx';
 import { ObservationStatus } from './ObservationStatus.jsx';
 import { kstTime } from './observation-status.js';
 import './radar.css';
@@ -67,7 +68,7 @@ function DirectionSignal({side,data,stale}) {
   </section>;
 }
 
-export function RadarView({delivery=null}) {
+export function RadarView({delivery=null,seasonality=null}) {
   const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,notice}=radarPresentation(delivery);
   const cards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   const timingStatus=daily?timingReasonCopy(data.timing):'';
@@ -109,6 +110,7 @@ export function RadarView({delivery=null}) {
     <section className="radar-section" aria-labelledby="radar-inputs-title">
       <div className="radar-section-heading"><h2 id="radar-inputs-title">보조 지표</h2></div>
       <div className="radar-reference-grid">{cards.reference.map(card=><GaugeCard key={card.key} card={card}/>)}</div>
+      <SeasonalityCard data={seasonality}/>
     </section>
 
     <div className="radar-support">
