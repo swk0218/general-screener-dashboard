@@ -84,3 +84,43 @@ test('open and resumed tabs update the month marker and hide expired windows',as
   await page.clock.fastForward(60001);
   await expect(card).toHaveCount(0);await expect(page.locator('.radar-view')).toBeVisible();
 });
+
+test('current-month green accent follows the clock and preserves negative return color',async({page},testInfo)=>{
+  await setup(page);await unlock(page);
+  const card=page.locator('.radar-seasonality'),current=card.locator('.radar-seasonality-month.is-current');
+  await expect(current.locator('dt')).toContainText('10월');
+  const colors=await page.evaluate(()=>{
+    const probe=document.createElement('span');document.body.append(probe);
+    probe.style.color='var(--gs-green)';const green=getComputedStyle(probe).color;
+    probe.style.color='var(--gs-negative)';const negative=getComputedStyle(probe).color;
+    probe.remove();return {green,negative};
+  });
+  await expect(current.locator('dt')).toHaveCSS('color',colors.green);
+  await expect(current).toHaveCSS('border-top-color',colors.green);
+  await expect(current.locator('.radar-seasonality-bar i')).toHaveCSS('background-color',colors.green);
+  await expect(current.locator('strong')).toHaveCSS('color',colors.green);
+  expect(await current.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  await page.clock.setSystemTime(new Date('2026-11-01T05:00:00Z'));
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await expect(current.locator('dt')).toContainText('11월');
+  await expect(current.locator('dt')).toHaveCSS('color',colors.green);
+  await expect(card.locator('.radar-seasonality-month').nth(9)).not.toHaveClass(/is-current/);
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({path:testInfo.outputPath('green-current-month.png')});
+});
+
+test('negative current-month value keeps its minus sign and negative color',async({page},testInfo)=>{
+  const negativeAggregate=structuredClone(aggregate);negativeAggregate.months[9].mean_return=-.006;
+  const negativeSalt=randomBytes(16),negativeIv=randomBytes(12);
+  const negativeCipher=createCipheriv('aes-256-gcm',pbkdf2Sync(password,negativeSalt,600000,32,'sha256'),negativeIv);
+  negativeCipher.setAAD(Buffer.from('radar_monthly_seasonality_v1'));
+  const negativeBytes=Buffer.concat([negativeCipher.update(JSON.stringify(negativeAggregate),'utf8'),negativeCipher.final(),negativeCipher.getAuthTag()]);
+  const envelope={...seasonality,salt:negativeSalt.toString('base64'),iv:negativeIv.toString('base64'),ciphertext:negativeBytes.toString('base64'),payload_hash:createHash('sha256').update(negativeBytes).digest('hex')};
+  await setup(page,()=>({json:envelope}));await unlock(page);
+  const card=page.locator('.radar-seasonality'),current=card.locator('.radar-seasonality-month.is-current');
+  await expect(current.locator('dt')).toContainText('10월');
+  await expect(current.locator('strong')).toHaveText('-0.60%');
+  const colors=await current.evaluate(el=>({label:getComputedStyle(el.querySelector('dt')).color,value:getComputedStyle(el.querySelector('strong')).color,bar:getComputedStyle(el.querySelector('i')).backgroundColor}));
+  expect(colors.value).not.toBe(colors.label);expect(colors.bar).toBe(colors.value);
+  await card.scrollIntoViewIfNeeded();await card.screenshot({path:testInfo.outputPath('green-current-negative-return.png')});
+});
