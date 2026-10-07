@@ -56,7 +56,7 @@ test('seasonality is last supplementary indicator, with no model input coupling 
   assert.ok(radar.indexOf('<SeasonalityCard')>radar.indexOf('className="radar-reference-grid"'));
   assert.ok(radar.indexOf('<SeasonalityCard')<radar.indexOf('className="radar-support"'));
   const card=await readFile(new URL('../src/features/radar/SeasonalityCard.jsx',import.meta.url),'utf8');
-  assert.match(card,/SPY 월별 평균 수익률/);assert.match(card,/if \(!data \|\| !seasonalityIsCurrent\(data\)\) return null/);
+  assert.match(card,/SPY 월별 평균 수익률/);assert.match(card,/if \(!data \|\| !seasonalityIsCurrent\(data, now\)\) return null/);
   assert.doesNotMatch(card,/경고|미래|확률|예측|positive_rate|median/);
   const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
   assert.match(app,/loadSeasonalityDelivery[\s\S]*unlockGeneration.current === generation/);

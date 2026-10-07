@@ -43,9 +43,8 @@ test('encrypted reference remains readable, isolated and lock-safe',async({page}
   await expect(card.locator('strong').first()).toHaveText('-0.30%');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await card.scrollIntoViewIfNeeded();
-  const screenshot=await card.screenshot({path:testInfo.outputPath('seasonality.png')});
-  if(process.env.CI)console.log(`SYNTHETIC_SEASONALITY_SCREENSHOT:${testInfo.project.name}:${screenshot.toString('base64')}`);
-  for (const hash of ['#/overview','#/selection/MLG','#/history','#/performance','#/radar']) {
+  await card.screenshot({path:testInfo.outputPath('seasonality.png')});
+  for (const hash of ['#/overview','#/selection/MLG','#/selection/TENX','#/history','#/performance','#/radar']) {
     await page.evaluate(hash=>location.hash=hash,hash);await expect(page.locator('.app-shell')).toBeVisible();
   }
   await expect(card).toBeVisible();
@@ -64,4 +63,24 @@ test('late decrypt response cannot restore data after locking',async({page})=>{
   await setup(page,async()=>{await gate;return {json:seasonality};});await unlock(page);
   await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();release();
   await expect(page.locator('input[type=password]')).toBeVisible();await expect(page.locator('.radar-seasonality')).toHaveCount(0);
+});
+
+for (const [name, bad] of [['malformed',{unexpected:true}],['authentication-failed',{...seasonality,iv:randomBytes(12).toString('base64')}]]) {
+  test(`${name} optional feed cannot block either screener strategy`,async({page})=>{
+    await setup(page,()=>({json:bad}));await unlock(page);
+    await expect(page.locator('.radar-view')).toBeVisible();await expect(page.locator('.radar-seasonality')).toHaveCount(0);
+    for (const hash of ['#/selection/MLG','#/selection/TENX']) {
+      await page.evaluate(hash=>location.hash=hash,hash);await expect(page.locator('.app-shell')).toBeVisible();
+      await expect(page.locator('.radar-view')).toHaveCount(0);
+    }
+  });
+}
+test('open and resumed tabs update the month marker and hide expired windows',async({page})=>{
+  await setup(page);await unlock(page);const card=page.locator('.radar-seasonality');await expect(card).toBeVisible();
+  await page.clock.setSystemTime(new Date('2026-11-01T05:00:00Z'));
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await expect(card.locator('.is-current dt')).toContainText('11월');
+  await page.clock.setSystemTime(new Date('2027-01-01T04:59:30Z'));
+  await page.clock.fastForward(60001);
+  await expect(card).toHaveCount(0);await expect(page.locator('.radar-view')).toBeVisible();
 });
