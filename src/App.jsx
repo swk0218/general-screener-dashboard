@@ -32,6 +32,7 @@ import { ReturnComparisonChart } from "./features/performance/ReturnComparisonCh
 import { UpdateBadge, SectionFooter } from "./components/SectionElements.jsx";
 import { RadarSummary } from "./features/radar/RadarSummary.jsx";
 import { RadarView } from "./features/radar/RadarView.jsx";
+import { loadSeasonalityDelivery } from "./features/radar/seasonality-envelope.js";
 import { loadOptionalRadarDelivery } from "./features/radar/radar-envelope.js";
 import {
   getPerformanceState,
@@ -1578,7 +1579,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, radar, onLock }) {
+function Dashboard({ payload, radar, seasonality, onLock }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
@@ -1657,7 +1658,7 @@ function Dashboard({ payload, radar, onLock }) {
       />
     );
   } else if (route.view === "radar") {
-    content = <RadarView delivery={radar} />;
+    content = <RadarView delivery={radar} seasonality={seasonality} />;
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
@@ -1727,6 +1728,7 @@ export function App() {
   const [envelopeError, setEnvelopeError] = useState("");
   const [payload, setPayload] = useState(null);
   const [radar, setRadar] = useState(null);
+  const [seasonality, setSeasonality] = useState(null);
   const radarRequest = useRef(null);
   const unlockGeneration = useRef(0);
   const [dashboardRevision, setDashboardRevision] = useState(0);
@@ -1759,6 +1761,10 @@ export function App() {
     const controller = new AbortController();
     radarRequest.current = controller;
     setRadar(null);
+    setSeasonality(null);
+    loadSeasonalityDelivery(`${import.meta.env.BASE_URL}data/radar-seasonality.enc.json`, passphrase, controller.signal)
+      .then(value => { if (unlockGeneration.current === generation) setSeasonality(value); })
+      .catch(() => { if (unlockGeneration.current === generation) setSeasonality(null); });
     loadOptionalRadarDelivery(`${import.meta.env.BASE_URL}data/radar-observation.json`, `${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal)
       .then(value => { if (unlockGeneration.current === generation) setRadar(value); })
       .catch(() => { if (unlockGeneration.current === generation) setRadar(null); });
@@ -1768,6 +1774,7 @@ export function App() {
     unlockGeneration.current += 1;
     radarRequest.current?.abort();
     setRadar(null);
+    setSeasonality(null);
     setPayload(null);
   }
 
@@ -1781,7 +1788,7 @@ export function App() {
           onRetry={() => setDashboardRevision((current) => current + 1)}
           onLock={lock}
         >
-          <Dashboard payload={payload} radar={radar} onLock={lock} />
+          <Dashboard payload={payload} radar={radar} seasonality={seasonality} onLock={lock} />
         </AppErrorBoundary>
       ) : (
         <UnlockScreen envelope={envelope} envelopeError={envelopeError} onUnlock={unlock} />

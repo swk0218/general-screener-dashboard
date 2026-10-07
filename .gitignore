@@ -13,3 +13,5 @@ public/data/*.bak
 AGENTS.md
 design-qa.md
 beta-check-results.txt
+test-results/
+playwright-report/

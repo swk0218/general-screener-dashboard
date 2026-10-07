@@ -13,9 +13,10 @@
     "encrypt:payload": "node scripts/encrypt-payload.mjs",
     "preview": "vite preview",
     "pretest": "node scripts/verify-node-version.mjs",
-    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs",
+    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs tests/seasonality.test.mjs",
     "verify:payload": "node scripts/verify-encrypted-payload.mjs",
-    "verify:build": "node scripts/verify-build-assets.mjs"
+    "verify:build": "node scripts/verify-build-assets.mjs",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.2.0",
@@ -31,5 +32,8 @@
   },
   "overrides": {
     "postcss": "8.5.26"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }
