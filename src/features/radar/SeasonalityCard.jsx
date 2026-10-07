@@ -1,7 +1,7 @@
-import { seasonalityMonth, seasonalityPercent } from './seasonality-contract.js';
+import { seasonalityMonth, seasonalityPercent, seasonalityIsCurrent } from './seasonality-contract.js';
 
 export function SeasonalityCard({ data = null, currentMonth = seasonalityMonth() }) {
-  if (!data) return null;
+  if (!data || !seasonalityIsCurrent(data)) return null;
   const scale = Math.max(...data.months.map(row => Math.abs(row.mean_return)), 0.01);
   return <section className="radar-seasonality" aria-labelledby="radar-seasonality-title">
     <header className="radar-seasonality-heading">

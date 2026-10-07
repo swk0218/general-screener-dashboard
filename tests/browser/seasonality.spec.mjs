@@ -18,6 +18,7 @@ const payload=await encryptEnvelope({contract_version:'general_screener_v2',gene
  performance:{aggregates:[],signals:[]}},password);
 
 async function setup(page, seasonalityResponse=()=>({json:seasonality})) {
+  await page.clock.install({time:new Date('2026-10-07T12:00:00Z')});
   await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
   await page.route('**/data/radar-seasonality.enc.json*',async route=>route.fulfill(await seasonalityResponse()));
   await page.route('**/data/radar-observation.json*',route=>route.fulfill({status:404}));
@@ -41,7 +42,9 @@ test('encrypted reference remains readable, isolated and lock-safe',async({page}
   await expect(card.locator('.is-current')).toHaveCount(1);
   await expect(card.locator('strong').first()).toHaveText('-0.30%');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await card.scrollIntoViewIfNeeded();await card.screenshot({path:testInfo.outputPath('seasonality.png')});
+  await card.scrollIntoViewIfNeeded();
+  const screenshot=await card.screenshot({path:testInfo.outputPath('seasonality.png')});
+  if(process.env.CI)console.log(`SYNTHETIC_SEASONALITY_SCREENSHOT:${testInfo.project.name}:${screenshot.toString('base64')}`);
   for (const hash of ['#/overview','#/selection/MLG','#/history','#/performance','#/radar']) {
     await page.evaluate(hash=>location.hash=hash,hash);await expect(page.locator('.app-shell')).toBeVisible();
   }

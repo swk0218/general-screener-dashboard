@@ -1,7 +1,18 @@
 const fields = (value, allowed) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).every(key => allowed.includes(key));
 
-export function validateSeasonality(value) {
+export function seasonalityWindow(now = new Date()) {
+  const end = Number(new Intl.DateTimeFormat('en-US', { year: 'numeric', timeZone: 'America/New_York' }).format(now)) - 1;
+  return { start: end - 19, end };
+}
+
+export function seasonalityIsCurrent(value, now = new Date()) {
+  const window = seasonalityWindow(now);
+  return value?.start_year === window.start && value?.end_year === window.end
+    && Date.parse(value.computed_at_utc) <= now.getTime();
+}
+
+export function validateSeasonality(value, { now = new Date(), allowHistorical = false } = {}) {
   if (!fields(value, ['schema', 'symbol', 'start_year', 'end_year', 'lookback_years', 'price_basis', 'source', 'computed_at_utc', 'months'])
     || value.schema !== 'radar_monthly_seasonality_v1' || value.symbol !== 'SPY'
     || !Number.isInteger(value.start_year) || value.start_year < 1994
@@ -9,6 +20,8 @@ export function validateSeasonality(value) {
     || value.lookback_years !== 20 || value.price_basis !== 'dividend_adjusted_close'
     || value.source !== 'FMP' || typeof value.computed_at_utc !== 'string'
     || !Number.isFinite(Date.parse(value.computed_at_utc))
+    || Date.parse(value.computed_at_utc) > now.getTime()
+    || (!allowHistorical && !seasonalityIsCurrent(value, now))
     || value.end_year >= Number(value.computed_at_utc.slice(0, 4))
     || !Array.isArray(value.months) || value.months.length !== 12) {
     throw new Error('INVALID_SEASONALITY');

@@ -5,7 +5,7 @@ const decode = value => {
   return Uint8Array.from(atob(value), character => character.charCodeAt(0));
 };
 
-export async function decryptSeasonalityEnvelope(envelope, passphrase) {
+export async function decryptSeasonalityEnvelope(envelope, passphrase, validationOptions) {
   if (envelope?.envelope_version !== 'radar_monthly_seasonality_encrypted_v1'
     || envelope.algorithm !== 'AES-256-GCM' || envelope.kdf !== 'PBKDF2-SHA256'
     || envelope.iterations !== 600000 || typeof passphrase !== 'string'
@@ -22,7 +22,7 @@ export async function decryptSeasonalityEnvelope(envelope, passphrase) {
   const material = await crypto.subtle.importKey('raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 600000 }, material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
   const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode('radar_monthly_seasonality_v1'), tagLength: 128 }, key, ciphertext);
-  return validateSeasonality(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)));
+  return validateSeasonality(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)), validationOptions);
 }
 
 export async function loadSeasonalityDelivery(url, passphrase, signal) {
