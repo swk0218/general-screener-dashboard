@@ -124,3 +124,37 @@ test('negative current-month value keeps its minus sign and negative color',asyn
   expect(colors.value).not.toBe(colors.label);expect(colors.bar).toBe(colors.value);
   await card.scrollIntoViewIfNeeded();await card.screenshot({path:testInfo.outputPath('green-current-negative-return.png')});
 });
+
+// Engine-status migration coverage uses intercepted invented replies only.
+// Production ciphertext/status files are never rewritten by this suite.
+for (const scenario of ['unavailable','current','failed','expired','malformed']) {
+  test(`Radar engine status ${scenario} stays honest through lock and navigation`,async({page},testInfo)=>{
+    const {unavailableEngineStatus}=await import('../../src/features/radar/observation-status.js');
+    let status=unavailableEngineStatus();
+    if(!['unavailable','malformed'].includes(scenario))Object.assign(status,{
+      status:scenario==='failed'?'FAILED':'DATED',source_session:'2026-10-06',expected_session:'2026-10-06',
+      source_market_close_utc:'2026-10-06T20:00:00Z',input_admitted_at_utc:'2026-10-07T10:17:05Z',
+      model_computed_at_utc:'2026-10-07T10:18:00Z',latest_attempt_at_utc:'2026-10-07T10:18:10Z',
+      next_scheduled_at_utc:scenario==='expired'?'2026-10-07T09:00:00Z':'2026-10-07T12:40:00Z',
+      engine_result_id:'a'.repeat(64),feed_cipher_sha256:'b'.repeat(64),failure_code:scenario==='failed'?'SOURCE_FETCH_FAILED':null,
+      built_at_utc:'2026-10-07T11:59:00Z',published_at_utc:'2026-10-07T11:59:30Z',publication_receipt_result_id:'a'.repeat(64)
+    });
+    if(scenario==='malformed')status={schema_version:'wrong',status:'DATED'};
+    const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await setup(page);
+    await page.route('**/data/radar-observation.json*',route=>route.fulfill({json:status}));
+    await unlock(page);
+    const panel=page.locator('.radar-observation-panel');await expect(panel).toBeVisible();
+    const expected=['unavailable','malformed'].includes(scenario)?'자료 미확인':scenario==='current'?'계산된 세션 자료':'STALE · 이전 관찰';
+    await expect(panel.locator('[role=status]')).toContainText(expected);
+    if(['unavailable','malformed'].includes(scenario))await expect(panel).toContainText('실제 활성화 여부는 아직 확인되지 않았습니다');
+    else await expect(panel).toContainText('계획된 확인 시각');
+    await panel.screenshot({path:testInfo.outputPath(`engine-${scenario}.png`)});
+    await page.evaluate(()=>location.hash='#/selection/MLG');await expect(page.locator('.app-shell')).toBeVisible();
+    await page.evaluate(()=>location.hash='#/radar');await expect(panel.locator('[role=status]')).toContainText(expected);
+    await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();
+    await expect(panel).toHaveCount(0);await unlock(page);
+    await expect(panel.locator('[role=status]')).toContainText(expected);
+    expect(errors).toEqual([]);
+  });
+}

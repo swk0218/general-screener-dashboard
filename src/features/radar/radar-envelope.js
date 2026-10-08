@@ -25,18 +25,29 @@ export async function decryptRadarEnvelope(envelope,passphrase) {
   return delivery;
 }
 
-export async function loadRadarDelivery(url,passphrase,signal) {
+export async function loadRadarDelivery(url,passphrase,signal,expectedCipherHash=null) {
   const response=await fetch(url,{signal,cache:'no-store'});
   if(!response.ok)throw new Error('RADAR_UNAVAILABLE');
+  if(expectedCipherHash){
+    const raw=await response.arrayBuffer();
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',raw)),byte=>byte.toString(16).padStart(2,'0')).join('');
+    if(digest!==expectedCipherHash)throw new Error('FEED_STATUS_BINDING_MISMATCH');
+    return decryptRadarEnvelope(JSON.parse(new TextDecoder().decode(raw)),passphrase);
+  }
   return decryptRadarEnvelope(await response.json(),passphrase);
 }
 
 export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal) {
   const response=await fetch(statusUrl,{signal,cache:'no-store'});
+  let expectedCipherHash=null;
   if(response.ok) {
     // A published observation-only status explicitly has no live model feed.
     const status=validateObservationStatus(await response.json());
     if(status.mode==='OBSERVATION_BETA'&&status.score_delivery_available!==true)return null;
+    if(status.schema_version==='radar_engine_status_v1'){
+      if(!status.feed_cipher_sha256)return null;
+      expectedCipherHash=status.feed_cipher_sha256;
+    }
   }
-  return loadRadarDelivery(url,passphrase,signal);
+  return loadRadarDelivery(url,passphrase,signal,expectedCipherHash);
 }
