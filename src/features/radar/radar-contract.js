@@ -1,3 +1,4 @@
+import {OPERATING_POLICY} from './operating-policy.js';
 import {validateSignalGauge} from './signal-contract.js';
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const validDate = value => typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
@@ -17,6 +18,17 @@ export function validateRadarDelivery(value) {
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value.session) fail();
   if (!value.events || !value.active || !value.gauge || !value.inputs || !value.references) fail();
   const daily=value.operating_status==='DAILY_MODEL_COMPUTED';
+  if(value.operating_model!==undefined && (!daily||value.session<'2027-01-01'))fail();
+  if(!daily && value.session>='2027-01-01')fail();
+  if(daily && value.session >= '2027-01-01') {
+    const p=value.operating_model;
+    if(!p||p.policy!=='HOLD_LAST_APPROVED_HEAD_2026_V1'||p.parameter_year!==2026||p.reference_year!==2026
+      ||p.session_year!==Number(value.session.slice(0,4))||p.model_version!==value.model_version
+      ||p.adapter_sha256!==OPERATING_POLICY.adapter_sha256||p.annual_reference_sha256!==OPERATING_POLICY.annual_reference_sha256
+      ||p.operating_policy_manifest_sha256!==OPERATING_POLICY.operating_policy_manifest_sha256
+      ||p.trained_for_session_year!==false||p.future_performance!=='UNPROVEN')fail();
+  }
+
   const legacyObservation=value.operating_status==='OBSERVATION_COMPUTED';
   const observation=legacyObservation||daily;
   for (const side of ['bottom','top']) {

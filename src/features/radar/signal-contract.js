@@ -12,7 +12,8 @@ export function validateSignalGauge(value,fail) {
     ||Date.parse(t.decision_at_utc)>Date.parse(t.deadline_utc)
     ||Date.parse(t.decision_at_utc)<Date.parse(o.first_seen_at_utc)))fail();
   if((e.bottom||e.top)&&!t.eligible)fail();
-  const n=g.normalization, refs=SIGNAL_REFERENCES[value.session.slice(0,4)];
+  const referenceYear=value.session>='2027-01-01' && value.operating_model?.policy==='HOLD_LAST_APPROVED_HEAD_2026_V1' && value.operating_model.parameter_year===2026 && value.operating_model.reference_year===2026 ? '2026' : value.session.slice(0,4);
+  const n=g.normalization, refs=SIGNAL_REFERENCES[referenceYear];
   if(!refs)fail();
   if(t.reason!==undefined&&t.reason!==null&&typeof t.reason!=='string')fail();
   if(g.presentation_computed_at_utc!==undefined&&(!Number.isFinite(Date.parse(g.presentation_computed_at_utc))||Date.parse(g.presentation_computed_at_utc)<Date.parse(o.computed_at_utc)||Date.parse(g.presentation_computed_at_utc)>Date.now()+300000))fail();
