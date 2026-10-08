@@ -1,10 +1,10 @@
-## Repository ownership migration (preparation)
+## Repository responsibilities
 
-[Current boundaries, modes and ordered cutover](docs/REPOSITORY_OWNERSHIP_AND_CUTOVER.md)
-are authoritative for this migration. MarketRadar owns Radar execution; Screening
-owns MLG/TENX; general-screener-dashboard owns display/publication. The target remains disabled
-until verified cold recovery, owner cutover and Pages validation. Historical release
-notes below describe their recorded stage, not proof of this migration's completion.
+This repository owns the frontend, encrypted result hosting and Pages publication.
+Screening owns MLG/TENX execution; MarketRadar owns Radar collection, model execution
+and recovery. The Radar writer fence now points to MarketRadar generation 2.
+See [current boundaries and verification stages](docs/REPOSITORY_OWNERSHIP_AND_CUTOVER.md).
+Historical release notes below retain their recorded context.
 
 # Frozen MarketRadar surface — 2026-10-03
 
@@ -34,7 +34,7 @@ Private-by-passphrase static dashboard for the official MLG and TENX screener ou
 - Client-side PBKDF2-SHA256 + AES-256-GCM payload decryption
 - GitHub Pages build workflow
 
-The browser never calls FMP. The deployable site contains the static app shell and `public/data/payload.enc.json` only.
+The browser never calls FMP. The deployable site contains the static app shell, encrypted Screener and optional Radar feeds/journal, and value-free Radar status metadata.
 
 ## Local use
 
@@ -82,3 +82,4 @@ contract, encryption, or push validation fails, the last known-good encrypted pa
 ## Security boundary
 
 This is authenticated encryption for a static site, not server-side account authentication. Anyone can download the ciphertext, so a weak passphrase can be attacked offline. Use a long random passphrase, rotate the local preview passphrase before public deployment, and never place FMP/API credentials in this repository or browser code.
+

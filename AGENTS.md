@@ -1,6 +1,7 @@
 # GENERAL SCREENER and frozen Radar decisions
 
-Current base is latest remote main 9d1797b. Preserve its MLG/TENX independent
+Read the actual remote head and publisher fence; do not assume a dated baseline.
+Preserve MLG/TENX independent
 ranking/order, encrypted payload, contracts, benchmark behavior and existing UI.
 No browser API keys, FMP requests, plaintext public recommendations/history,
 stored passwords, new palette or global UI redesign.
@@ -19,22 +20,17 @@ is separate from new event and is not an investment holding period. Display-only
 annual ECDF mapping may not change model score/controllers. Raw research 6/8 and
 10 false alerts are retrospective, never future hit probability.
 
-Run npm run check and synthetic encrypted delivery/UI integration after changes.
-No deployment, upstream main merge or workflow change during this local intake.
-Final annual reference/raw-feature golden packet is pending user local download.
+Read [repository boundaries](docs/REPOSITORY_OWNERSHIP_AND_CUTOVER.md). MarketRadar
+owns Radar execution; Screening owns MLG/TENX. This repository owns display, encrypted
+result hosting, build clocks and verified first-publication metadata. A writer lease
+is not a schedule switch; verify the producer's activation and actual run evidence.
 
-## Operational beta v1 preparation - 2026-10-03
-The private handoff's reference/raw-feature packet has been verified locally.
-Read docs/OPERATIONAL_BETA_V1.md for current release state. Backend live-source
-gates remain blocked; local regression PASS does not authorize readiness.
-Keep Screener/MLG/TENX runtime and encrypted payload unchanged. No remote
-publication, deployment, main merge or schedule activation is authorized here.
+Run `npm run check`, the Pages artifact guard tests, and synthetic browser integration
+for relevant changes. Keep production ciphertext/journals unchanged in code tests;
+never publish TEST_ONLY payloads. Preserve separate source, admission, decision,
+build and first-publication clocks. A rebuild cannot improve source freshness.
 
-## Superseding owner release approval - 2026-10-03 13:56 UTC
-Owner approved reviewed publication/main merge and safe observation-beta deployment
-inside the existing Screener Radar tab, after backing up operating frontend main.
-Daily batch is now authorized. Preserve existing Screener encrypted recommendations,
-MLG/TENX logic and Pages permissions; no new secret or cross-repository token.
-Public radar-observation.json is derived timing/status only: NO_SIGNAL, no raw
-market values, score or event. Private backend archive captures are separate receipts.
-Existing model-feed encryption remains unchanged; never publish TEST_ONLY envelopes.
+Current explicit user instructions and reviewed release gates govern changes.
+[Earlier guidance](https://github.com/swk0218/general-screener-dashboard/blob/b0b4602498ffb1997083c6ffb4453423123c6177/AGENTS.md)
+records prior phases; its dated prohibitions or approvals are not current launch
+instructions or independent authority for a new deployment or security change.
