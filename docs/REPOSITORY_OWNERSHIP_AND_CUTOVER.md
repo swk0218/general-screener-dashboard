@@ -78,6 +78,14 @@ Preparation and synthetic tests do not establish credential readiness.
    Use squash merges (or genuine fast-forward commits), especially on the frontend.
    Preserved-recovery equivalence rejects all nonlinear approved-to-current history;
    an intervening merge commit is a hard gate requiring separate review, not a pin reset.
+   Preparation order: disabled MarketRadar, then fenced Screening bridge, then
+   frontend consumer/fence. The bridge seasonality workflow is manual-only so a
+   preparation code push cannot publish Radar material. Require pre-fence old runs
+   to be terminal before advancing; cross-repository merges are not atomic.
+   Frontend keeps Screening ownership and tolerates the legacy status/feed while
+   target execution remains disabled. Existing daily/retry triggers remain until
+   the explicit later drain. Any intervening Radar material write invalidates the
+   pinned head-equivalence gate and requires renewed review, never a silent pin reset.
 2. Confirm credentials securely, validate immutable journal/feed and preserved capture,
    perform cold recovery and a no-publication rehearsal. Record actual result/hash.
 3. Install the owner fence on every old daily/manual/retry/feed-only/seasonality writer.
