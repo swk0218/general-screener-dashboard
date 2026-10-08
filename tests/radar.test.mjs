@@ -228,11 +228,14 @@ test('dated observation permits numbers but can never impersonate evaluated cont
     const bad=structuredClone(value);mutate(bad);assert.throws(()=>validateRadarDelivery(bad));
   }
 });
-test('daily status always remains NO_SIGNAL and expires at next open',()=>{
-  const value={schema_version:'radar_observation_status_v1',mode:'OBSERVATION_BETA',decision:'NO_SIGNAL',evidence_ready:false,
+// Synthetic legacy contract fixture, independent of deploy-time status conversion.
+function legacyObservationStatusFixture(){return {schema_version:'radar_observation_status_v1',mode:'OBSERVATION_BETA',decision:'NO_SIGNAL',evidence_ready:false,
     model_score:null,events:{bottom:false,top:false},status:'OBSERVED_NO_SIGNAL',model_policy:'close90_v1_unchanged',collection_policy:'next_open_observation_only',historical_first_seen_claimed:false,
     market_close_utc:'2026-10-02T20:00:00Z',next_open_utc:'2026-10-05T13:30:00Z',computed_at_utc:'2026-10-03T10:00:10Z',next_scheduled_at_utc:'2026-10-06T10:00:00Z',
-    source_market_close_utc:'2026-10-02T20:00:00Z',provider_updated_at_utc:'2026-10-02T23:59:58Z',first_seen_at_utc:'2026-10-03T10:00:00Z',received_at_utc:'2026-10-03T10:00:00Z',built_at_utc:null,published_at_utc:null,source_session:'2026-10-02'};
+    source_market_close_utc:'2026-10-02T20:00:00Z',provider_updated_at_utc:'2026-10-02T23:59:58Z',first_seen_at_utc:'2026-10-03T10:00:00Z',received_at_utc:'2026-10-03T10:00:00Z',built_at_utc:null,published_at_utc:null,source_session:'2026-10-02'};}
+
+test('daily status always remains NO_SIGNAL and expires at next open',()=>{
+  const value=legacyObservationStatusFixture();
   assert.equal(validateObservationStatus(value),value);
   assert.equal(observationState(value,Date.parse('2026-10-04T10:00:00Z')),'OBSERVED_NO_SIGNAL');
   assert.equal(observationState(value,Date.parse(value.next_open_utc)),'STALE');
@@ -241,7 +244,7 @@ test('daily status always remains NO_SIGNAL and expires at next open',()=>{
   }
 });
 test('observation-only configuration never requests an absent model feed',async(t)=>{
-  const status=JSON.parse(await readFile(new URL('../public/data/radar-observation.json',import.meta.url),'utf8'));
+  const status=legacyObservationStatusFixture();
   // This case models an absent feed, even after a real feed has been published.
   status.score_delivery_available=false;
   const requested=[];
@@ -252,7 +255,7 @@ test('observation-only configuration never requests an absent model feed',async(
   assert.deepEqual(requested,['/status']);
 });
 test('published observation configuration requests the encrypted model feed',async(t)=>{
-  const status=JSON.parse(await readFile(new URL('../public/data/radar-observation.json',import.meta.url),'utf8'));
+  const status=legacyObservationStatusFixture();
   status.score_delivery_available=true;
   const requested=[];
   t.mock.method(globalThis,'fetch',async url=>{
