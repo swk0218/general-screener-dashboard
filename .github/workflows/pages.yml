@@ -66,19 +66,32 @@ jobs:
 
       - name: Wait for exact uploaded artifact visibility
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           EXPECTED_ARTIFACT_NAME: ${{ steps.artifact_identity.outputs.name }}
           EXPECTED_ARTIFACT_ID: ${{ steps.pages_upload.outputs.artifact_id }}
         # REST and deployment's artifact-service indexes can still differ; any
         # later deployment error remains fail-closed and retry names stay unique.
         run: &wait_pages_artifact |
           python - <<'PY'
-          import json, os, re, time, urllib.request
+          import json, os, re, time, urllib.request, urllib.error
 
           def wait_for_artifact(fetch, now, sleep, *, name, artifact_id, run_id, head, timeout=120):
               deadline = now() + timeout
               stable = 0
               while now() < deadline:
-                  response = fetch(min(10, max(0.1, deadline - now())))
+                  try:
+                      response = fetch(min(10, max(0.1, deadline - now())))
+                  except urllib.error.HTTPError as error:
+                      limited = error.code == 403 and (error.headers.get('X-RateLimit-Remaining') == '0' or error.headers.get('Retry-After') is not None)
+                      if error.code not in (429, 500, 502, 503, 504) and not limited:
+                          raise RuntimeError('PAGES_ARTIFACT_HTTP_REJECTED') from None
+                      stable = 0
+                      delay = 5
+                      retry_after = error.headers.get('Retry-After', '')
+                      if retry_after.isdigit():
+                          delay = max(delay, min(120, int(retry_after)))
+                      sleep(min(delay, max(0, deadline - now())))
+                      continue
                   if now() >= deadline:
                       raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
                   if not isinstance(response, dict) or not isinstance(response.get('artifacts'), list) or any(not isinstance(a, dict) for a in response['artifacts']):
@@ -106,16 +119,22 @@ jobs:
                   sleep(min(5, max(0, deadline - now())))
               raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
 
+          def artifact_fetcher(repository, run_id, token, opener=urllib.request.urlopen):
+              if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+                  raise ValueError('PAGES_REPOSITORY_INVALID')
+              if not token or token.strip() != token or '\n' in token or '\r' in token:
+                  raise ValueError('PAGES_TOKEN_REQUIRED')
+              url = f'https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100'
+              def fetch(timeout):
+                  request = urllib.request.Request(url, headers={'User-Agent': 'Pages-artifact-readiness/1.0', 'Accept': 'application/vnd.github+json', 'Authorization': f'Bearer {token}'})
+                  with opener(request, timeout=timeout) as response:
+                      return json.load(response)
+              return fetch
+
           if __name__ == '__main__':
               repository = os.environ['GITHUB_REPOSITORY']
               run_id = int(os.environ['GITHUB_RUN_ID'])
-              if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
-                  raise SystemExit('PAGES_REPOSITORY_INVALID')
-              url = f'https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100'
-              def fetch(timeout):
-                  request = urllib.request.Request(url, headers={'User-Agent': 'Pages-artifact-readiness/1.0', 'Accept': 'application/vnd.github+json'})
-                  with urllib.request.urlopen(request, timeout=timeout) as response:
-                      return json.load(response)
+              fetch = artifact_fetcher(repository, run_id, os.environ.get('GITHUB_TOKEN', ''))
               wait_for_artifact(fetch, time.monotonic, time.sleep,
                   name=os.environ['EXPECTED_ARTIFACT_NAME'], artifact_id=int(os.environ['EXPECTED_ARTIFACT_ID']),
                   run_id=run_id, head=os.environ['GITHUB_SHA'])
@@ -200,6 +219,7 @@ jobs:
 
       - name: Wait for exact verified artifact visibility
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           EXPECTED_ARTIFACT_NAME: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
           EXPECTED_ARTIFACT_ID: ${{ steps.verified_upload.outputs.artifact_id }}
         run: *wait_pages_artifact
@@ -208,3 +228,4 @@ jobs:
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
         with:
           artifact_name: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
+
