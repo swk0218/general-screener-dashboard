@@ -15,6 +15,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.artifact_identity.outputs.name }}
+      artifact_id: ${{ steps.pages_upload.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -44,13 +47,80 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test Pages artifact identity and bounded readiness
+        run: python -m unittest discover -s tests -p test_pages_artifact.py
+
       - name: Stamp actual build completion (source and model times remain unchanged)
         run: python -c "import json,datetime,pathlib; p=pathlib.Path('dist/client/data/radar-observation.json'); d=json.loads(p.read_text()); d['built_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat(); p.write_text(json.dumps(d,indent=2))"
 
+      - name: Name this build artifact uniquely across retries
+        id: artifact_identity
+        run: echo "name=github-pages-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
       - name: Upload Pages artifact
+        id: pages_upload
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
+          name: ${{ steps.artifact_identity.outputs.name }}
           path: dist/client
+
+      - name: Wait for exact uploaded artifact visibility
+        env:
+          EXPECTED_ARTIFACT_NAME: ${{ steps.artifact_identity.outputs.name }}
+          EXPECTED_ARTIFACT_ID: ${{ steps.pages_upload.outputs.artifact_id }}
+        # REST and deployment's artifact-service indexes can still differ; any
+        # later deployment error remains fail-closed and retry names stay unique.
+        run: &wait_pages_artifact |
+          python - <<'PY'
+          import json, os, re, time, urllib.request
+
+          def wait_for_artifact(fetch, now, sleep, *, name, artifact_id, run_id, head, timeout=120):
+              deadline = now() + timeout
+              stable = 0
+              while now() < deadline:
+                  response = fetch(min(10, max(0.1, deadline - now())))
+                  if now() >= deadline:
+                      raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
+                  if not isinstance(response, dict) or not isinstance(response.get('artifacts'), list) or any(not isinstance(a, dict) for a in response['artifacts']):
+                      raise ValueError('PAGES_ARTIFACT_RESPONSE_INVALID')
+                  if type(response.get('total_count')) is not int or response['total_count'] > 100 or response['total_count'] != len(response['artifacts']):
+                      raise ValueError('PAGES_ARTIFACT_LIST_INCOMPLETE')
+                  matches = [a for a in response['artifacts'] if a.get('name') == name]
+                  if len(matches) > 1:
+                      raise ValueError('PAGES_ARTIFACT_NAME_AMBIGUOUS')
+                  if matches:
+                      artifact = matches[0]
+                      identity = artifact.get('workflow_run') or {}
+                      if (type(artifact.get('id')) is not int or artifact['id'] != artifact_id
+                              or artifact.get('expired') is not False
+                              or type(artifact.get('size_in_bytes')) is not int
+                              or artifact['size_in_bytes'] <= 0
+                              or type(identity.get('id')) is not int or identity['id'] != run_id
+                              or identity.get('head_sha') != head):
+                          raise ValueError('PAGES_ARTIFACT_IDENTITY_MISMATCH')
+                      stable += 1
+                      if stable == 2:
+                          return
+                  else:
+                      stable = 0
+                  sleep(min(5, max(0, deadline - now())))
+              raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
+
+          if __name__ == '__main__':
+              repository = os.environ['GITHUB_REPOSITORY']
+              run_id = int(os.environ['GITHUB_RUN_ID'])
+              if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+                  raise SystemExit('PAGES_REPOSITORY_INVALID')
+              url = f'https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100'
+              def fetch(timeout):
+                  request = urllib.request.Request(url, headers={'User-Agent': 'Pages-artifact-readiness/1.0', 'Accept': 'application/vnd.github+json'})
+                  with urllib.request.urlopen(request, timeout=timeout) as response:
+                      return json.load(response)
+              wait_for_artifact(fetch, time.monotonic, time.sleep,
+                  name=os.environ['EXPECTED_ARTIFACT_NAME'], artifact_id=int(os.environ['EXPECTED_ARTIFACT_ID']),
+                  run_id=run_id, head=os.environ['GITHUB_SHA'])
+              print('Exact Pages artifact visible in two separate REST observations')
+          PY
 
   deploy:
     environment:
@@ -65,13 +135,15 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        with:
+          artifact_name: ${{ needs.build.outputs.artifact_name }}
 
       # Existing CSP remains self-only. Browser never contacts GitHub API.
       # Stamp the actual first successful publication of this observation data,
       # then publish that same data plus receipt. No new token permission.
   verify-publication:
     # Environment success is written after the first deployment job completes.
-    needs: deploy
+    needs: [build, deploy]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -81,7 +153,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: github-pages
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
           path: publication-input
 
       - name: Attach verified first-publication receipt to same-origin status
@@ -119,12 +192,19 @@ jobs:
           print('Verified first publication '+status['published_at_utc'])
           PY
 
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+      - id: verified_upload
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
-          name: github-pages-verified
+          name: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
           path: publication-site
+
+      - name: Wait for exact verified artifact visibility
+        env:
+          EXPECTED_ARTIFACT_NAME: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
+          EXPECTED_ARTIFACT_ID: ${{ steps.verified_upload.outputs.artifact_id }}
+        run: *wait_pages_artifact
 
       - name: Publish same observation with verified first-publication time
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
         with:
-          artifact_name: github-pages-verified
+          artifact_name: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
