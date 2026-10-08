@@ -13,7 +13,7 @@
     "encrypt:payload": "node scripts/encrypt-payload.mjs",
     "preview": "vite preview",
     "pretest": "node scripts/verify-node-version.mjs",
-    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs tests/seasonality.test.mjs tests/engine-status.test.mjs",
+    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs tests/seasonality.test.mjs tests/engine-status.test.mjs tests/build-public-assets.test.mjs",
     "verify:payload": "node scripts/verify-encrypted-payload.mjs",
     "verify:build": "node scripts/verify-build-assets.mjs",
     "test:browser": "playwright test"

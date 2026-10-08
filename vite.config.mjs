@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { webPublicAssets } from "./scripts/build-public-assets.mjs";
 
 const buildId = process.env.GITHUB_SHA || process.env.VITE_BUILD_ID || "local";
 
@@ -10,6 +11,7 @@ export default defineConfig({
   },
   build: {
     outDir: "dist/client",
+    copyPublicDir: false,
     sourcemap: false,
     rollupOptions: {
       output: {
@@ -35,5 +37,5 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react()],
+  plugins: [react(), webPublicAssets()],
 });
