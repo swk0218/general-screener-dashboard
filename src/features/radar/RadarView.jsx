@@ -122,6 +122,7 @@ export function RadarView({delivery=null,seasonality=null}) {
         <p>점수는 상승·하락 또는 안전한 매수의 확률이 아닙니다. 특정 고정 CNN 역사 자료에서는 6/8 포착·오경보 10회, 다른 버전에서는 5/8·10회였습니다. 회고 결과이며 실운영 성과나 안정적인 저점 4/4 성능이 아닙니다.</p>
       </Disclosure>
       {data?.gauge.reason&&<Disclosure title="모델·자료 검증 정보">
+        {data.operating_model && <p className="radar-muted">2026년 승인 파라미터를 계속 사용 중입니다. 새 학습은 없으며 이후 성능은 검증되지 않았습니다.</p>}
         <dl className="radar-provenance-list"><div><dt>모델 버전</dt><dd>{data.model_version}</dd></div><div><dt>표시 버전</dt><dd>{data.gauge.presentation_version}</dd></div><div><dt>기준 버전</dt><dd>{data.gauge.reference_version}</dd></div></dl>
         {daily&&<><p>수신·계산 마감: {kstTime(data.timing.deadline_utc)}{timingStatus?` · ${timingStatus}`:''}</p><p>컨트롤러 초기 이력은 고정 연구 재현입니다. 과거 실제 수신·발행 이력으로 주장하지 않습니다.</p></>}
       </Disclosure>}
