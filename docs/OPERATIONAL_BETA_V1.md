@@ -1,3 +1,7 @@
+> Historical 2026-10-03 release record. The frontend probe and cadence below are
+> superseded by [the current ownership runbook](REPOSITORY_OWNERSHIP_AND_CUTOVER.md).
+> Frontend builds no longer collect provider data.
+
 # Radar beta v1 release readiness
 
 Owner-approved release2026-10-03: daily NO_SIGNAL observation is ready for the

@@ -1,0 +1,8 @@
+{
+  "schema": "result_publishers_v1",
+  "radar": {
+    "repository": "swk0218/Screening-agent-by-FMP-API",
+    "generation": 1,
+    "enabled": true
+  }
+}

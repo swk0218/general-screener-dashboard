@@ -1,15 +1,24 @@
+## Repository ownership migration (preparation)
+
+[Current boundaries, modes and ordered cutover](docs/REPOSITORY_OWNERSHIP_AND_CUTOVER.md)
+are authoritative for this migration. MarketRadar owns Radar execution; Screening
+owns MLG/TENX; general-screener-dashboard owns display/publication. The target remains disabled
+until verified cold recovery, owner cutover and Pages validation. Historical release
+notes below describe their recorded stage, not proof of this migration's completion.
+
 # Frozen MarketRadar surface — 2026-10-03
 
 Daily observation beta is approved for the existing Radar tab: NO_SIGNAL, honest
-source/receipt/build/deployment times and stale handling;19:00KST scheduled batch.
+source/receipt/build/deployment times and stale handling. Current target cadence and
+activation gates are in the migration runbook.
 Investment-reference alert promotion remains separate from this observation release.
 See [release readiness and rollback](docs/OPERATIONAL_BETA_V1.md).
 
 The separate `#/radar` view accepts only the frozen model's optional encrypted
 delivery. See [Radar UI contract and validation](docs/FROZEN_RADAR_UI.md).
 General Screener's encrypted payload and MLG/TENX contracts remain unchanged.
-The existing Pages workflow adds a derived-only observation probe/daily trigger
-using the same permission scopes. Missing optional Radar data does not block Screener.
+Pages consumes engine-derived value-free status and never collects provider data.
+Missing optional Radar data does not block Screener.
 No new secret, raw source value, decrypted recommendation or TEST_ONLY feed is published.
 
 # GENERAL SCREENER

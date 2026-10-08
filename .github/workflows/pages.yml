@@ -4,9 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    # US session next calendar day 19:00 KST; no inference/alert activation.
-    - cron: '0 10 * * 2-6'
 
 permissions:
   contents: read
@@ -36,21 +33,18 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Derived-only daily observation status
-        run: |
-          python -m pip install exchange-calendars==4.13.2 pandas==2.2.3
-          python scripts/radar-observation-status.py --output public/data/radar-observation.json --previous-url https://swk0218.github.io/general-screener-dashboard/data/radar-observation.json
-          python -c "import json,pathlib; p=pathlib.Path('public/data/radar-observation.json'); d=json.loads(p.read_text()); d['score_delivery_available']=pathlib.Path('public/data/market-radar.enc.json').is_file(); p.write_text(json.dumps(d,indent=2))"
+      - name: Validate committed engine status and encrypted result binding
+        run: node scripts/prepare-radar-status.mjs public/data/radar-observation.json public/data/market-radar.enc.json --retain-publication
 
       - name: Verify and build
         timeout-minutes: 10
         run: npm run check
 
-      - name: Stamp actual build completion (publication remains unknown until deployment)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Stamp actual build completion (source and model times remain unchanged)
         run: python -c "import json,datetime,pathlib; p=pathlib.Path('dist/client/data/radar-observation.json'); d=json.loads(p.read_text()); d['built_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat(); p.write_text(json.dumps(d,indent=2))"
 
       - name: Upload Pages artifact
@@ -101,18 +95,25 @@ jobs:
               archive.extractall(target,filter='data')
           path=target/'data/radar-observation.json'
           status=json.loads(path.read_text())
+          import hashlib
+          feed=target/'data/market-radar.enc.json'
+          if status.get('feed_cipher_sha256'):
+              if not feed.is_file() or hashlib.sha256(feed.read_bytes()).hexdigest()!=status['feed_cipher_sha256']:
+                  raise SystemExit('Engine status/feed identity mismatch')
           root='https://api.github.com/repos/swk0218/general-screener-dashboard'
           def get(url):
               with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'MarketRadar-publication-receipt/1.0'}),timeout=15) as response:
                   return json.load(response)
-          for deployment in get(root+'/deployments?environment=github-pages&per_page=5'):
-              if deployment['sha']!=os.environ['BUILD_SHA']:continue
-              for receipt in get(root+'/deployments/'+str(deployment['id'])+'/statuses'):
-                  if receipt['state']=='success' and datetime.datetime.fromisoformat(receipt['created_at'].replace('Z','+00:00'))>=datetime.datetime.fromisoformat(status['computed_at_utc']):
-                      status['published_at_utc']=receipt['created_at']
-                      status['first_publication_deployment_id']=deployment['id']
-                      break
-              if status['published_at_utc']:break
+          if not status['published_at_utc']:
+              for deployment in get(root+'/deployments?environment=github-pages&per_page=5'):
+                  if deployment['sha']!=os.environ['BUILD_SHA']:continue
+                  for receipt in get(root+'/deployments/'+str(deployment['id'])+'/statuses'):
+                      if receipt['state']=='success' and datetime.datetime.fromisoformat(receipt['created_at'].replace('Z','+00:00'))>=datetime.datetime.fromisoformat(status['built_at_utc']):
+                          status['published_at_utc']=receipt['created_at']
+                          status['publication_deployment_id']=deployment['id']
+                          status['publication_receipt_result_id']=status.get('engine_result_id')
+                          break
+                  if status['published_at_utc']:break
           if not status['published_at_utc']:raise SystemExit('Verified publication receipt unavailable; existing deployed NO_SIGNAL remains safe')
           path.write_text(json.dumps(status,indent=2))
           print('Verified first publication '+status['published_at_utc'])
