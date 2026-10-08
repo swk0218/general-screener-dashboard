@@ -3,10 +3,6 @@
   "radar": {
     "repository": "swk0218/MarketRadar",
     "generation": 2,
-    "enabled": true,
-    "recovery_supplement": {
-      "id": "recovery4-reviewed-20261008-v1",
-      "sha256": "372c26f06765f211dc429a2d833f560ec7405be0e987eaec2def299fefb86d9b"
-    }
+    "enabled": true
   }
 }
