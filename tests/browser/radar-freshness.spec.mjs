@@ -24,7 +24,7 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     const errors=[];page.on('pageerror',error=>errors.push(error.message));let feedReads=0;
     const status={...unavailableEngineStatus(),status:scenario==='failed'?'FAILED':'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
       input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T10:00:00Z',
-      next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64)};
+      next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64),built_at_utc:'2026-03-13T10:03:00Z',published_at_utc:'2026-03-13T10:04:00Z',publication_receipt_result_id:'a'.repeat(64)};
     await page.clock.install({time:new Date('2026-03-13T12:00:00Z')});
     await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
     await page.route('**/data/radar-observation.json*',route=>route.fulfill(scenario==='status-missing'?{status:404}:{json:status}));
@@ -50,7 +50,7 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     await expect(detail.locator('.radar-headline')).toHaveText('—');
     await expect(detail.locator('.radar-dial-needle,.radar-headline.is-normal,.lucide-bell-off')).toHaveCount(0);
     await expect(detail.locator('.radar-gauge [role=status]')).toHaveCount(0);
-    await expect(detail.locator('time')).toHaveAttribute('datetime','2026-03-12');
+    await expect(detail.locator('.radar-updated time')).toHaveAttribute('datetime','2026-03-12');
     await expect(detail.locator('.lucide-triangle-alert')).toHaveCount(0);
     await expect(detail).not.toContainText(/갱신 지연|미확보|미계산|일일 갱신|보류|S&P500/);
     await expect(detail.locator('[role=alert]')).toHaveCount(0);
@@ -65,6 +65,10 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     await detail.getByText('지표 원값·출처',{exact:true}).click();
     await expect(detail.locator('details[open]')).toContainText('TEST_ONLY');
     await expect(detail.locator('details[open]')).toContainText('수신 03. 13. 19:00 KST');
+    await expect(detail.locator('.radar-result-clocks dt')).toHaveText(['입력 등록','모델 계산','화면 빌드','최초 게시']);
+    await expect(detail.locator('.radar-result-clocks time')).toHaveCount(scenario==='status-missing'?2:4);
+    if(scenario!=='status-missing')await expect(detail.locator('.radar-result-clocks time').last()).toHaveAttribute('datetime','2026-03-13T10:04:00Z');
+    await detail.locator('details[open]').screenshot({path:testInfo.outputPath(`provenance-${scenario}.png`)});
     await detail.getByText('지표 원값·출처',{exact:true}).click();
     const readsBefore=feedReads;
     await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));});
@@ -132,7 +136,7 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
       await detail.getByText('기준일 결과',{exact:true}).click();
       await expect(detail.locator('details[open]')).toContainText(`2026-03-12 · ${score} /100`);
       await expect(detail.locator('details[open]')).toContainText('경보');
-      await expect(detail.locator('time')).toHaveAttribute('datetime',packet.session);
+      await expect(detail.locator('.radar-updated time')).toHaveAttribute('datetime',packet.session);
     }
     expect(errors).toEqual([]);
   });

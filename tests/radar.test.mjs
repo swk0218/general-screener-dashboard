@@ -454,3 +454,17 @@ test('quiet-stop engine status dates both entry points without rewriting the pac
     assert.deepEqual(packet,before);
   } finally {await server.close();}
 });
+
+test('concise provenance keeps four distinct clocks without promoting retained data',()=>{
+  const packet=dailyFixture(),status={...unavailableEngineStatus(),status:'DATED',source_session:packet.session,expected_session:packet.session,
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:02:00Z',
+    next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),
+    built_at_utc:'2026-03-13T10:03:00Z',published_at_utc:'2026-03-13T10:04:00Z',publication_receipt_result_id:'b'.repeat(64)};
+  const original=structuredClone({packet,status});
+  const presentation=radarPresentation(packet,status,Date.parse('2026-03-13T15:00:00Z'));
+  assert.deepEqual(presentation.clocks,{admitted:packet.observation.first_seen_at_utc,computed:packet.observation.computed_at_utc,built:status.built_at_utc,published:status.published_at_utc});
+  assert.equal(presentation.displayScore,null);
+  const mismatch=radarPresentation(packet,{...status,source_session:'2026-03-11'},Date.parse('2026-03-13T15:00:00Z'));
+  assert.equal(mismatch.clocks.built,null);assert.equal(mismatch.clocks.published,null);
+  assert.deepEqual({packet,status},original);
+});

@@ -30,6 +30,14 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   const notice=!data?null:statusUnavailable?'자료 상태 미확인 · 기준일 관측':stale||failed ? missing?.length
     ?`${currentStatus?.expected_session||data.observation.expected_session} ${missing.join(' · ')} 미확보`
     :failed?'갱신 실패 · 이전 점수 유지':'갱신 지연 · 이전 점수 유지' : null;
-  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,
+  // Publish clocks only when their validated status belongs to this retained session.
+  const provenanceStatus=currentStatus?.source_session===data?.session?currentStatus:null;
+  const clocks={
+    admitted:data?.observation?.first_seen_at_utc||provenanceStatus?.input_admitted_at_utc||provenanceStatus?.first_seen_at_utc||null,
+    computed:data?.observation?.computed_at_utc||provenanceStatus?.model_computed_at_utc||provenanceStatus?.computed_at_utc||null,
+    built:provenanceStatus?.built_at_utc||null,
+    published:provenanceStatus?.published_at_utc||null,
+  };
+  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,
     eventLabel,notice};
 }
