@@ -181,6 +181,10 @@ test('dated observation permits numbers but can never impersonate evaluated cont
   value.input_metadata=Object.fromEntries([...MODEL_INPUTS,...REFERENCE_INPUTS].map(([k])=>[k,{source:'TEST_ONLY',source_date:value.session,status:'DATED_OBSERVATION_NOT_ALERT',received_at_utc:'2026-03-13T10:00:00Z'}]));
   value.native_details={bottom:{threshold:.9,vetoed:null},top:{threshold:.9,vetoed:null}};
   assert.equal(validateRadarDelivery(value).gauge.score,43);
+  const presentation=radarPresentation(value);
+  assert.equal(presentation.displayScore,43);
+  assert.equal(presentation.headline,'점수 전용');
+  assert.equal(presentation.eventKind,'unavailable');
   const retained=structuredClone(value);
   Object.assign(retained.observation,{expected_session:'2026-03-13',collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
   retained.gauge.data_status='DATED_STALE_OBSERVATION';
@@ -372,7 +376,7 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);assert.doesNotMatch(staleHtml,/role="alert"/);
-    assert.match(staleHtml,/03.12 Updated/);assert.match(staleHtml,/기준일 경보/);
+    assert.match(staleHtml,/03.12 Updated/);assert.match(staleHtml,/기준일 결과/);assert.match(staleHtml,/2026-03-12 · 19 \/100 · 저점 경보/);assert.doesNotMatch(staleHtml,/radar-dial-needle|radar-headline is-normal|경보 없음/);
     Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
       failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
     const failedHtml=render(stale);
@@ -413,7 +417,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     Object.assign(stale.observation,{expected_session:'2026-03-13',latest_session_input_missing:['VIX']});
     const html=render(stale);assert.doesNotMatch(html,/갱신 지연/);
-    assert.match(html,/저점 경보/);assert.match(html,/03.12 Updated/);
+    assert.doesNotMatch(html,/저점 경보|경보 없음|radar-headline is-normal/);assert.match(html,/03.12 Updated/);assert.match(html,/<strong>—<\/strong>/);
     assert.doesNotMatch(html,/미확보|갱신 지연|자료 상태 미확인/);
     assert.match(html,/기준일/);
     assert.doesNotMatch(html,/S&amp;P500은 현재|radar-headline is-alert/);
@@ -430,6 +434,9 @@ test('quiet-stop engine status dates both entry points without rewriting the pac
   assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T14:41:00Z')).stale,true);
   assert.equal(radarPresentation(packet,{...status,status:'FAILED'},Date.parse('2026-03-13T10:05:00Z')).failed,true);
   assert.equal(radarPresentation(packet,null).notice,'자료 상태 미확인 · 기준일 관측');
+  const retained=radarPresentation(packet,null);
+  assert.equal(retained.displayScore,null);assert.equal(retained.headline,'—');assert.equal(retained.eventKind,'unavailable');
+  assert.equal(retained.data.gauge.score,50);assert.equal(retained.data.session,'2026-03-12');
   const server=await createRadarTestServer();
   try {
     const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
@@ -439,7 +446,7 @@ test('quiet-stop engine status dates both entry points without rewriting the pac
     for(const Component of [RadarSummary,RadarView]){
       const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status}));
       assert.match(html,/dateTime="2026-03-12"/);
-      assert.match(html,/lucide-bell-off/);
+      assert.doesNotMatch(html,/lucide-bell-off|radar-headline is-normal|radar-dial-needle|경보 없음/);
       assert.doesNotMatch(html,/lucide-triangle-alert/);
       assert.doesNotMatch(html,/갱신 지연|이전 점수 유지|일일 갱신·자료 상태|경보 제한|보류|미계산|S&amp;P500/);
       assert.doesNotMatch(html,/S&amp;P500은 현재/);

@@ -1,3 +1,5 @@
+import { kstTime } from './observation-status.js';
+
 export const formatRadarNumber = (value, digits=3) => typeof value === 'number' && Number.isFinite(value)
   ? value.toLocaleString('ko-KR', {maximumFractionDigits:digits}) : '—';
 
@@ -33,6 +35,6 @@ export function GaugeCard({card, model=false}) {
 export function InputProvenance({cards}) {
   return <dl className="radar-provenance-list">{cards.map(card=><div key={card.key}>
     <dt>{card.title}</dt><dd><span>표시 전 값 {card.value??'—'} {card.unit} · {card.basis}{card.position!==null&&` · 위치 ${formatRadarNumber(card.position,6)} /100`}</span>
-      <span>{card.metadata.source} · 기준일 {card.metadata.source_date||'—'}</span></dd>
+      <span>{card.metadata.source} · 기준일 {card.metadata.source_date||'—'} · 수신 {card.metadata.received_at_utc?kstTime(card.metadata.received_at_utc):'—'}</span></dd>
   </div>)}</dl>;
 }

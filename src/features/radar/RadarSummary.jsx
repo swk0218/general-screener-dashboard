@@ -18,8 +18,8 @@ export function RadarEventLabel({label,kind}) {
   return <span className="radar-event-label">{Icon&&<Icon size={14} aria-hidden="true"/>}{label}</span>;
 }
 export function RadarSummary({delivery=null,status=undefined,onOpen}) {
-  const {data,headline,eventLabel,eventKind,stale}=useRadarPresentation(delivery,status);
-  const score=data?.gauge.score;
+  const {data,headline,eventLabel,eventKind,stale,displayScore}=useRadarPresentation(delivery,status);
+  const score=displayScore;
   return <section className="overview-radar" aria-labelledby="overview-radar-title">
     <header><h2 id="overview-radar-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data}/></header>
     <div className="overview-radar-body">

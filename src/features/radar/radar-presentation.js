@@ -22,13 +22,14 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   const stale=Boolean(data)&&(['DATED_STALE_OBSERVATION','CACHED_STALE'].includes(data.gauge.data_status)
     ||failed||statusUnavailable||Boolean(currentStatus&&observationState(currentStatus,now)==='STALE'));
   const level=data?.gauge.level;
-  const headline=conflict?'양방향 경보 충돌':unavailable?'—':level==='CONFLICT'?'—':LEVEL_COPY[level];
-  const eventKind=unavailable||observation?'unavailable':conflict?'both':data.events.bottom?'bottom':data.events.top?'top':'none';
+  const displayScore=stale?null:data?.gauge.score??null;
+  const headline=stale||unavailable?'—':observation?'점수 전용':conflict?'양방향 경보 충돌':level==='CONFLICT'?'—':LEVEL_COPY[level];
+  const eventKind=unavailable||observation||stale?'unavailable':conflict?'both':data.events.bottom?'bottom':data.events.top?'top':'none';
   const eventLabel={unavailable:'—',both:'저점·고점 동시 발생',bottom:'저점 경보',top:'고점 경보',none:'경보 없음'}[eventKind];
   const missing=data?.observation?.latest_session_input_missing;
   const notice=!data?null:statusUnavailable?'자료 상태 미확인 · 기준일 관측':stale||failed ? missing?.length
     ?`${currentStatus?.expected_session||data.observation.expected_session} ${missing.join(' · ')} 미확보`
     :failed?'갱신 실패 · 이전 점수 유지':'갱신 지연 · 이전 점수 유지' : null;
-  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,
-    eventLabel:stale&&!unavailable&&!observation?`기준일 ${eventLabel}`:eventLabel,notice};
+  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,
+    eventLabel,notice};
 }
