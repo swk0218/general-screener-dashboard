@@ -127,7 +127,7 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:testInfo.outputPath(`radar-${scenario}-viewport.png`)});
     await detail.screenshot({path:testInfo.outputPath(`radar-${scenario}-full.png`)});
-    if(issued) {
+    if(issued||scenario==='mixed') {
       await page.clock.setSystemTime(new Date('2026-03-13T14:40:01Z'));await page.clock.fastForward(60001);
       await expect(detail.locator('[role=alert],.radar-headline.is-alert')).toHaveCount(0);
       await expect(detail.locator('.radar-event-label')).toHaveCount(0);
@@ -136,6 +136,8 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
       await detail.getByText('기준일 결과',{exact:true}).click();
       await expect(detail.locator('details[open]')).toContainText(`2026-03-12 · ${score} /100`);
       await expect(detail.locator('details[open]')).toContainText('경보');
+      if(scenario==='mixed')await expect(detail.locator('details[open]')).toContainText('양방향 조건 강함');
+      await detail.locator('details[open]').screenshot({path:testInfo.outputPath(`retained-${scenario}.png`)});
       await expect(detail.locator('.radar-updated time')).toHaveAttribute('datetime',packet.session);
     }
     expect(errors).toEqual([]);

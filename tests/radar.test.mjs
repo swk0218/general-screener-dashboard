@@ -354,6 +354,9 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
       assert.ok(html.includes(`left:${mixed.native_details[side].threshold*100}%`));
     }
     assert.deepEqual(mixed,before);
+    const retainedMixed=renderToStaticMarkup(createElement(RadarView,{delivery:mixed,status:null}));
+    assert.match(retainedMixed,/<summary>기준일 결과/);assert.match(retainedMixed,/양방향 조건 강함/);
+    assert.doesNotMatch(retainedMixed,/radar-dial-needle|radar-headline is-normal|role="alert"/);
     const activeHtml=render(dailyFixture(true,false));
     assert.equal((activeHtml.match(/role="alert"/g)||[]).length,1);
     assert.match(activeHtml,/radar-alert-outcome is-issued/);
@@ -464,7 +467,7 @@ test('concise provenance keeps four distinct clocks without promoting retained d
   const presentation=radarPresentation(packet,status,Date.parse('2026-03-13T15:00:00Z'));
   assert.deepEqual(presentation.clocks,{admitted:packet.observation.first_seen_at_utc,computed:packet.observation.computed_at_utc,built:status.built_at_utc,published:status.published_at_utc});
   assert.equal(presentation.displayScore,null);
-  const mismatch=radarPresentation(packet,{...status,source_session:'2026-03-11'},Date.parse('2026-03-13T15:00:00Z'));
+  const mismatch=radarPresentation(packet,{...status,source_session:'2026-03-11',expected_session:'2026-03-11'},Date.parse('2026-03-13T15:00:00Z'));
   assert.equal(mismatch.clocks.built,null);assert.equal(mismatch.clocks.published,null);
   assert.deepEqual({packet,status},original);
 });

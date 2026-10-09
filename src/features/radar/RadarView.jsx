@@ -62,6 +62,7 @@ export function RadarView({delivery=null,seasonality=null,status=undefined}) {
       <div className="radar-directions">{['bottom','top'].map(side=><DirectionSignal key={side} side={side} data={data} stale={stale||failed}/>)}</div>
       <Disclosure title={stale?'기준일 결과':'신호 상세'}>
         {data&&<p>{data.session} · {number(data.gauge.score,0)} /100{data.events.bottom||data.events.top?` · ${data.events.bottom?'저점':''}${data.events.bottom&&data.events.top?'·':''}${data.events.top?'고점':''} 경보`:observation?' · 점수 전용':''}</p>}
+        {stale&&data?.gauge.mixed_strength===1&&!conflict&&<p>양방향 조건 강함</p>}
         <dl className="radar-provenance-list">{['bottom','top'].map(side=><div key={side}><dt>{side==='bottom'?'저점':'고점'} 원점수 / q90</dt><dd>{number(data?.scores?.[side],9)} / {number(data?.native_details?.[side]?.threshold,9)}<span>이전 경보 유지 · 10거래일: {daily&&!unavailable&&typeof data?.active?.[side]==='boolean'?(data.active[side]?'유지 중':'없음'):'—'}</span></dd></div>)}</dl>
         <p>저점 공포 지표: {number(data?.native_details?.bottom?.cnn_bottom_score,9)} / 기준 {number(data?.native_details?.bottom?.cnn_bottom_q90,9)}</p>
         {daily&&data.gauge.normalization?.bottom&&data.gauge.normalization?.top&&<p>방향별 점수: 저점 {data.gauge.normalization.bottom.conditional_score} · 고점 {data.gauge.normalization.top.conditional_score} /100</p>}
