@@ -54,7 +54,7 @@ test('missing optional feed and cancellation fail independently',async()=>{
 test('seasonality is last supplementary indicator, with no model input coupling or plaintext dataset',async()=>{
   const radar=await readFile(new URL('../src/features/radar/RadarView.jsx',import.meta.url),'utf8');
   assert.ok(radar.indexOf('<SeasonalityCard')>radar.indexOf('className="radar-reference-grid"'));
-  assert.ok(radar.indexOf('<SeasonalityCard')<radar.indexOf('className="radar-support"'));
+  assert.match(radar,/<SeasonalityCard data=\{seasonality\}\/>\s*<\/section>\s*<\/section>/);
   const card=await readFile(new URL('../src/features/radar/SeasonalityCard.jsx',import.meta.url),'utf8');
   assert.match(card,/SPY 월별 평균 수익률/);assert.match(card,/if \(!data \|\| !seasonalityIsCurrent\(data, now\)\) return null/);
   assert.doesNotMatch(card,/경고|미래|확률|예측|positive_rate|median/);
