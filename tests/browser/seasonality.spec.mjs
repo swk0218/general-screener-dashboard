@@ -144,25 +144,22 @@ for (const scenario of ['unavailable','current','failed','expired','malformed'])
     await setup(page);
     await page.route('**/data/radar-observation.json*',route=>route.fulfill({json:status}));
     await unlock(page);
-    const openStatus=async()=>{
-      const details=page.locator('details').filter({has:page.locator('.radar-observation-panel')});
-      await expect(details).toHaveCount(1);
-      if(await details.getAttribute('open')===null)await details.locator('summary').click();
+    const assertEmptyRadar=async()=>{
+      const view=page.locator('.radar-view');await expect(view).toBeVisible();
+      await expect(view.locator('.radar-dial-number')).toHaveText('—/100');
+      await expect(view.locator('.radar-headline')).toHaveText('—');
+      await expect(view.locator('.radar-dial-needle,.radar-headline.is-normal,.lucide-triangle-alert')).toHaveCount(0);
+      await expect(view.locator('.radar-observation-panel')).toHaveCount(0);
+      await expect(view).not.toContainText(/경보 없음|미계산|갱신 지연|보류|MarketRadar 엔진/);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     };
-    await openStatus();
-    const panel=page.locator('.radar-observation-panel');await expect(panel).toBeVisible();
-    const expected=['unavailable','malformed'].includes(scenario)?'자료 미확인':scenario==='current'?'계산된 세션 자료':'STALE · 이전 관찰';
-    await expect(panel.locator('[role=status]')).toContainText(expected);
-    if(['unavailable','malformed'].includes(scenario))await expect(panel).toContainText('실제 활성화 여부는 아직 확인되지 않았습니다');
-    else await expect(panel).toContainText('계획된 확인 시각');
-    await panel.screenshot({path:testInfo.outputPath(`engine-${scenario}.png`)});
-    await page.evaluate(()=>location.hash='#/selection/MLG');await expect(panel).toHaveCount(0);
+    await assertEmptyRadar();
+    await page.locator('.radar-view').screenshot({path:testInfo.outputPath(`engine-${scenario}.png`)});
+    await page.evaluate(()=>location.hash='#/selection/MLG');await expect(page.locator('.radar-view')).toHaveCount(0);
     await expect(page.locator('.app-shell')).toBeVisible();
-    await page.evaluate(()=>location.hash='#/radar');await openStatus();
-    await expect(panel.locator('[role=status]')).toContainText(expected);
+    await page.evaluate(()=>location.hash='#/radar');await assertEmptyRadar();
     await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();
-    await expect(panel).toHaveCount(0);await unlock(page);await openStatus();
-    await expect(panel.locator('[role=status]')).toContainText(expected);
+    await expect(page.locator('.radar-view')).toHaveCount(0);await unlock(page);await assertEmptyRadar();
     expect(errors).toEqual([]);
   });
 }
