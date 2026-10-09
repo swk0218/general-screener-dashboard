@@ -43,7 +43,7 @@ function DirectionSignal({side,data,stale}) {
 
 export function RadarView({delivery=null,seasonality=null,status=undefined}) {
   const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,eventKind,displayScore,clocks}=useRadarPresentation(delivery,status);
-  const cards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
+  const cards=inputGaugeCards(stale?null:data),retainedCards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   return <section className="secondary-view radar-view">
     <h1 className="sr-only">시장 신호 (Beta)</h1>
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
@@ -73,8 +73,8 @@ export function RadarView({delivery=null,seasonality=null,status=undefined}) {
     <section className="radar-section" aria-labelledby="radar-model-title">
       <div className="radar-section-heading"><h2 id="radar-model-title">구성 지표</h2></div>
       <div className="radar-input-list">{cards.model.map(card=><GaugeCard key={card.key} card={card} model/>)}</div>
-      <Disclosure title="지표 원값·출처">
-        <InputProvenance cards={[...cards.reference,...cards.model]}/>
+      <Disclosure title={stale?'기준일 지표·출처':'지표 원값·출처'}>
+        <InputProvenance cards={[...retainedCards.reference,...retainedCards.model]}/>
         <dl className="radar-provenance-list radar-result-clocks">{[['입력 등록',clocks.admitted],['모델 계산',clocks.computed],['화면 빌드',clocks.built],['최초 게시',clocks.published]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value?<time dateTime={value} title={value}>{kstTime(value)}</time>:'—'}</dd></div>)}</dl>
         <p>점수는 확률이 아닙니다. RSI와 VIX 원값은 보조 지표입니다.</p>
       </Disclosure>

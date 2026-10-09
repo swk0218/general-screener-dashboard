@@ -52,6 +52,7 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     await expect(detail.locator('.radar-gauge [role=status]')).toHaveCount(0);
     await expect(detail.locator('.radar-updated time')).toHaveAttribute('datetime','2026-03-12');
     await expect(detail.locator('.lucide-triangle-alert')).toHaveCount(0);
+    await expect(detail.locator('.radar-card-value strong')).toHaveText(Array(8).fill('—'));
     await expect(detail).not.toContainText(/갱신 지연|미확보|미계산|일일 갱신|보류|S&P500/);
     await expect(detail.locator('[role=alert]')).toHaveCount(0);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -62,14 +63,15 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     await detail.locator('details[open]').screenshot({path:testInfo.outputPath(`retained-${scenario}.png`)});
     await detail.getByText('기준일 결과',{exact:true}).click();
     await expect(detail.locator('details[open]')).toHaveCount(0);
-    await detail.getByText('지표 원값·출처',{exact:true}).click();
+    await detail.getByText('기준일 지표·출처',{exact:true}).click();
     await expect(detail.locator('details[open]')).toContainText('TEST_ONLY');
+    await expect(detail.locator('details[open]')).toContainText('표시 전 값 16 연율 %');
     await expect(detail.locator('details[open]')).toContainText('수신 03. 13. 19:00 KST');
     await expect(detail.locator('.radar-result-clocks dt')).toHaveText(['입력 등록','모델 계산','화면 빌드','최초 게시']);
     await expect(detail.locator('.radar-result-clocks time')).toHaveCount(scenario==='status-missing'?2:4);
     if(scenario!=='status-missing')await expect(detail.locator('.radar-result-clocks time').last()).toHaveAttribute('datetime','2026-03-13T10:04:00Z');
     await detail.locator('details[open]').screenshot({path:testInfo.outputPath(`provenance-${scenario}.png`)});
-    await detail.getByText('지표 원값·출처',{exact:true}).click();
+    await detail.getByText('기준일 지표·출처',{exact:true}).click();
     const readsBefore=feedReads;
     await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));});
     await expect(detail.locator('.radar-headline')).toHaveText('—');
