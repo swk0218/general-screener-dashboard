@@ -37,17 +37,22 @@ export async function loadRadarDelivery(url,passphrase,signal,expectedCipherHash
   return decryptRadarEnvelope(await response.json(),passphrase);
 }
 
-export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal) {
+export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal,onStatus=null) {
   const response=await fetch(statusUrl,{signal,cache:'no-store'});
   let expectedCipherHash=null;
+  let status=null;
   if(response.ok) {
     // A published observation-only status explicitly has no live model feed.
-    const status=validateObservationStatus(await response.json());
-    if(status.mode==='OBSERVATION_BETA'&&status.score_delivery_available!==true)return null;
+    status=validateObservationStatus(await response.json());
+    if(status.mode==='OBSERVATION_BETA'&&status.score_delivery_available!==true){onStatus?.(status);return null;}
     if(status.schema_version==='radar_engine_status_v1'){
-      if(!status.feed_cipher_sha256)return null;
+      if(!status.feed_cipher_sha256){onStatus?.(status);return null;}
       expectedCipherHash=status.feed_cipher_sha256;
     }
   }
-  return loadRadarDelivery(url,passphrase,signal,expectedCipherHash);
+  const delivery=await loadRadarDelivery(url,passphrase,signal,expectedCipherHash);
+  // Publish display context only after the status/cipher binding is verified.
+  // Keep the decrypted immutable packet and the legacy return contract intact.
+  onStatus?.(status);
+  return delivery;
 }

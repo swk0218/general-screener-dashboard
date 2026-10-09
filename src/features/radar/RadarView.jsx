@@ -1,6 +1,6 @@
 import { ChevronRight, TriangleAlert, BellOff } from 'lucide-react';
 import { REASONS } from './signal-contract.js';
-import { radarPresentation } from './radar-presentation.js';
+import { useRadarPresentation } from './use-radar-presentation.js';
 import { inputGaugeCards, thresholdPosition } from './gauge-model.js';
 import { GaugeCard, InputProvenance, formatRadarNumber as number } from './GaugeCard.jsx';
 import { RadarUpdate, RadarHeadline, RadarEventLabel } from './RadarSummary.jsx';
@@ -68,8 +68,8 @@ function DirectionSignal({side,data,stale}) {
   </section>;
 }
 
-export function RadarView({delivery=null,seasonality=null}) {
-  const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,notice}=radarPresentation(delivery);
+export function RadarView({delivery=null,seasonality=null,status=undefined}) {
+  const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,notice}=useRadarPresentation(delivery,status);
   const cards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   const timingStatus=daily?timingReasonCopy(data.timing):'';
   return <section className="secondary-view radar-view">
@@ -77,13 +77,14 @@ export function RadarView({delivery=null,seasonality=null}) {
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
       <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data}/></div>
       <div className="radar-hero-content"><MarketGauge score={data?.gauge.score??null} level={unavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
-        <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline} alert={Boolean(data?.events.bottom||data?.events.top)}/></h3>
+        <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline} dated={stale} alert={!stale&&Boolean(data?.events.bottom||data?.events.top)}/></h3>
           {(unavailable||conflict||level==='CONFLICT'||observation)&&<p>{unavailable?(data?'계산 불가 · 필수 입력 결측':'유효한 자료 미확인'):conflict?'양쪽 경보가 동시에 발생해 단일 점수를 표시하지 않습니다.':observation?'점수만 계산한 자료이며 경보는 미계산입니다.':'최신 자료를 확인해 주세요.'}</p>}
           <dl className="radar-event-summary"><dd><RadarEventLabel label={eventLabel}/></dd></dl>
         </div>
       </div>
       <div className="radar-band-legend" aria-label="점수 구간">{BANDS.map(([label,range],index)=><span key={label} className={Number.isInteger(data?.gauge.score)&&Math.min(4,Math.floor(data.gauge.score/20))===index?'is-current':''}><b>{label}</b><small>{range}</small></span>)}</div>
       {data?.gauge.mixed_strength===1&&!conflict&&<p className="radar-mixed">양방향 조건 강함</p>}
+      {notice&&<p className="radar-condition-note" role="status">{notice}</p>}
     </section>
 
     <section className="radar-section" aria-labelledby="radar-conditions-title">

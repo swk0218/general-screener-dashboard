@@ -1127,7 +1127,7 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   );
 }
 
-function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail, onPerformance, onHistory }) {
+function OverviewView({ payload, index, radar, radarStatus, onRadar, onStrategy, onOpenDetail, onPerformance, onHistory }) {
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
     const strategyRuns = index.runsByStrategy.get(strategy) || [];
     const run = strategyRuns[0] || null;
@@ -1165,7 +1165,7 @@ function OverviewView({ payload, index, radar, onRadar, onStrategy, onOpenDetail
     <section className="secondary-view overview-view overview-v2">
       <h1 className="sr-only">대시보드</h1>
 
-      <RadarSummary delivery={radar} onOpen={onRadar} />
+      <RadarSummary delivery={radar} status={radarStatus} onOpen={onRadar} />
       <section className="overview-screening" aria-labelledby="screening-changes-title">
       <h2 id="screening-changes-title">스크리닝 변화</h2>
       <section className="since-visit" aria-label="최근 실행 변화">
@@ -1579,7 +1579,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, radar, seasonality, onLock }) {
+function Dashboard({ payload, radar, radarStatus, seasonality, onLock }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
@@ -1648,6 +1648,7 @@ function Dashboard({ payload, radar, seasonality, onLock }) {
     content = (
       <OverviewView
         radar={radar}
+        radarStatus={radarStatus}
         onRadar={() => navigate({ view: "radar", strategy })}
         payload={payload}
         index={index}
@@ -1658,7 +1659,7 @@ function Dashboard({ payload, radar, seasonality, onLock }) {
       />
     );
   } else if (route.view === "radar") {
-    content = <RadarView delivery={radar} seasonality={seasonality} />;
+    content = <RadarView delivery={radar} status={radarStatus} seasonality={seasonality} />;
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
@@ -1728,6 +1729,7 @@ export function App() {
   const [envelopeError, setEnvelopeError] = useState("");
   const [payload, setPayload] = useState(null);
   const [radar, setRadar] = useState(null);
+  const [radarStatus, setRadarStatus] = useState(null);
   const [seasonality, setSeasonality] = useState(null);
   const radarRequest = useRef(null);
   const unlockGeneration = useRef(0);
@@ -1761,11 +1763,13 @@ export function App() {
     const controller = new AbortController();
     radarRequest.current = controller;
     setRadar(null);
+    setRadarStatus(null);
     setSeasonality(null);
     loadSeasonalityDelivery(`${import.meta.env.BASE_URL}data/radar-seasonality.enc.json`, passphrase, controller.signal)
       .then(value => { if (unlockGeneration.current === generation) setSeasonality(value); })
       .catch(() => { if (unlockGeneration.current === generation) setSeasonality(null); });
-    loadOptionalRadarDelivery(`${import.meta.env.BASE_URL}data/radar-observation.json`, `${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal)
+    loadOptionalRadarDelivery(`${import.meta.env.BASE_URL}data/radar-observation.json`, `${import.meta.env.BASE_URL}data/market-radar.enc.json`, passphrase, controller.signal,
+      status => { if (unlockGeneration.current === generation) setRadarStatus(status); })
       .then(value => { if (unlockGeneration.current === generation) setRadar(value); })
       .catch(() => { if (unlockGeneration.current === generation) setRadar(null); });
   }
@@ -1774,6 +1778,7 @@ export function App() {
     unlockGeneration.current += 1;
     radarRequest.current?.abort();
     setRadar(null);
+    setRadarStatus(null);
     setSeasonality(null);
     setPayload(null);
   }
@@ -1788,7 +1793,7 @@ export function App() {
           onRetry={() => setDashboardRevision((current) => current + 1)}
           onLock={lock}
         >
-          <Dashboard payload={payload} radar={radar} seasonality={seasonality} onLock={lock} />
+          <Dashboard payload={payload} radar={radar} radarStatus={radarStatus} seasonality={seasonality} onLock={lock} />
         </AppErrorBoundary>
       ) : (
         <UnlockScreen envelope={envelope} envelopeError={envelopeError} onUnlock={unlock} />
