@@ -15,7 +15,7 @@ test('build preparation preserves all source and model clocks, and exact feed bi
   assert.throws(()=>validateEngineStatus({...value,raw_provider_value:45}));
 });
 test('rebuild or publication time never promotes stale or failed engine data',()=>{
-  const value=sample();
+  const value={...sample(),status:'STALE'};
   Object.assign(value,{built_at_utc:'2026-10-08T01:00:00Z',published_at_utc:'2026-10-08T01:01:00Z',publication_receipt_result_id:value.engine_result_id});
   assert.equal(observationState(validateEngineStatus(value),Date.parse('2026-10-08T01:02:00Z')),'STALE');
   value.status='FAILED';assert.equal(observationState(value,Date.parse('2026-10-07T10:20:00Z')),'STALE');
@@ -70,4 +70,15 @@ test('future, pre-model, missing-deployment and different-result receipts stay u
   for(const change of [{published_at_utc:'2026-10-08T10:19:00Z'},{published_at_utc:'2026-10-07T10:17:00Z'},{publication_deployment_id:null},{feed_cipher_sha256:'b'.repeat(64)},{engine_result_id:'b'.repeat(64),publication_receipt_result_id:'b'.repeat(64)}]){
     assert.equal(retainReceipt(base,{...prior,...change},now).published_at_utc,null);
   }
+});
+
+test('elapsed schedule retains a valid dated engine result without changing its clocks',()=>{
+  const value=sample(),before=structuredClone(value);
+  for(const now of ['2026-10-07T14:40:01Z','2026-10-12T16:00:00Z'])
+    assert.equal(observationState(validateEngineStatus(value),Date.parse(now)),'OBSERVED_NO_SIGNAL');
+  assert.deepEqual(value,before);
+  assert.equal(observationState({...value,status:'STALE'}),'STALE');
+  assert.equal(observationState({...value,status:'FAILED'}),'STALE');
+  assert.equal(observationState({...value,status:'UNAVAILABLE'}),'UNAVAILABLE');
+  assert.equal(observationState(value,Date.parse('2026-10-07T10:00:00Z')),'STALE');
 });
