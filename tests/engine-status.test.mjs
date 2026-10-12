@@ -82,3 +82,15 @@ test('elapsed schedule retains a valid dated engine result without changing its 
   assert.equal(observationState({...value,status:'UNAVAILABLE'}),'UNAVAILABLE');
   assert.equal(observationState(value,Date.parse('2026-10-07T10:00:00Z')),'STALE');
 });
+
+test('optional successful-refresh receipt is backward compatible and bound to the current result',()=>{
+  const legacy=sample();assert.equal(validateEngineStatus(legacy),legacy);
+  const receipt={completed_at_utc:'2026-10-07T15:00:00Z',engine_result_id:legacy.engine_result_id,feed_cipher_sha256:legacy.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
+  const current={...legacy,last_successful_refresh:receipt};
+  assert.equal(validateEngineStatus(current),current);
+  assert.deepEqual(bindStatus(current,feed).last_successful_refresh,receipt);
+  assert.deepEqual(bindStatus(current,feed,{retainPublication:true}).last_successful_refresh,receipt);
+  for(const patch of [{engine_result_id:'c'.repeat(64)},{feed_cipher_sha256:'c'.repeat(64)}, {completed_at_utc:'2026-10-07'}, {outcome:'FAILED'}, {extra:true}])
+    assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,...patch}}),/INVALID_SUCCESSFUL_REFRESH/);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:null}),/INVALID_SUCCESSFUL_REFRESH/);
+});

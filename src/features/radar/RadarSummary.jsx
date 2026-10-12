@@ -1,10 +1,10 @@
 import { BellOff, TriangleAlert } from 'lucide-react';
-import { UpdateBadge, SectionFooter } from '../../components/SectionElements.jsx';
+import { SectionFooter } from '../../components/SectionElements.jsx';
 import { useRadarPresentation } from './use-radar-presentation.js';
 import './radar.css';
 
-export function RadarUpdate({data}) {
-  return <span className="radar-updated"><UpdateBadge date={data?.session}/></span>;
+export function RadarUpdate({date}) {
+  return <span className="radar-updated"><time className="update-badge" dateTime={date||undefined}>{date?`${date.slice(5).replace('-','.')} Updated`:'— Updated'}</time></span>;
 }
 export function RadarHeadline({headline,alert=false}) {
   const normal=['냉각 구간','중립 구간','과열 구간'].includes(headline);
@@ -18,10 +18,10 @@ export function RadarEventLabel({label,kind}) {
   return <span className="radar-event-label">{Icon&&<Icon size={14} aria-hidden="true"/>}{label}</span>;
 }
 export function RadarSummary({delivery=null,status=undefined,onOpen}) {
-  const {data,headline,eventLabel,eventKind,stale,displayScore}=useRadarPresentation(delivery,status);
+  const {data,headline,eventLabel,eventKind,stale,displayScore,updateDate}=useRadarPresentation(delivery,status);
   const score=displayScore;
   return <section className="overview-radar" aria-labelledby="overview-radar-title">
-    <header><h2 id="overview-radar-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data}/></header>
+    <header><h2 id="overview-radar-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate}/></header>
     <div className="overview-radar-body">
       <div className="overview-radar-reading">
         <div className="overview-radar-score"><strong>{Number.isInteger(score)?score:'—'}</strong><span>/100</span></div>

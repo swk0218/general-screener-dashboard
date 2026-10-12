@@ -7,7 +7,7 @@ export function unavailableEngineStatus(reason='ENGINE_STATUS_UNAVAILABLE'){
     key==='failure_code'?reason:key==='historical_first_seen_claimed'?false:null]));
 }
 export function validateEngineStatus(value){
-  if(value?.schema_version!=='radar_engine_status_v1'||Object.keys(value).sort().join('|')!==[...ENGINE_STATUS_KEYS].sort().join('|')
+  if(value?.schema_version!=='radar_engine_status_v1'||Object.keys(value).filter(key=>key!=='last_successful_refresh').sort().join('|')!==[...ENGINE_STATUS_KEYS].sort().join('|')
     ||value.producer_repository!=='swk0218/MarketRadar'||value.schedule!=='MON_SAT_1017_1240_UTC'
     ||!['DATED','STALE','FAILED','UNAVAILABLE'].includes(value.status)
     ||value.historical_first_seen_claimed!==false)throw new Error('INVALID_ENGINE_STATUS');
@@ -22,6 +22,14 @@ export function validateEngineStatus(value){
   if(value.model_computed_at_utc&&Date.parse(value.model_computed_at_utc)>Date.parse(value.latest_attempt_at_utc))throw new Error('ENGINE_CLOCK_REVERSED');
   if(value.status==='DATED'&&value.source_session!==value.expected_session)throw new Error('FALSE_CURRENT_ENGINE_SESSION');
   if(value.published_at_utc&&value.engine_result_id&&value.publication_receipt_result_id!==value.engine_result_id)throw new Error('PUBLICATION_RESULT_BINDING_MISMATCH');
+  if(value.last_successful_refresh!==undefined){
+    const receipt=value.last_successful_refresh;
+    if(!receipt||Object.keys(receipt).sort().join('|')!==['completed_at_utc','engine_result_id','feed_cipher_sha256','outcome'].sort().join('|')
+      ||!timestamp(receipt.completed_at_utc)||!['PUBLISHED','SKIPPED_COMPLETE_SESSION'].includes(receipt.outcome)
+      ||!hash(receipt.engine_result_id)||!hash(receipt.feed_cipher_sha256)
+      ||receipt.engine_result_id!==value.engine_result_id||receipt.feed_cipher_sha256!==value.feed_cipher_sha256)
+      throw new Error('INVALID_SUCCESSFUL_REFRESH_RECEIPT');
+  }
   return value;
 }
 const timestamp=value=>typeof value==='string'&&/(Z|[+-]\d{2}:\d{2})$/.test(value)&&Number.isFinite(Date.parse(value));

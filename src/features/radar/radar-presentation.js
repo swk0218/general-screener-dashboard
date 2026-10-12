@@ -43,6 +43,18 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
     built:provenanceStatus?.built_at_utc||null,
     published:provenanceStatus?.published_at_utc||null,
   };
-  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,
+  // A completed, verified refresh is distinct from source/model/build/publication clocks.
+  const refresh=currentStatus?.last_successful_refresh;
+  // Legacy packets retain their verified first-publication evidence until a refresh receipt exists.
+  const legacyPublished=!refresh&&currentStatus?.publication_receipt_result_id===currentStatus?.engine_result_id
+    &&Number.isSafeInteger(currentStatus?.publication_deployment_id)&&currentStatus.publication_deployment_id>0
+    ?clocks.published:null;
+  const refreshedAt=refresh?.completed_at_utc||legacyPublished;
+  const completed=currentStatus?.schema_version==='radar_engine_status_v1'&&currentStatus.status==='DATED'
+    &&!stale&&!unavailable&&refreshedAt
+    &&Date.parse(refreshedAt)>=Date.parse(currentStatus.model_computed_at_utc)
+    &&Date.parse(refreshedAt)<=now+5*60000?refreshedAt:null;
+  const updateDate=completed?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(completed)):null;
+  return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,updateDate,
     eventLabel,notice,retainedScore};
 }
