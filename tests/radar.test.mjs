@@ -472,3 +472,49 @@ test('concise provenance keeps four distinct clocks without promoting retained d
   assert.equal(mismatch.clocks.built,null);assert.equal(mismatch.clocks.published,null);
   assert.deepEqual({packet,status},original);
 });
+
+
+test('one complete status/feed retry recovers a rolling deployment and stays fail-closed',async(t)=>{
+  const passphrase='TEST_ONLY_RETRY',packet=dailyFixture(),plain=Buffer.from(JSON.stringify(packet));
+  const salt=randomBytes(16),iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',pbkdf2Sync(passphrase,salt,600000,32,'sha256'),iv);
+  cipher.setAAD(Buffer.from('market_radar_v1'));
+  const ciphertext=Buffer.concat([cipher.update(plain),cipher.final(),cipher.getAuthTag()]);
+  const body=JSON.stringify({envelope_version:'market_radar_encrypted_v1',algorithm:'AES-256-GCM',kdf:'PBKDF2-SHA256',iterations:600000,salt:salt.toString('base64'),iv:iv.toString('base64'),ciphertext:ciphertext.toString('base64'),payload_hash:createHash('sha256').update(plain).digest('hex')});
+  const status={...unavailableEngineStatus(),status:'DATED',source_session:packet.session,expected_session:packet.session,
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:02:00Z',
+    next_scheduled_at_utc:'2026-03-13T12:40:00Z',engine_result_id:'a'.repeat(64),feed_cipher_sha256:createHash('sha256').update(body).digest('hex')};
+  let calls=[],published=[],mode='recover';
+  t.mock.method(globalThis,'fetch',async url=>{calls.push(url);return url==='/status'?{ok:true,json:async()=>({...status,feed_cipher_sha256:mode==='mismatch'||calls.length===1?'b'.repeat(64):status.feed_cipher_sha256})}:{ok:true,arrayBuffer:async()=>new TextEncoder().encode(body).buffer};});
+  assert.deepEqual(await loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),packet);
+  assert.deepEqual(calls,['/status','/feed','/status','/feed']);assert.equal(published.length,1);assert.deepEqual(published[0],status);
+  calls=[];published=[];mode='mismatch';
+  await assert.rejects(loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),/FEED_STATUS_BINDING_MISMATCH/);
+  assert.equal(calls.length,4);assert.equal(published.length,0);
+  calls=['baseline'];mode='auth';
+  await assert.rejects(loadOptionalRadarDelivery('/status','/feed','WRONG_TEST_ONLY'));
+  assert.equal(calls.length,3);
+});
+
+test('authenticated retained failure keeps its dated score but suppresses current signals',async()=>{
+  const packet=dailyFixture(true,false);packet.gauge.data_status='DATED_STALE_OBSERVATION';
+  Object.assign(packet.observation,{expected_session:'2026-03-13',latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:'2026-03-13T10:05:00Z'});
+  validateRadarDelivery(packet);
+  const status={...unavailableEngineStatus(),status:'FAILED',source_session:packet.session,expected_session:'2026-03-13',input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:05:00Z',next_scheduled_at_utc:'2026-03-13T12:40:00Z',engine_result_id:'a'.repeat(64),feed_cipher_sha256:'b'.repeat(64),failure_code:'SOURCE_FETCH_FAILED'};
+  const before=structuredClone(packet),now=Date.parse('2026-03-13T16:00:00Z');
+  const p=radarPresentation(packet,status,now);assert.equal(p.displayScore,19);assert.equal(p.eventKind,'unavailable');assert.equal(p.headline,'—');assert.equal(p.stale,true);
+  for(const badStatus of [null,{...status,status:'UNAVAILABLE'},{...status,source_session:'2026-03-11'},{...status,model_computed_at_utc:'2026-03-14T10:00:00Z'}])assert.equal(radarPresentation(packet,badStatus,now).displayScore,null);
+  assert.equal(radarPresentation({...packet,gauge:{...packet.gauge,score:NaN}},status,now).displayScore,null);
+  const server=await createRadarTestServer();
+  try {
+    const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+    const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet,status}));
+    assert.match(html,/19/);assert.match(html,/dateTime="2026-03-12"/);assert.doesNotMatch(html,/role="alert"|radar-headline is-alert|유지 중|경보 없음/);
+    const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
+    const mixed=dailyFixture(false,false,true);Object.assign(mixed.observation,packet.observation);mixed.gauge.data_status='DATED_STALE_OBSERVATION';
+    const summary=renderToStaticMarkup(createElement(RadarSummary,{delivery:mixed,status}));
+    assert.doesNotMatch(summary,/양방향 조건 강함/);assert.match(summary,/>50<\/strong>/);
+
+  }finally{await server.close();}
+  assert.deepEqual(packet,before);
+});

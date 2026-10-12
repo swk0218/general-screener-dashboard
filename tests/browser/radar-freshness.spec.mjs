@@ -141,3 +141,41 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
     expect(errors).toEqual([]);
   });
 }
+
+for(const scenario of ['retained-failure','deployment-race','persistent-mismatch']) {
+  test(`Radar ${scenario} keeps verified dated values and rejects unbound data`,async({page})=>{
+    const packet=dailyFixture(scenario==='retained-failure',false);
+    if(scenario==='retained-failure') {
+      packet.gauge.data_status='DATED_STALE_OBSERVATION';
+      Object.assign(packet.observation,{expected_session:'2026-03-13',latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:'2026-03-13T10:05:00Z'});
+    }
+    const body=encryptRadar(packet);let statusReads=0,feedReads=0;
+    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':'DATED',source_session:packet.session,expected_session:scenario==='retained-failure'?'2026-03-13':packet.session,
+      input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:05:00Z',
+      next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(body).digest('hex'),engine_result_id:'a'.repeat(64),failure_code:scenario==='retained-failure'?'SOURCE_FETCH_FAILED':null};
+    await page.clock.install({time:new Date('2026-03-13T16:00:00Z')});
+    await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
+    await page.route('**/data/radar-observation.json*',route=>{statusReads++;return route.fulfill({json:{...status,feed_cipher_sha256:scenario==='persistent-mismatch'||scenario==='deployment-race'&&statusReads===1?'b'.repeat(64):status.feed_cipher_sha256}});});
+    await page.route('**/data/market-radar.enc.json*',route=>{feedReads++;return route.fulfill({body,contentType:'application/json'});});
+    await page.route('**/data/radar-seasonality.enc.json*',route=>route.fulfill({status:404}));
+    await page.goto('/#/overview');await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
+    const summary=page.locator('.overview-radar');
+    const score=scenario==='persistent-mismatch'?'—':String(packet.gauge.score);
+    await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
+    await expect.poll(()=>feedReads).toBe(scenario==='retained-failure'?1:2);
+    expect(statusReads).toBe(feedReads);
+    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveAttribute('datetime',packet.session);
+    await summary.getByText('지수 자세히',{exact:true}).click();
+    const detail=page.locator('.radar-view');await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
+    if(scenario==='retained-failure') {
+      await expect(detail.locator('.radar-headline')).toHaveText('—');
+      await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
+      await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['—','—']);
+      await expect(detail.locator('.radar-card-value strong')).not.toHaveText(Array(8).fill('—'));
+      await detail.getByText('기준일 결과',{exact:true}).click();
+      await expect(detail.locator('details[open]')).not.toContainText('유지 중');
+    }
+    await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();
+    await expect(page.locator('input[type=password]')).toBeVisible();await expect(detail).toHaveCount(0);
+  });
+}
