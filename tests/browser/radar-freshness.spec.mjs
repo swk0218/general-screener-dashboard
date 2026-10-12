@@ -142,16 +142,16 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
   });
 }
 
-for(const scenario of ['retained-failure','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
+for(const scenario of ['retained-failure','awaiting-inputs','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
   test(`Radar ${scenario} keeps verified dated values and rejects unbound data`,async({page})=>{
     const downgrade=scenario.startsWith('retry-');
-    const packet=dailyFixture(scenario==='retained-failure'||downgrade,false);
+    const packet=dailyFixture(scenario==='retained-failure'||scenario==='awaiting-inputs'||downgrade,false);
     if(scenario==='retained-failure') {
       packet.gauge.data_status='DATED_STALE_OBSERVATION';
       Object.assign(packet.observation,{expected_session:'2026-03-13',latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:'2026-03-13T10:05:00Z'});
     }
     const body=encryptRadar(packet);let statusReads=0,feedReads=0;
-    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':'DATED',source_session:packet.session,expected_session:scenario==='retained-failure'?'2026-03-13':packet.session,
+    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':scenario==='awaiting-inputs'?'STALE':'DATED',source_session:packet.session,expected_session:['retained-failure','awaiting-inputs'].includes(scenario)?'2026-03-13':packet.session,
       input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:05:00Z',
       next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(body).digest('hex'),engine_result_id:'a'.repeat(64),failure_code:scenario==='retained-failure'?'SOURCE_FETCH_FAILED':null};
     await page.clock.install({time:new Date('2026-03-13T16:00:00Z')});
@@ -173,7 +173,7 @@ for(const scenario of ['retained-failure','deployment-race','persistent-mismatch
     const summary=page.locator('.overview-radar');
     const score=scenario==='persistent-mismatch'||downgrade?'—':String(packet.gauge.score);
     await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
-    await expect.poll(()=>feedReads).toBe(scenario==='retained-failure'||downgrade?1:2);
+    await expect.poll(()=>feedReads).toBe(['retained-failure','awaiting-inputs'].includes(scenario)||downgrade?1:2);
     expect(statusReads).toBe(downgrade?2:feedReads);
     if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText('— Updated');
     await summary.getByText('지수 자세히',{exact:true}).click();
@@ -182,7 +182,7 @@ for(const scenario of ['retained-failure','deployment-race','persistent-mismatch
       await expect(summary.locator('.radar-event-label')).toHaveCount(0);
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
     }
-    if(scenario==='retained-failure') {
+    if(['retained-failure','awaiting-inputs'].includes(scenario)) {
       await expect(detail.locator('.radar-headline')).toHaveText('—');
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
       await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['—','—']);

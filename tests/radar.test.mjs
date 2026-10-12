@@ -575,3 +575,32 @@ test('Radar update is the bound successful refresh KST date, including verified 
   }finally{await server.close();}
   assert.deepEqual({packet,status},before);
 });
+
+test('verified prior-session computation remains visible while newer session inputs are pending',async()=>{
+  const packet=dailyFixture(true,false),status={...unavailableEngineStatus(),status:'STALE',source_session:packet.session,expected_session:'2026-03-13',
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T21:00:00Z',
+    next_scheduled_at_utc:'2026-03-14T10:17:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),failure_code:null};
+  const now=Date.parse('2026-03-13T22:00:00Z'),before=structuredClone({packet,status});
+  const shown=radarPresentation(packet,status,now);
+  assert.equal(shown.displayScore,19);assert.equal(shown.retainedScore,true);assert.equal(shown.stale,true);
+  assert.equal(shown.eventKind,'unavailable');assert.equal(shown.headline,'—');assert.equal(shown.updateDate,null);
+  for(const patch of [{source_session:'2026-03-11'},{expected_session:packet.session},{failure_code:'SOURCE_FETCH_FAILED'},
+    {status:'UNAVAILABLE'},{model_computed_at_utc:'2026-03-14T10:00:00Z',latest_attempt_at_utc:'2026-03-14T10:01:00Z'},
+    {input_admitted_at_utc:'2026-03-14T09:59:00Z',model_computed_at_utc:'2026-03-14T10:00:00Z',latest_attempt_at_utc:'2026-03-14T10:01:00Z'}])
+    assert.equal(radarPresentation(packet,{...status,...patch},now).displayScore,null);
+  assert.equal(radarPresentation({...packet,gauge:{...packet.gauge,score:NaN}},status,now).displayScore,null);
+  const server=await createRadarTestServer();
+  try{
+    const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+    const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx'),{RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    for(const Component of [RadarSummary,RadarView]){
+      const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status}));
+      assert.match(html,/>19<|>19<span/);assert.match(html,/— Updated/);
+      assert.doesNotMatch(html,/role="alert"|radar-threshold-track|radar-headline is-alert|유지 중|경보 없음/);
+    }
+    const mixed=dailyFixture(false,false,true);
+    const html=renderToStaticMarkup(createElement(RadarSummary,{delivery:mixed,status}));
+    assert.match(html,/>50<\/strong>/);assert.doesNotMatch(html,/양방향 조건 강함/);
+  }finally{await server.close();}
+  assert.deepEqual({packet,status},before);
+});

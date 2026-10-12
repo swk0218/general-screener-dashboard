@@ -22,9 +22,13 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   const stale=Boolean(data)&&(['DATED_STALE_OBSERVATION','CACHED_STALE'].includes(data.gauge.data_status)
     ||failed||statusUnavailable||Boolean(currentStatus&&observationState(currentStatus,now)==='STALE'));
   const level=data?.gauge.level;
+  const retainedFailure=data?.observation?.collection_status==='FAILED_RETAINED_DATED'&&currentStatus?.status==='FAILED';
+  const awaitingNewInputs=currentStatus?.status==='STALE'&&currentStatus.failure_code===null
+    &&currentStatus.expected_session>data?.session&&!failed
+    &&data?.operating_status==='DAILY_MODEL_COMPUTED'&&data.gauge.data_status==='DATED_OBSERVATION'
+    &&data.observation?.expected_session===data.session;
   const retainedScore=Boolean(data)&&!unavailable&&!statusUnavailable
-    &&data.observation?.collection_status==='FAILED_RETAINED_DATED'
-    &&currentStatus?.status==='FAILED'
+    &&(retainedFailure||awaitingNewInputs)
     &&Date.parse(currentStatus.model_computed_at_utc)<=now+5*60000
     &&Date.parse(currentStatus.input_admitted_at_utc)<=now+5*60000;
   const displayScore=stale&&!retainedScore?null:data?.gauge.score??null;
