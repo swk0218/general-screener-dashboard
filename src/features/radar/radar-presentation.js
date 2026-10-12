@@ -22,7 +22,12 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   const stale=Boolean(data)&&(['DATED_STALE_OBSERVATION','CACHED_STALE'].includes(data.gauge.data_status)
     ||failed||statusUnavailable||Boolean(currentStatus&&observationState(currentStatus,now)==='STALE'));
   const level=data?.gauge.level;
-  const displayScore=stale?null:data?.gauge.score??null;
+  const retainedScore=Boolean(data)&&!unavailable&&!statusUnavailable
+    &&data.observation?.collection_status==='FAILED_RETAINED_DATED'
+    &&currentStatus?.status==='FAILED'
+    &&Date.parse(currentStatus.model_computed_at_utc)<=now+5*60000
+    &&Date.parse(currentStatus.input_admitted_at_utc)<=now+5*60000;
+  const displayScore=stale&&!retainedScore?null:data?.gauge.score??null;
   const headline=stale||unavailable?'—':observation?'점수 전용':conflict?'양방향 경보 충돌':level==='CONFLICT'?'—':LEVEL_COPY[level];
   const eventKind=unavailable||observation||stale?'unavailable':conflict?'both':data.events.bottom?'bottom':data.events.top?'top':'none';
   const eventLabel={unavailable:'—',both:'저점·고점 동시 발생',bottom:'저점 경보',top:'고점 경보',none:'경보 없음'}[eventKind];
@@ -39,5 +44,5 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
     published:provenanceStatus?.published_at_utc||null,
   };
   return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,
-    eventLabel,notice};
+    eventLabel,notice,retainedScore};
 }

@@ -42,13 +42,13 @@ function DirectionSignal({side,data,stale}) {
 }
 
 export function RadarView({delivery=null,seasonality=null,status=undefined}) {
-  const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,eventKind,displayScore,clocks}=useRadarPresentation(delivery,status);
-  const cards=inputGaugeCards(stale?null:data),retainedCards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
+  const {data,unavailable,observation,conflict,stale,failed,level,headline,eventLabel,eventKind,displayScore,clocks,retainedScore}=useRadarPresentation(delivery,status);
+  const cards=inputGaugeCards(stale&&!retainedScore?null:data),retainedCards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   return <section className="secondary-view radar-view">
     <h1 className="sr-only">시장 신호 (Beta)</h1>
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
       <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate data={data}/></div>
-      <div className="radar-hero-content"><MarketGauge score={displayScore} level={unavailable||stale?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
+      <div className="radar-hero-content"><MarketGauge score={displayScore} level={retainedScore?'기준일 결과':unavailable||stale?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
         <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline} alert={!stale&&Boolean(data?.events.bottom||data?.events.top)}/></h3>
           <dl className="radar-event-summary"><dd><RadarEventLabel label={eventLabel} kind={eventKind}/></dd></dl>
         </div>
@@ -63,7 +63,7 @@ export function RadarView({delivery=null,seasonality=null,status=undefined}) {
       <Disclosure title={stale?'기준일 결과':'신호 상세'}>
         {data&&<p>{data.session} · {number(data.gauge.score,0)} /100{data.events.bottom||data.events.top?` · ${data.events.bottom?'저점':''}${data.events.bottom&&data.events.top?'·':''}${data.events.top?'고점':''} 경보`:observation?' · 점수 전용':''}</p>}
         {stale&&data?.gauge.mixed_strength===1&&!conflict&&<p>양방향 조건 강함</p>}
-        <dl className="radar-provenance-list">{['bottom','top'].map(side=><div key={side}><dt>{side==='bottom'?'저점':'고점'} 원점수 / q90</dt><dd>{number(data?.scores?.[side],9)} / {number(data?.native_details?.[side]?.threshold,9)}<span>이전 경보 유지 · 10거래일: {daily&&!unavailable&&typeof data?.active?.[side]==='boolean'?(data.active[side]?'유지 중':'없음'):'—'}</span></dd></div>)}</dl>
+        <dl className="radar-provenance-list">{['bottom','top'].map(side=><div key={side}><dt>{side==='bottom'?'저점':'고점'} 원점수 / q90</dt><dd>{number(data?.scores?.[side],9)} / {number(data?.native_details?.[side]?.threshold,9)}<span>이전 경보 유지 · 10거래일: {daily&&!unavailable&&!stale&&typeof data?.active?.[side]==='boolean'?(data.active[side]?'유지 중':'없음'):'—'}</span></dd></div>)}</dl>
         <p>저점 공포 지표: {number(data?.native_details?.bottom?.cnn_bottom_score,9)} / 기준 {number(data?.native_details?.bottom?.cnn_bottom_q90,9)}</p>
         {daily&&data.gauge.normalization?.bottom&&data.gauge.normalization?.top&&<p>방향별 점수: 저점 {data.gauge.normalization.bottom.conditional_score} · 고점 {data.gauge.normalization.top.conditional_score} /100</p>}
         <p>이전 경보 유지는 기준일 상태이며 투자 보유기간이 아닙니다.</p>

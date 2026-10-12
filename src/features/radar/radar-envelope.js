@@ -38,6 +38,15 @@ export async function loadRadarDelivery(url,passphrase,signal,expectedCipherHash
 }
 
 export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal,onStatus=null) {
+  for(let attempt=0;attempt<2;attempt++) {
+    try { return await loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus); }
+    catch(error) {
+      if(attempt!==0||signal?.aborted||error.message!=='FEED_STATUS_BINDING_MISMATCH')throw error;
+    }
+  }
+}
+
+async function loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus) {
   const response=await fetch(statusUrl,{signal,cache:'no-store'});
   let expectedCipherHash=null;
   let status=null;

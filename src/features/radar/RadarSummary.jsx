@@ -27,7 +27,7 @@ export function RadarSummary({delivery=null,status=undefined,onOpen}) {
         <div className="overview-radar-score"><strong>{Number.isInteger(score)?score:'—'}</strong><span>/100</span></div>
         <div><p className="market-insight"><RadarHeadline headline={headline} alert={!stale&&Boolean(data?.events.bottom||data?.events.top)}/></p><p><RadarEventLabel label={eventLabel} kind={eventKind}/></p></div>
       </div>
-      {data?.gauge.mixed_strength===1&&Number.isInteger(score)&&<p className="overview-radar-caption">양방향 조건 강함</p>}
+      {!stale&&data?.gauge.mixed_strength===1&&Number.isInteger(score)&&<p className="overview-radar-caption">양방향 조건 강함</p>}
     </div>
     <SectionFooter onClick={onOpen}>지수 자세히</SectionFooter>
   </section>;
