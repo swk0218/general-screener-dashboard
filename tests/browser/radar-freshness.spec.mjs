@@ -184,11 +184,11 @@ for(const updateCase of ['refresh','legacy','invalid-binding']) test(`Radar KST 
   const status={...unavailableEngineStatus(),status:'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
     input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:02:00Z',
     next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64),
-    built_at_utc:'2026-03-15T10:00:00Z',published_at_utc:'2026-03-13T15:00:00Z',publication_receipt_result_id:'a'.repeat(64),publication_deployment_id:123};
-  if(updateCase!=='legacy')status.last_successful_refresh={completed_at_utc:'2026-03-14T15:00:00Z',engine_result_id:updateCase==='invalid-binding'?'b'.repeat(64):status.engine_result_id,feed_cipher_sha256:status.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
-  const expectedDate=updateCase==='refresh'?'2026-03-15':'2026-03-14';
+    built_at_utc:'2026-03-15T10:00:00Z',published_at_utc:'2026-10-10T15:57:02Z',publication_receipt_result_id:'a'.repeat(64),publication_deployment_id:123};
+  if(updateCase!=='legacy')status.last_successful_refresh={completed_at_utc:'2026-10-12T15:00:00Z',engine_result_id:updateCase==='invalid-binding'?'b'.repeat(64):status.engine_result_id,feed_cipher_sha256:status.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
+  const expectedDate=updateCase==='refresh'?'2026-10-13':'2026-10-11';
   const expectedText=updateCase==='invalid-binding'?'— Updated':`${expectedDate.slice(5).replace('-','.')} Updated`;
-  await page.clock.install({time:new Date('2026-03-16T10:00:00Z')});
+  await page.clock.install({time:new Date('2026-10-13T10:00:00Z')});
   await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
   await page.route('**/data/radar-observation.json*',route=>route.fulfill({json:status}));
   await page.route('**/data/market-radar.enc.json*',route=>route.fulfill({body:feed,contentType:'application/json'}));
@@ -201,7 +201,7 @@ for(const updateCase of ['refresh','legacy','invalid-binding']) test(`Radar KST 
   await summary.getByText('지수 자세히',{exact:true}).click();
   await expect(page.locator('.radar-updated time')).toHaveText(expectedText);
   if(updateCase!=='invalid-binding'){
-    await page.locator('.radar-view').getByText('기준일 결과',{exact:true}).click();
+    await page.locator('.radar-view').getByText('신호 상세',{exact:true}).click();
     await expect(page.locator('details[open]')).toContainText('2026-03-12 · 50 /100');
   }
 });
