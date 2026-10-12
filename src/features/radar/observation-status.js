@@ -24,10 +24,16 @@ export function validateEngineStatus(value){
   if(value.published_at_utc&&value.engine_result_id&&value.publication_receipt_result_id!==value.engine_result_id)throw new Error('PUBLICATION_RESULT_BINDING_MISMATCH');
   if(value.last_successful_refresh!==undefined){
     const receipt=value.last_successful_refresh;
+    // An audit-only newer-session check may keep the verified same-cipher success receipt.
+    // Its historical result ID is evidence of the original completion, not the newer check.
+    const retainedCompletion=value.status==='STALE'&&value.failure_code===null&&value.expected_session>value.source_session
+      &&Date.parse(receipt?.completed_at_utc)>=Date.parse(value.model_computed_at_utc)
+      &&Date.parse(receipt?.completed_at_utc)<=Date.parse(value.latest_attempt_at_utc);
     if(!receipt||Object.keys(receipt).sort().join('|')!==['completed_at_utc','engine_result_id','feed_cipher_sha256','outcome'].sort().join('|')
       ||!timestamp(receipt.completed_at_utc)||!['PUBLISHED','SKIPPED_COMPLETE_SESSION'].includes(receipt.outcome)
       ||!hash(receipt.engine_result_id)||!hash(receipt.feed_cipher_sha256)
-      ||receipt.engine_result_id!==value.engine_result_id||receipt.feed_cipher_sha256!==value.feed_cipher_sha256)
+      ||(receipt.engine_result_id!==value.engine_result_id&&!retainedCompletion)
+      ||(value.status==='STALE'&&!retainedCompletion)||receipt.feed_cipher_sha256!==value.feed_cipher_sha256)
       throw new Error('INVALID_SUCCESSFUL_REFRESH_RECEIPT');
   }
   return value;

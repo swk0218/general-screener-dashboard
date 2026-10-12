@@ -94,3 +94,16 @@ test('optional successful-refresh receipt is backward compatible and bound to th
     assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,...patch}}),/INVALID_SUCCESSFUL_REFRESH/);
   assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:null}),/INVALID_SUCCESSFUL_REFRESH/);
 });
+
+test('audit-only stale status may retain only a same-cipher historical completion receipt',()=>{
+  const current={...sample(),status:'STALE',expected_session:'2026-10-07',latest_attempt_at_utc:'2026-10-07T21:00:00Z'};
+  const receipt={completed_at_utc:'2026-10-07T15:00:00Z',engine_result_id:'b'.repeat(64),feed_cipher_sha256:current.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
+  current.last_successful_refresh=receipt;
+  assert.equal(validateEngineStatus(current),current);
+  assert.deepEqual(bindStatus(current,feed).last_successful_refresh,receipt);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,engine_result_id:current.engine_result_id,completed_at_utc:'2026-10-08T00:00:00Z'}}),/INVALID_SUCCESSFUL_REFRESH/);
+  for(const patch of [{status:'FAILED'},{status:'DATED',source_session:current.expected_session},{expected_session:current.source_session},
+    {failure_code:'SOURCE_FETCH_FAILED'},{latest_attempt_at_utc:'2026-10-07T14:00:00Z'},{model_computed_at_utc:'2026-10-07T16:00:00Z'}])
+    assert.throws(()=>validateEngineStatus({...current,...patch}),/INVALID_SUCCESSFUL_REFRESH/);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,feed_cipher_sha256:'c'.repeat(64)}}),/INVALID_SUCCESSFUL_REFRESH/);
+});

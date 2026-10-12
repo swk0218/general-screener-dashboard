@@ -604,3 +604,18 @@ test('verified prior-session computation remains visible while newer session inp
   }finally{await server.close();}
   assert.deepEqual({packet,status},before);
 });
+
+test('audit-only retained values keep the original verified refresh date without promoting current signals',()=>{
+  const packet=dailyFixture(true,false),status={...unavailableEngineStatus(),status:'STALE',source_session:packet.session,expected_session:'2026-03-13',
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T21:00:00Z',
+    next_scheduled_at_utc:'2026-03-14T10:17:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),failure_code:null,
+    last_successful_refresh:{completed_at_utc:'2026-03-13T14:59:59Z',engine_result_id:'c'.repeat(64),feed_cipher_sha256:'a'.repeat(64),outcome:'PUBLISHED'}};
+  const before=structuredClone({packet,status}),now=Date.parse('2026-03-13T22:00:00Z');
+  const p=radarPresentation(packet,status,now);
+  assert.equal(p.displayScore,19);assert.equal(p.updateDate,'2026-03-13');assert.equal(p.eventKind,'unavailable');assert.equal(p.stale,true);
+  assert.equal(radarPresentation(packet,{...status,built_at_utc:'2026-03-13T22:00:00Z'},now).updateDate,'2026-03-13');
+  assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T14:00:00Z')).updateDate,null);
+  for(const patch of [{status:'FAILED'},{feed_cipher_sha256:'d'.repeat(64)},{source_session:'2026-03-11'},
+    {latest_attempt_at_utc:'2026-03-13T14:00:00Z'}])assert.equal(radarPresentation(packet,{...status,...patch},now).updateDate,null);
+  assert.deepEqual({packet,status},before);
+});

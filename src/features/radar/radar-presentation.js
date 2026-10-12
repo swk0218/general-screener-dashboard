@@ -54,8 +54,9 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
     &&Number.isSafeInteger(currentStatus?.publication_deployment_id)&&currentStatus.publication_deployment_id>0
     ?clocks.published:null;
   const refreshedAt=refresh?.completed_at_utc||legacyPublished;
-  const completed=currentStatus?.schema_version==='radar_engine_status_v1'&&currentStatus.status==='DATED'
-    &&!stale&&!unavailable&&refreshedAt
+  const completed=currentStatus?.schema_version==='radar_engine_status_v1'
+    &&(currentStatus.status==='DATED'&&!stale||awaitingNewInputs&&retainedScore&&Boolean(refresh))
+    &&!unavailable&&refreshedAt
     &&Date.parse(refreshedAt)>=Date.parse(currentStatus.model_computed_at_utc)
     &&Date.parse(refreshedAt)<=now+5*60000?refreshedAt:null;
   const updateDate=completed?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(completed)):null;

@@ -142,18 +142,19 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
   });
 }
 
-for(const scenario of ['retained-failure','awaiting-inputs','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
+for(const scenario of ['retained-failure','awaiting-inputs','awaiting-inputs-receipt','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
   test(`Radar ${scenario} keeps verified dated values and rejects unbound data`,async({page})=>{
     const downgrade=scenario.startsWith('retry-');
-    const packet=dailyFixture(scenario==='retained-failure'||scenario==='awaiting-inputs'||downgrade,false);
+    const packet=dailyFixture(scenario==='retained-failure'||scenario.startsWith('awaiting-inputs')||downgrade,false);
     if(scenario==='retained-failure') {
       packet.gauge.data_status='DATED_STALE_OBSERVATION';
       Object.assign(packet.observation,{expected_session:'2026-03-13',latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:'2026-03-13T10:05:00Z'});
     }
     const body=encryptRadar(packet);let statusReads=0,feedReads=0;
-    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':scenario==='awaiting-inputs'?'STALE':'DATED',source_session:packet.session,expected_session:['retained-failure','awaiting-inputs'].includes(scenario)?'2026-03-13':packet.session,
+    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':scenario.startsWith('awaiting-inputs')?'STALE':'DATED',source_session:packet.session,expected_session:['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)?'2026-03-13':packet.session,
       input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:05:00Z',
       next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(body).digest('hex'),engine_result_id:'a'.repeat(64),failure_code:scenario==='retained-failure'?'SOURCE_FETCH_FAILED':null};
+    if(scenario==='awaiting-inputs-receipt')status.last_successful_refresh={completed_at_utc:'2026-03-13T10:04:00Z',engine_result_id:'c'.repeat(64),feed_cipher_sha256:status.feed_cipher_sha256,outcome:'PUBLISHED'};
     await page.clock.install({time:new Date('2026-03-13T16:00:00Z')});
     await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
     await page.route('**/data/radar-observation.json*',route=>{
@@ -173,16 +174,16 @@ for(const scenario of ['retained-failure','awaiting-inputs','deployment-race','p
     const summary=page.locator('.overview-radar');
     const score=scenario==='persistent-mismatch'||downgrade?'—':String(packet.gauge.score);
     await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
-    await expect.poll(()=>feedReads).toBe(['retained-failure','awaiting-inputs'].includes(scenario)||downgrade?1:2);
+    await expect.poll(()=>feedReads).toBe(['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)||downgrade?1:2);
     expect(statusReads).toBe(downgrade?2:feedReads);
-    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText('— Updated');
+    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText(scenario==='awaiting-inputs-receipt'?'03.13 Updated':'— Updated');
     await summary.getByText('지수 자세히',{exact:true}).click();
     const detail=page.locator('.radar-view');await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
     if(downgrade){
       await expect(summary.locator('.radar-event-label')).toHaveCount(0);
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
     }
-    if(['retained-failure','awaiting-inputs'].includes(scenario)) {
+    if(['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)) {
       await expect(detail.locator('.radar-headline')).toHaveText('—');
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
       await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['—','—']);
