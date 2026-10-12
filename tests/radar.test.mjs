@@ -427,19 +427,20 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
   } finally {await server.close();}
 });
 
-test('quiet-stop engine status dates both entry points without rewriting the packet',async()=>{
+test('explicit stale engine status dates both entry points without rewriting the packet',async()=>{
   const packet=dailyFixture(),before=structuredClone(packet);
   const status={...unavailableEngineStatus(),status:'DATED',source_session:packet.session,
     expected_session:packet.session,input_admitted_at_utc:'2026-03-13T10:00:00Z',
     model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:02:00Z',
     next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64)};
   assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T10:05:00Z')).stale,false);
-  assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T14:41:00Z')).stale,true);
+  assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T14:41:00Z')).stale,false);
   assert.equal(radarPresentation(packet,{...status,status:'FAILED'},Date.parse('2026-03-13T10:05:00Z')).failed,true);
   assert.equal(radarPresentation(packet,null).notice,'자료 상태 미확인 · 기준일 관측');
   const retained=radarPresentation(packet,null);
   assert.equal(retained.displayScore,null);assert.equal(retained.headline,'—');assert.equal(retained.eventKind,'unavailable');
   assert.equal(retained.data.gauge.score,50);assert.equal(retained.data.session,'2026-03-12');
+  status.status='STALE';
   const server=await createRadarTestServer();
   try {
     const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
@@ -466,7 +467,7 @@ test('concise provenance keeps four distinct clocks without promoting retained d
   const original=structuredClone({packet,status});
   const presentation=radarPresentation(packet,status,Date.parse('2026-03-13T15:00:00Z'));
   assert.deepEqual(presentation.clocks,{admitted:packet.observation.first_seen_at_utc,computed:packet.observation.computed_at_utc,built:status.built_at_utc,published:status.published_at_utc});
-  assert.equal(presentation.displayScore,null);
+  assert.equal(presentation.displayScore,50);
   const mismatch=radarPresentation(packet,{...status,source_session:'2026-03-11',expected_session:'2026-03-11'},Date.parse('2026-03-13T15:00:00Z'));
   assert.equal(mismatch.clocks.built,null);assert.equal(mismatch.clocks.published,null);
   assert.deepEqual({packet,status},original);
