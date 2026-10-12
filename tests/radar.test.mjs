@@ -490,6 +490,18 @@ test('one complete status/feed retry recovers a rolling deployment and stays fai
   calls=[];published=[];mode='mismatch';
   await assert.rejects(loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),/FEED_STATUS_BINDING_MISMATCH/);
   assert.equal(calls.length,4);assert.equal(published.length,0);
+  const legacy={...legacyObservationStatusFixture(),score_delivery_available:true};
+  for(const retryStatus of [legacy,{...legacy,score_delivery_available:false},unavailableEngineStatus(),null]) {
+    calls=[];published=[];
+    t.mock.method(globalThis,'fetch',async url=>{
+      calls.push(url);
+      if(url==='/status')return calls.length===1?{ok:true,json:async()=>({...status,feed_cipher_sha256:'b'.repeat(64)})}:{ok:retryStatus!==null,json:async()=>retryStatus};
+      return {ok:true,arrayBuffer:async()=>new TextEncoder().encode(body).buffer,json:async()=>JSON.parse(body)};
+    });
+    await assert.rejects(loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),/FEED_STATUS_BINDING_REQUIRED/);
+    assert.deepEqual(calls,['/status','/feed','/status']);assert.equal(published.length,0);
+  }
+  t.mock.method(globalThis,'fetch',async url=>{calls.push(url);return url==='/status'?{ok:true,json:async()=>status}:{ok:true,arrayBuffer:async()=>new TextEncoder().encode(body).buffer};});
   calls=['baseline'];mode='auth';
   await assert.rejects(loadOptionalRadarDelivery('/status','/feed','WRONG_TEST_ONLY'));
   assert.equal(calls.length,3);
