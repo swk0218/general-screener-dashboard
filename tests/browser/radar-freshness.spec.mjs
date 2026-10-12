@@ -175,7 +175,7 @@ for(const scenario of ['retained-failure','awaiting-inputs','awaiting-inputs-rec
     const score=scenario==='persistent-mismatch'||downgrade?'—':String(packet.gauge.score);
     await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
     await expect.poll(()=>feedReads).toBe(['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)||downgrade?1:2);
-    expect(statusReads).toBe(downgrade?2:feedReads);
+    await expect.poll(()=>statusReads).toBe(downgrade?2:feedReads);
     if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText(scenario==='awaiting-inputs-receipt'?'03.13 Updated':'— Updated');
     await summary.getByText('지수 자세히',{exact:true}).click();
     const detail=page.locator('.radar-view');await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
