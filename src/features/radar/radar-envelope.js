@@ -39,20 +39,23 @@ export async function loadRadarDelivery(url,passphrase,signal,expectedCipherHash
 
 export async function loadOptionalRadarDelivery(statusUrl,url,passphrase,signal,onStatus=null) {
   for(let attempt=0;attempt<2;attempt++) {
-    try { return await loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus); }
+    try { return await loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus,attempt>0); }
     catch(error) {
       if(attempt!==0||signal?.aborted||error.message!=='FEED_STATUS_BINDING_MISMATCH')throw error;
     }
   }
 }
 
-async function loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus) {
+async function loadBoundRadarDelivery(statusUrl,url,passphrase,signal,onStatus,requireBinding=false) {
   const response=await fetch(statusUrl,{signal,cache:'no-store'});
   let expectedCipherHash=null;
   let status=null;
-  if(response.ok) {
+  if(response.ok)status=validateObservationStatus(await response.json());
+  // A retry after a mismatched pair must not downgrade to an unbound legacy load.
+  if(requireBinding&&(status?.schema_version!=='radar_engine_status_v1'||!status.feed_cipher_sha256))
+    throw new Error('FEED_STATUS_BINDING_REQUIRED');
+  if(status) {
     // A published observation-only status explicitly has no live model feed.
-    status=validateObservationStatus(await response.json());
     if(status.mode==='OBSERVATION_BETA'&&status.score_delivery_available!==true){onStatus?.(status);return null;}
     if(status.schema_version==='radar_engine_status_v1'){
       if(!status.feed_cipher_sha256){onStatus?.(status);return null;}

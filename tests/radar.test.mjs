@@ -490,6 +490,18 @@ test('one complete status/feed retry recovers a rolling deployment and stays fai
   calls=[];published=[];mode='mismatch';
   await assert.rejects(loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),/FEED_STATUS_BINDING_MISMATCH/);
   assert.equal(calls.length,4);assert.equal(published.length,0);
+  const legacy={...legacyObservationStatusFixture(),score_delivery_available:true};
+  for(const retryStatus of [legacy,{...legacy,score_delivery_available:false},unavailableEngineStatus(),null]) {
+    calls=[];published=[];
+    t.mock.method(globalThis,'fetch',async url=>{
+      calls.push(url);
+      if(url==='/status')return calls.length===1?{ok:true,json:async()=>({...status,feed_cipher_sha256:'b'.repeat(64)})}:{ok:retryStatus!==null,json:async()=>retryStatus};
+      return {ok:true,arrayBuffer:async()=>new TextEncoder().encode(body).buffer,json:async()=>JSON.parse(body)};
+    });
+    await assert.rejects(loadOptionalRadarDelivery('/status','/feed',passphrase,undefined,v=>published.push(v)),/FEED_STATUS_BINDING_REQUIRED/);
+    assert.deepEqual(calls,['/status','/feed','/status']);assert.equal(published.length,0);
+  }
+  t.mock.method(globalThis,'fetch',async url=>{calls.push(url);return url==='/status'?{ok:true,json:async()=>status}:{ok:true,arrayBuffer:async()=>new TextEncoder().encode(body).buffer};});
   calls=['baseline'];mode='auth';
   await assert.rejects(loadOptionalRadarDelivery('/status','/feed','WRONG_TEST_ONLY'));
   assert.equal(calls.length,3);
@@ -561,5 +573,49 @@ test('Radar update is the bound successful refresh KST date, including verified 
       assert.match(unverified,/— Updated/);assert.doesNotMatch(unverified,/03.12 Updated|03.13 Updated/);
     }
   }finally{await server.close();}
+  assert.deepEqual({packet,status},before);
+});
+
+test('verified prior-session computation remains visible while newer session inputs are pending',async()=>{
+  const packet=dailyFixture(true,false),status={...unavailableEngineStatus(),status:'STALE',source_session:packet.session,expected_session:'2026-03-13',
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T21:00:00Z',
+    next_scheduled_at_utc:'2026-03-14T10:17:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),failure_code:null};
+  const now=Date.parse('2026-03-13T22:00:00Z'),before=structuredClone({packet,status});
+  const shown=radarPresentation(packet,status,now);
+  assert.equal(shown.displayScore,19);assert.equal(shown.retainedScore,true);assert.equal(shown.stale,true);
+  assert.equal(shown.eventKind,'unavailable');assert.equal(shown.headline,'—');assert.equal(shown.updateDate,null);
+  for(const patch of [{source_session:'2026-03-11'},{expected_session:packet.session},{failure_code:'SOURCE_FETCH_FAILED'},
+    {status:'UNAVAILABLE'},{model_computed_at_utc:'2026-03-14T10:00:00Z',latest_attempt_at_utc:'2026-03-14T10:01:00Z'},
+    {input_admitted_at_utc:'2026-03-14T09:59:00Z',model_computed_at_utc:'2026-03-14T10:00:00Z',latest_attempt_at_utc:'2026-03-14T10:01:00Z'}])
+    assert.equal(radarPresentation(packet,{...status,...patch},now).displayScore,null);
+  assert.equal(radarPresentation({...packet,gauge:{...packet.gauge,score:NaN}},status,now).displayScore,null);
+  const server=await createRadarTestServer();
+  try{
+    const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+    const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx'),{RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    for(const Component of [RadarSummary,RadarView]){
+      const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status}));
+      assert.match(html,/>19<|>19<span/);assert.match(html,/— Updated/);
+      assert.doesNotMatch(html,/role="alert"|radar-threshold-track|radar-headline is-alert|유지 중|경보 없음/);
+    }
+    const mixed=dailyFixture(false,false,true);
+    const html=renderToStaticMarkup(createElement(RadarSummary,{delivery:mixed,status}));
+    assert.match(html,/>50<\/strong>/);assert.doesNotMatch(html,/양방향 조건 강함/);
+  }finally{await server.close();}
+  assert.deepEqual({packet,status},before);
+});
+
+test('audit-only retained values keep the original verified refresh date without promoting current signals',()=>{
+  const packet=dailyFixture(true,false),status={...unavailableEngineStatus(),status:'STALE',source_session:packet.session,expected_session:'2026-03-13',
+    input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T21:00:00Z',
+    next_scheduled_at_utc:'2026-03-14T10:17:00Z',feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),failure_code:null,
+    last_successful_refresh:{completed_at_utc:'2026-03-13T14:59:59Z',engine_result_id:'c'.repeat(64),feed_cipher_sha256:'a'.repeat(64),outcome:'PUBLISHED'}};
+  const before=structuredClone({packet,status}),now=Date.parse('2026-03-13T22:00:00Z');
+  const p=radarPresentation(packet,status,now);
+  assert.equal(p.displayScore,19);assert.equal(p.updateDate,'2026-03-13');assert.equal(p.eventKind,'unavailable');assert.equal(p.stale,true);
+  assert.equal(radarPresentation(packet,{...status,built_at_utc:'2026-03-13T22:00:00Z'},now).updateDate,'2026-03-13');
+  assert.equal(radarPresentation(packet,status,Date.parse('2026-03-13T14:00:00Z')).updateDate,null);
+  for(const patch of [{status:'FAILED'},{feed_cipher_sha256:'d'.repeat(64)},{source_session:'2026-03-11'},
+    {latest_attempt_at_utc:'2026-03-13T14:00:00Z'}])assert.equal(radarPresentation(packet,{...status,...patch},now).updateDate,null);
   assert.deepEqual({packet,status},before);
 });
