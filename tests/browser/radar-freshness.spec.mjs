@@ -19,10 +19,10 @@ function encryptRadar(packet) {
 }
 const feed=encryptRadar(dailyFixture());
 
-for(const scenario of ['quiet-stop','failed','status-missing']) {
+for(const scenario of ['explicit-stale','failed','status-missing']) {
   test(`summary/detail freshness ${scenario} preserves dated data and lock isolation`,async({page},testInfo)=>{
     const errors=[];page.on('pageerror',error=>errors.push(error.message));let feedReads=0;
-    const status={...unavailableEngineStatus(),status:scenario==='failed'?'FAILED':'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
+    const status={...unavailableEngineStatus(),status:scenario==='failed'?'FAILED':scenario==='explicit-stale'?'STALE':'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
       input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:00:00Z',latest_attempt_at_utc:'2026-03-13T10:00:00Z',
       next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64),built_at_utc:'2026-03-13T10:03:00Z',published_at_utc:'2026-03-13T10:04:00Z',publication_receipt_result_id:'a'.repeat(64)};
     await page.clock.install({time:new Date('2026-03-13T12:00:00Z')});
@@ -33,8 +33,8 @@ for(const scenario of ['quiet-stop','failed','status-missing']) {
     await page.goto('/#/overview');
     await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
     const summary=page.locator('.overview-radar');await expect(summary).toBeVisible();
-    await expect(summary.locator('.overview-radar-score strong')).toHaveText(scenario==='quiet-stop'?'50':'—');
-    await expect(summary.locator('.radar-headline')).toHaveText(scenario==='quiet-stop'?'중립 구간':'—');
+    await expect(summary.locator('.overview-radar-score strong')).toHaveText('—');
+    await expect(summary.locator('.radar-headline')).toHaveText('—');
     await expect(summary.locator('time')).toHaveAttribute('datetime','2026-03-12');
     await page.clock.setSystemTime(new Date('2026-03-13T14:40:01Z'));
     await page.clock.fastForward(60001);
@@ -131,15 +131,11 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
     await detail.screenshot({path:testInfo.outputPath(`radar-${scenario}-full.png`)});
     if(issued||scenario==='mixed') {
       await page.clock.setSystemTime(new Date('2026-03-13T14:40:01Z'));await page.clock.fastForward(60001);
-      await expect(detail.locator('[role=alert],.radar-headline.is-alert')).toHaveCount(0);
-      await expect(detail.locator('.radar-event-label')).toHaveCount(0);
-      await expect(detail.locator('.radar-dial-number')).toHaveText('—/100');
-      await expect(detail.locator('.radar-dial-needle,.lucide-bell-off')).toHaveCount(0);
-      await detail.getByText('기준일 결과',{exact:true}).click();
-      await expect(detail.locator('details[open]')).toContainText(`2026-03-12 · ${score} /100`);
-      await expect(detail.locator('details[open]')).toContainText('경보');
-      if(scenario==='mixed')await expect(detail.locator('details[open]')).toContainText('양방향 조건 강함');
-      await detail.locator('details[open]').screenshot({path:testInfo.outputPath(`retained-${scenario}.png`)});
+      await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
+      await expect(detail.locator('[role=alert]')).toHaveCount(scenario==='both'?2:issued?1:0);
+      if(scenario==='mixed')await expect(detail.locator('.radar-mixed')).toHaveText('양방향 조건 강함');
+      await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));});
+      await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
       await expect(detail.locator('.radar-updated time')).toHaveAttribute('datetime',packet.session);
     }
     expect(errors).toEqual([]);

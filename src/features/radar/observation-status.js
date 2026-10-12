@@ -46,10 +46,10 @@ export function observationState(value,now=Date.now()) {
   if(!value)return 'UNAVAILABLE';
   if(value.schema_version==='radar_engine_status_v1'){
     if(value.status==='UNAVAILABLE')return 'UNAVAILABLE';
+    // A missed scheduler deadline is not evidence that the dated result is invalid.
     return value.status==='FAILED'||value.status==='STALE'
       ||Date.parse(value.model_computed_at_utc)>now+5*60000
-      ||Date.parse(value.input_admitted_at_utc)>now+5*60000
-      ||now>Date.parse(value.next_scheduled_at_utc)+2*3600000?'STALE':'OBSERVED_NO_SIGNAL';
+      ||Date.parse(value.input_admitted_at_utc)>now+5*60000?'STALE':'OBSERVED_NO_SIGNAL';
   }
   if(value.status==='UNAVAILABLE')return 'UNAVAILABLE';
   return value.status==='STALE'||Date.parse(value.computed_at_utc)>now+5*60000
