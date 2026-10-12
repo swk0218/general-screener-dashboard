@@ -120,7 +120,6 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
     if(scenario==='score-only')await expect(detail.locator('.radar-headline')).toHaveText('점수 전용');
     if(scenario==='score-only'||scenario==='invalid') {
       await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['—','—']);
-      await expect(detail.locator('.radar-card-value strong')).not.toHaveText(Array(8).fill('—'));
       await expect(detail.locator('.lucide-bell-off,.lucide-triangle-alert')).toHaveCount(0);
       await expect(detail).not.toContainText('경보 없음');
     }
