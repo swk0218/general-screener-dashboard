@@ -18,7 +18,7 @@ test('rebuild or publication time never promotes stale or failed engine data',()
   const value={...sample(),status:'STALE'};
   Object.assign(value,{built_at_utc:'2026-10-08T01:00:00Z',published_at_utc:'2026-10-08T01:01:00Z',publication_receipt_result_id:value.engine_result_id});
   assert.equal(observationState(validateEngineStatus(value),Date.parse('2026-10-08T01:02:00Z')),'STALE');
-  value.status='FAILED';assert.equal(observationState(value,Date.parse('2026-10-07T10:20:00Z')),'STALE');
+  value.status='FAILED';value.failure_code='SOURCE_FETCH_FAILED';assert.equal(observationState(value,Date.parse('2026-10-07T10:20:00Z')),'STALE');
   value.publication_receipt_result_id='b'.repeat(64);assert.throws(()=>validateEngineStatus(value),/BINDING/);
 });
 test('no-feed status requests no model; unavailable engine status may retain an existing dated feed',async(t)=>{
@@ -91,8 +91,8 @@ test('optional successful-refresh receipt is backward compatible and bound to th
   assert.deepEqual(bindStatus(current,feed).last_successful_refresh,receipt);
   assert.deepEqual(bindStatus(current,feed,{retainPublication:true}).last_successful_refresh,receipt);
   for(const patch of [{engine_result_id:'c'.repeat(64)},{feed_cipher_sha256:'c'.repeat(64)}, {completed_at_utc:'2026-10-07'}, {outcome:'FAILED'}, {extra:true}])
-    assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,...patch}}),/INVALID_SUCCESSFUL_REFRESH/);
-  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:null}),/INVALID_SUCCESSFUL_REFRESH/);
+    assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,...patch}}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:null}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
 });
 
 test('audit-only stale status may retain only a same-cipher historical completion receipt',()=>{
@@ -101,9 +101,27 @@ test('audit-only stale status may retain only a same-cipher historical completio
   current.last_successful_refresh=receipt;
   assert.equal(validateEngineStatus(current),current);
   assert.deepEqual(bindStatus(current,feed).last_successful_refresh,receipt);
-  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,engine_result_id:current.engine_result_id,completed_at_utc:'2026-10-08T00:00:00Z'}}),/INVALID_SUCCESSFUL_REFRESH/);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,engine_result_id:current.engine_result_id,completed_at_utc:'2026-10-08T00:00:00Z'}}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
   for(const patch of [{status:'FAILED'},{status:'DATED',source_session:current.expected_session},{expected_session:current.source_session},
     {failure_code:'SOURCE_FETCH_FAILED'},{latest_attempt_at_utc:'2026-10-07T14:00:00Z'},{model_computed_at_utc:'2026-10-07T16:00:00Z'}])
-    assert.throws(()=>validateEngineStatus({...current,...patch}),/INVALID_SUCCESSFUL_REFRESH/);
-  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,feed_cipher_sha256:'c'.repeat(64)}}),/INVALID_SUCCESSFUL_REFRESH/);
+    assert.throws(()=>validateEngineStatus({...current,...patch}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
+  assert.throws(()=>validateEngineStatus({...current,last_successful_refresh:{...receipt,feed_cipher_sha256:'c'.repeat(64)}}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
+});
+
+test('failed attempts retain only the same-cipher, prior successful completion',()=>{
+  const current={...sample(),status:'FAILED',failure_code:'SOURCE_FETCH_FAILED',expected_session:'2026-10-07',latest_attempt_at_utc:'2026-10-07T21:00:00Z'};
+  const receipt={completed_at_utc:'2026-10-07T15:00:00Z',engine_result_id:'b'.repeat(64),feed_cipher_sha256:current.feed_cipher_sha256,outcome:'PUBLISHED'};
+  current.last_successful_refresh=receipt;
+  assert.equal(validateEngineStatus(current),current);
+  assert.deepEqual(bindStatus(current,feed).last_successful_refresh,receipt);
+  for(const patch of [{feed_cipher_sha256:'c'.repeat(64)},{failure_code:null},{latest_attempt_at_utc:'2026-10-07T14:00:00Z'},{model_computed_at_utc:'2026-10-07T16:00:00Z'}])
+    assert.throws(()=>validateEngineStatus({...current,...patch}),/INVALID_(SUCCESSFUL_REFRESH|ENGINE_FAILURE_CODE)/);
+});
+
+
+test('malformed failure codes never authorize retained product results',()=>{
+  for(const failure_code of [false,{},123,'','   ',null])
+    assert.throws(()=>validateEngineStatus({...sample(),status:'FAILED',failure_code}),/INVALID_ENGINE_FAILURE_CODE/);
+  for(const failure_code of [false,{},123,'','   '])
+    assert.throws(()=>validateEngineStatus({...sample(),failure_code}),/INVALID_ENGINE_FAILURE_CODE/);
 });

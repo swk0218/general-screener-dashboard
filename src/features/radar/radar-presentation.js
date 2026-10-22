@@ -22,7 +22,11 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   const stale=Boolean(data)&&(['DATED_STALE_OBSERVATION','CACHED_STALE'].includes(data.gauge.data_status)
     ||failed||statusUnavailable||Boolean(currentStatus&&observationState(currentStatus,now)==='STALE'));
   const level=data?.gauge.level;
-  const retainedFailure=data?.observation?.collection_status==='FAILED_RETAINED_DATED'&&currentStatus?.status==='FAILED';
+  // Operational failure does not invalidate the authenticated, dated model result.
+  const retainedFailure=currentStatus?.status==='FAILED'&&currentStatus.failure_code!==null
+    &&data?.operating_status==='DAILY_MODEL_COMPUTED'
+    &&(data.observation?.collection_status==='FAILED_RETAINED_DATED'
+      ||data.gauge.data_status==='DATED_OBSERVATION'&&data.observation?.expected_session===data.session);
   const awaitingNewInputs=currentStatus?.status==='STALE'&&currentStatus.failure_code===null
     &&currentStatus.expected_session>data?.session&&!failed
     &&data?.operating_status==='DAILY_MODEL_COMPUTED'&&data.gauge.data_status==='DATED_OBSERVATION'
@@ -31,14 +35,13 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
     &&(retainedFailure||awaitingNewInputs)
     &&Date.parse(currentStatus.model_computed_at_utc)<=now+5*60000
     &&Date.parse(currentStatus.input_admitted_at_utc)<=now+5*60000;
-  const displayScore=stale&&!retainedScore?null:data?.gauge.score??null;
-  const headline=stale||unavailable?'—':observation?'점수 전용':conflict?'양방향 경보 충돌':level==='CONFLICT'?'—':LEVEL_COPY[level];
-  const eventKind=unavailable||observation||stale?'unavailable':conflict?'both':data.events.bottom?'bottom':data.events.top?'top':'none';
+  const displayUnavailable=unavailable||stale&&!retainedScore;
+  const displayScore=displayUnavailable?null:data?.gauge.score??null;
+  const headline=displayUnavailable?'—':observation?'점수 전용':conflict?'양방향 경보 충돌':level==='CONFLICT'?'—':LEVEL_COPY[level];
+  const eventKind=displayUnavailable||observation?'unavailable':conflict?'both':data.events.bottom?'bottom':data.events.top?'top':'none';
   const eventLabel={unavailable:'—',both:'저점·고점 동시 발생',bottom:'저점 경보',top:'고점 경보',none:'경보 없음'}[eventKind];
-  const missing=data?.observation?.latest_session_input_missing;
-  const notice=!data?null:statusUnavailable?'자료 상태 미확인 · 기준일 관측':stale||failed ? missing?.length
-    ?`${currentStatus?.expected_session||data.observation.expected_session} ${missing.join(' · ')} 미확보`
-    :failed?'갱신 실패 · 이전 점수 유지':'갱신 지연 · 이전 점수 유지' : null;
+  // Product surfaces show the dated result, not the latest operational attempt.
+  const notice=null;
   // Publish clocks only when their validated status belongs to this retained session.
   const provenanceStatus=currentStatus?.source_session===data?.session?currentStatus:null;
   const clocks={
@@ -50,16 +53,17 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
   // A completed, verified refresh is distinct from source/model/build/publication clocks.
   const refresh=currentStatus?.last_successful_refresh;
   // Legacy packets retain their verified first-publication evidence until a refresh receipt exists.
-  const legacyPublished=!refresh&&currentStatus?.publication_receipt_result_id===currentStatus?.engine_result_id
+  const legacyPublished=!refresh&&!stale&&currentStatus?.status==='DATED'&&currentStatus?.publication_receipt_result_id===currentStatus?.engine_result_id
     &&Number.isSafeInteger(currentStatus?.publication_deployment_id)&&currentStatus.publication_deployment_id>0
     ?clocks.published:null;
   const refreshedAt=refresh?.completed_at_utc||legacyPublished;
   const completed=currentStatus?.schema_version==='radar_engine_status_v1'
-    &&(currentStatus.status==='DATED'&&!stale||awaitingNewInputs&&retainedScore&&Boolean(refresh))
+    &&(currentStatus.status==='DATED'&&!stale||retainedScore&&Boolean(refresh))
     &&!unavailable&&refreshedAt
     &&Date.parse(refreshedAt)>=Date.parse(currentStatus.model_computed_at_utc)
     &&Date.parse(refreshedAt)<=now+5*60000?refreshedAt:null;
   const updateDate=completed?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(completed)):null;
   return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,updateDate,
-    eventLabel,notice,retainedScore};
+    eventLabel,notice,retainedScore,displayUnavailable,
+    sourceDate:retainedScore&&!updateDate?data.session:null};
 }

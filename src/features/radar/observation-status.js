@@ -11,6 +11,8 @@ export function validateEngineStatus(value){
     ||value.producer_repository!=='swk0218/MarketRadar'||value.schedule!=='MON_SAT_1017_1240_UTC'
     ||!['DATED','STALE','FAILED','UNAVAILABLE'].includes(value.status)
     ||value.historical_first_seen_claimed!==false)throw new Error('INVALID_ENGINE_STATUS');
+  if(value.failure_code!==null&&(typeof value.failure_code!=='string'||!value.failure_code.trim())
+    ||value.status==='FAILED'&&value.failure_code===null)throw new Error('INVALID_ENGINE_FAILURE_CODE');
   for(const key of ['source_market_close_utc','input_admitted_at_utc','model_computed_at_utc','latest_attempt_at_utc','http_capture_completed_at_utc','next_scheduled_at_utc','built_at_utc','published_at_utc'])
     if(value[key]!==null&&!timestamp(value[key]))throw new Error('INVALID_ENGINE_TIME');
   for(const key of ['source_session','expected_session'])
@@ -24,16 +26,17 @@ export function validateEngineStatus(value){
   if(value.published_at_utc&&value.engine_result_id&&value.publication_receipt_result_id!==value.engine_result_id)throw new Error('PUBLICATION_RESULT_BINDING_MISMATCH');
   if(value.last_successful_refresh!==undefined){
     const receipt=value.last_successful_refresh;
-    // An audit-only newer-session check may keep the verified same-cipher success receipt.
+    // Failed attempts and audit-only checks may retain the verified same-cipher success receipt.
     // Its historical result ID is evidence of the original completion, not the newer check.
-    const retainedCompletion=value.status==='STALE'&&value.failure_code===null&&value.expected_session>value.source_session
+    const retainedCompletion=(value.status==='FAILED'&&value.failure_code!==null
+      ||value.status==='STALE'&&value.failure_code===null&&value.expected_session>value.source_session)
       &&Date.parse(receipt?.completed_at_utc)>=Date.parse(value.model_computed_at_utc)
       &&Date.parse(receipt?.completed_at_utc)<=Date.parse(value.latest_attempt_at_utc);
     if(!receipt||Object.keys(receipt).sort().join('|')!==['completed_at_utc','engine_result_id','feed_cipher_sha256','outcome'].sort().join('|')
       ||!timestamp(receipt.completed_at_utc)||!['PUBLISHED','SKIPPED_COMPLETE_SESSION'].includes(receipt.outcome)
       ||!hash(receipt.engine_result_id)||!hash(receipt.feed_cipher_sha256)
       ||(receipt.engine_result_id!==value.engine_result_id&&!retainedCompletion)
-      ||(value.status==='STALE'&&!retainedCompletion)||receipt.feed_cipher_sha256!==value.feed_cipher_sha256)
+      ||(['STALE','FAILED'].includes(value.status)&&!retainedCompletion)||receipt.feed_cipher_sha256!==value.feed_cipher_sha256)
       throw new Error('INVALID_SUCCESSFUL_REFRESH_RECEIPT');
   }
   return value;
