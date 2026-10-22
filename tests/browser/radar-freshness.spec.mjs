@@ -19,7 +19,7 @@ function encryptRadar(packet) {
 }
 const feed=encryptRadar(dailyFixture());
 
-for(const scenario of ['explicit-stale','failed','status-missing']) {
+for(const scenario of ['explicit-stale','status-missing']) {
   test(`summary/detail freshness ${scenario} preserves dated data and lock isolation`,async({page},testInfo)=>{
     const errors=[];page.on('pageerror',error=>errors.push(error.message));let feedReads=0;
     const status={...unavailableEngineStatus(),status:scenario==='failed'?'FAILED':scenario==='explicit-stale'?'STALE':'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
@@ -142,19 +142,19 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
   });
 }
 
-for(const scenario of ['retained-failure','awaiting-inputs','awaiting-inputs-receipt','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
+for(const scenario of ['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt','deployment-race','persistent-mismatch','retry-legacy','retry-status-unavailable']) {
   test(`Radar ${scenario} keeps verified dated values and rejects unbound data`,async({page})=>{
     const downgrade=scenario.startsWith('retry-');
-    const packet=dailyFixture(scenario==='retained-failure'||scenario.startsWith('awaiting-inputs')||downgrade,false);
+    const packet=dailyFixture(scenario==='retained-failure'||scenario==='failed-receipt'||scenario.startsWith('awaiting-inputs')||downgrade,false);
     if(scenario==='retained-failure') {
       packet.gauge.data_status='DATED_STALE_OBSERVATION';
       Object.assign(packet.observation,{expected_session:'2026-03-13',latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:'2026-03-13T10:05:00Z'});
     }
     const body=encryptRadar(packet);let statusReads=0,feedReads=0;
-    const status={...unavailableEngineStatus(),status:scenario==='retained-failure'?'FAILED':scenario.startsWith('awaiting-inputs')?'STALE':'DATED',source_session:packet.session,expected_session:['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)?'2026-03-13':packet.session,
+    const status={...unavailableEngineStatus(),status:['retained-failure','failed-receipt'].includes(scenario)?'FAILED':scenario.startsWith('awaiting-inputs')?'STALE':'DATED',source_session:packet.session,expected_session:['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)?'2026-03-13':packet.session,
       input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:05:00Z',
-      next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(body).digest('hex'),engine_result_id:'a'.repeat(64),failure_code:scenario==='retained-failure'?'SOURCE_FETCH_FAILED':null};
-    if(scenario==='awaiting-inputs-receipt')status.last_successful_refresh={completed_at_utc:'2026-03-13T10:04:00Z',engine_result_id:'c'.repeat(64),feed_cipher_sha256:status.feed_cipher_sha256,outcome:'PUBLISHED'};
+      next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(body).digest('hex'),engine_result_id:'a'.repeat(64),failure_code:['retained-failure','failed-receipt'].includes(scenario)?'SOURCE_FETCH_FAILED':null};
+    if(scenario.endsWith('-receipt'))status.last_successful_refresh={completed_at_utc:'2026-03-13T10:04:00Z',engine_result_id:'c'.repeat(64),feed_cipher_sha256:status.feed_cipher_sha256,outcome:'PUBLISHED'};
     await page.clock.install({time:new Date('2026-03-13T16:00:00Z')});
     await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
     await page.route('**/data/radar-observation.json*',route=>{
@@ -174,22 +174,24 @@ for(const scenario of ['retained-failure','awaiting-inputs','awaiting-inputs-rec
     const summary=page.locator('.overview-radar');
     const score=scenario==='persistent-mismatch'||downgrade?'—':String(packet.gauge.score);
     await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
-    await expect.poll(()=>feedReads).toBe(['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)||downgrade?1:2);
+    await expect.poll(()=>feedReads).toBe(['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)||downgrade?1:2);
     await expect.poll(()=>statusReads).toBe(downgrade?2:feedReads);
-    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText(scenario==='awaiting-inputs-receipt'?'03.13 Updated':'— Updated');
+    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText(scenario.endsWith('-receipt')?'03.13 Updated':['retained-failure','awaiting-inputs'].includes(scenario)?'03.12 기준일':'— Updated');
     await summary.getByText('지수 자세히',{exact:true}).click();
     const detail=page.locator('.radar-view');await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
     if(downgrade){
       await expect(summary.locator('.radar-event-label')).toHaveCount(0);
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
     }
-    if(['retained-failure','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)) {
-      await expect(detail.locator('.radar-headline')).toHaveText('—');
-      await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
-      await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['—','—']);
+    if(['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)) {
+      await expect(detail.locator('.radar-headline')).toHaveText('저점 경보 발생');
+      await expect(detail.locator('[role=alert]')).toHaveCount(0);
+      await expect(detail.locator('.radar-threshold-track')).toHaveCount(2);
+      await expect(detail.locator('.radar-alert-outcome strong')).toHaveText(['경보 발생','경보 없음']);
       await expect(detail.locator('.radar-card-value strong')).not.toHaveText(Array(8).fill('—'));
-      await detail.getByText('기준일 결과',{exact:true}).click();
-      await expect(detail.locator('details[open]')).not.toContainText('유지 중');
+      await detail.getByText('신호 상세',{exact:true}).click();
+      await expect(detail.locator('details[open]')).toContainText('유지 중');
+      await expect(detail).not.toContainText(/갱신 실패|갱신 지연|SOURCE_FETCH_FAILED/);
     }
     await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();
     await expect(page.locator('input[type=password]')).toBeVisible();await expect(detail).toHaveCount(0);
