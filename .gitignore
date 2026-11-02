@@ -4,9 +4,11 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.briefing
 *.log
 qa-*.png
 fixtures/
+!src/features/briefing/fixtures/
 public/data/*.plain.json
 public/data/*.tmp
 public/data/*.bak
@@ -15,3 +17,4 @@ design-qa.md
 beta-check-results.txt
 test-results/
 playwright-report/
+__pycache__/

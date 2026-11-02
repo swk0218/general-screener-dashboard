@@ -1,0 +1,359 @@
+{
+  "schema_version": "gpt_shadow_v1",
+  "demo": true,
+  "status": "ready",
+  "generated_at": "2026-11-02T12:00:00Z",
+  "session": "2026-10-30",
+  "identity": {
+    "input_hash": "2fb7372a50e261bb1493615ab1a6e2f740438151b1834c8cad4638f5ae58bf31",
+    "provider": "mock",
+    "model": "fixture-v1",
+    "prompt_version": "grounded-links-v1",
+    "schema_version": "gpt_shadow_v1",
+    "mock_response_hash": "1d9e045a31e51ddbf4951cf3af404f168b2a8904ed49607e2451eb5859d4d2af"
+  },
+  "attempts": 1,
+  "computed": {
+    "market_available": true,
+    "facts": {
+      "tenx_changes": {
+        "kind": "candidate_change",
+        "engine": "TENX",
+        "entered": [
+          "DEMO-B",
+          "DEMO-C"
+        ],
+        "exited": [
+          "DEMO-D"
+        ],
+        "count_delta": 1,
+        "sources": [
+          "demo:TENX:previous",
+          "demo:TENX:current"
+        ]
+      },
+      "exposure": {
+        "kind": "shared_exposure",
+        "symbols": [
+          "DEMO-B"
+        ],
+        "sectors": [
+          "반도체",
+          "전력·냉각"
+        ],
+        "previous_symbols": [],
+        "changed": true,
+        "sources": [
+          "demo:TENX:current",
+          "demo:MLG:current",
+          "demo:TENX:previous",
+          "demo:MLG:previous"
+        ]
+      },
+      "market": {
+        "kind": "market",
+        "state": "caution",
+        "sources": [
+          "demo:Radar:current"
+        ]
+      }
+    }
+  },
+  "engines": {
+    "Radar": {
+      "current": {
+        "as_of": "2026-10-30",
+        "session": "2026-10-30",
+        "status": "valid",
+        "contract": "Radar-synthetic-v1",
+        "source_id": "demo:Radar:current",
+        "candidates": [],
+        "market_state": "caution"
+      },
+      "previous": {
+        "as_of": "2026-10-29",
+        "session": "2026-10-29",
+        "status": "valid",
+        "contract": "Radar-synthetic-v1",
+        "source_id": "demo:Radar:previous",
+        "candidates": [],
+        "market_state": "caution"
+      }
+    },
+    "TENX": {
+      "current": {
+        "as_of": "2026-10-30",
+        "session": "2026-10-30",
+        "status": "valid",
+        "contract": "TENX-synthetic-v1",
+        "source_id": "demo:TENX:current",
+        "candidates": [
+          {
+            "symbol": "DEMO-A",
+            "sector": "반도체",
+            "rank": 1,
+            "score": 82
+          },
+          {
+            "symbol": "DEMO-B",
+            "sector": "전력·냉각",
+            "rank": 2,
+            "score": 79
+          },
+          {
+            "symbol": "DEMO-C",
+            "sector": "소프트웨어",
+            "rank": 3,
+            "score": 77
+          }
+        ],
+        "market_state": "unavailable"
+      },
+      "previous": {
+        "as_of": "2026-10-29",
+        "session": "2026-10-29",
+        "status": "valid",
+        "contract": "TENX-synthetic-v1",
+        "source_id": "demo:TENX:previous",
+        "candidates": [
+          {
+            "symbol": "DEMO-A",
+            "sector": "반도체",
+            "rank": 1,
+            "score": 82
+          },
+          {
+            "symbol": "DEMO-D",
+            "sector": "산업재",
+            "rank": 2,
+            "score": 76
+          }
+        ],
+        "market_state": "unavailable"
+      }
+    },
+    "MLG": {
+      "current": {
+        "as_of": "2026-10-30",
+        "session": "2026-10-30",
+        "status": "valid",
+        "contract": "MLG-synthetic-v1",
+        "source_id": "demo:MLG:current",
+        "candidates": [
+          {
+            "symbol": "DEMO-B",
+            "sector": "전력·냉각",
+            "rank": 1,
+            "score": 86
+          },
+          {
+            "symbol": "DEMO-E",
+            "sector": "반도체",
+            "rank": 2,
+            "score": 81
+          }
+        ],
+        "market_state": "unavailable"
+      },
+      "previous": {
+        "as_of": "2026-10-29",
+        "session": "2026-10-29",
+        "status": "valid",
+        "contract": "MLG-synthetic-v1",
+        "source_id": "demo:MLG:previous",
+        "candidates": [
+          {
+            "symbol": "DEMO-B",
+            "sector": "전력·냉각",
+            "rank": 1,
+            "score": 86
+          },
+          {
+            "symbol": "DEMO-E",
+            "sector": "반도체",
+            "rank": 2,
+            "score": 81
+          }
+        ],
+        "market_state": "unavailable"
+      }
+    }
+  },
+  "companies": [
+    {
+      "symbol": "DEMO-B",
+      "description": "Provides cooling products for industrial facilities.",
+      "baseline_supported": false,
+      "sources": [
+        {
+          "id": "demo-sec-b",
+          "kind": "SEC",
+          "url": "https://www.sec.gov/Archives/",
+          "published_on": "2026-10-28",
+          "available_on": "2026-10-28",
+          "text": "The company supplies cooling systems for data centers. AI-related revenue is not disclosed separately."
+        }
+      ]
+    },
+    {
+      "symbol": "DEMO-A",
+      "description": "Manufactures semiconductors.",
+      "baseline_supported": true,
+      "sources": [
+        {
+          "id": "demo-fmp-a",
+          "kind": "FMP",
+          "url": "https://financialmodelingprep.com/",
+          "published_on": "2026-10-28",
+          "available_on": "2026-10-28",
+          "text": "The company manufactures semiconductors and supplies processors to data centers."
+        }
+      ]
+    },
+    {
+      "symbol": "DEMO-F",
+      "description": "Plans to offer AI infrastructure.",
+      "baseline_supported": false,
+      "sources": [
+        {
+          "id": "demo-sec-f",
+          "kind": "SEC",
+          "url": "https://www.sec.gov/Archives/",
+          "published_on": "2026-10-28",
+          "available_on": "2026-10-28",
+          "text": "The company plans to offer cloud infrastructure. Commercial operations have not started."
+        }
+      ]
+    },
+    {
+      "symbol": "DEMO-G",
+      "description": "",
+      "baseline_supported": false,
+      "sources": []
+    },
+    {
+      "symbol": "DEMO-H",
+      "description": "Previously supplied optical components.",
+      "baseline_supported": false,
+      "sources": [
+        {
+          "id": "demo-sec-h",
+          "kind": "SEC",
+          "url": "https://www.sec.gov/Archives/",
+          "published_on": "2026-10-28",
+          "available_on": "2026-10-28",
+          "text": "The company previously supplied optical interconnects. This business was discontinued."
+        }
+      ]
+    }
+  ],
+  "insights": [
+    {
+      "kind": "market_conflict",
+      "fact_ids": [
+        "market",
+        "tenx_changes"
+      ]
+    },
+    {
+      "kind": "shared_exposure",
+      "fact_ids": [
+        "exposure"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "symbol": "DEMO-B",
+      "role": "power_cooling",
+      "period": "current",
+      "decision": "supported",
+      "evidence": [
+        {
+          "source_id": "demo-sec-b",
+          "quote": "The company supplies cooling systems for data centers."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "source_id": "demo-sec-b",
+          "quote": "AI-related revenue is not disclosed separately."
+        }
+      ],
+      "uncertainty": "revenue_not_verified",
+      "baseline_supported": false,
+      "comparison": "review"
+    },
+    {
+      "symbol": "DEMO-A",
+      "role": "semiconductor",
+      "period": "current",
+      "decision": "supported",
+      "evidence": [
+        {
+          "source_id": "demo-fmp-a",
+          "quote": "The company manufactures semiconductors and supplies processors to data centers."
+        }
+      ],
+      "counter_evidence": [],
+      "uncertainty": "revenue_not_verified",
+      "baseline_supported": true,
+      "comparison": "agree"
+    },
+    {
+      "symbol": "DEMO-F",
+      "role": "cloud",
+      "period": "planned",
+      "decision": "unconfirmed",
+      "evidence": [
+        {
+          "source_id": "demo-sec-f",
+          "quote": "The company plans to offer cloud infrastructure."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "source_id": "demo-sec-f",
+          "quote": "Commercial operations have not started."
+        }
+      ],
+      "uncertainty": "insufficient_evidence",
+      "baseline_supported": false,
+      "comparison": "agree"
+    },
+    {
+      "symbol": "DEMO-G",
+      "role": "unknown",
+      "period": "unknown",
+      "decision": "unconfirmed",
+      "evidence": [],
+      "counter_evidence": [],
+      "uncertainty": "insufficient_evidence",
+      "baseline_supported": false,
+      "comparison": "agree"
+    },
+    {
+      "symbol": "DEMO-H",
+      "role": "interconnect",
+      "period": "past",
+      "decision": "unconfirmed",
+      "evidence": [
+        {
+          "source_id": "demo-sec-h",
+          "quote": "The company previously supplied optical interconnects."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "source_id": "demo-sec-h",
+          "quote": "This business was discontinued."
+        }
+      ],
+      "uncertainty": "insufficient_evidence",
+      "baseline_supported": false,
+      "comparison": "agree"
+    }
+  ],
+  "engine_results_preserved": true,
+  "score_effect": 0
+}
