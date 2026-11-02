@@ -66,3 +66,12 @@ Windows에서는 기존 symlink 테스트 2개가 EPERM으로 남았다. skip하
 바꾸지 않았다. Linux에서 실제 통과하기 전까지 이 항목은 미검증으로 남긴다.
 renderer 통합 검사는 환경변수가 없으면 1개가 skip될 수 있으므로 위 두 변수를
 명시하고 skipped=0인지 확인한다. 실제 API를 호출하는 스크립트는 이 절차에 없다.
+
+
+## v3 출시용 선택 경로
+
+VITE_GPT_BRIEFING_ENABLED=true일 때 BriefingSessionApp이 기존 UnlockScreen/Dashboard를 공유한다. 기존 앱 암호로 한 번 잠금을 해제하고 화면 이동으로 브리핑을 연다. 거래일 입력이나 별도 암호 입력은 없다. 세션은 암호문에 결합된 Radar 상태의 source/expected session과 마감 시각·수집 유효성·시도 예정 시각을 검증해 자동 선택한다. 휴장/주말은 생산자가 확정한 완료 세션을 사용한다. 지연·날짜 불일치·상태 결측은 추측하지 않고 이전 자료로 유보한다. 잠금/언마운트는 요청을 취소하고 결과를 제거하며 암호를 저장하지 않는다.
+
+기존 날짜 입력 BriefingFeed는 개발 전용 fixture 진입점이다. 출시용 진입점에서는 쓰지 않는다. fake/provider 실행 모드와 identity·receipt 일치를 artifact validator/reader가 검사하고, seal/rollback 기본 모드는 provider이다. fake 검증 발행은 executionMode:fake_transport를 명시해야 하며 같은 목적지의 실행 모드를 바꿀 수 없다. 여러 엔진 사실 ID를 묶은 경우 모든 엔진의 변화가 화면에 남는다.
+
+통합 UX 재현: BRIEFING_TEST_BACKEND와 BRIEFING_TEST_PYTHON을 지정한 뒤 npx playwright test --config playwright.briefing-session.config.mjs. 전체 기본 브라우저 회귀와 별도로 실행한다.

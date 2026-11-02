@@ -101,3 +101,4 @@
   .brief-notice, .brief-empty { padding: 18px; }
   .brief-evidence dl > div, .brief-footer dl > div { grid-template-columns: 1fr; gap: 6px; }
 }
+.brief-session-nav{display:flex;gap:8px;flex-wrap:wrap;padding:12px 24px;background:#111615}.brief-session-nav button{min-height:44px;padding:8px 16px;border:1px solid #62746e;background:#17201c;color:#f2f5f3;border-radius:4px;cursor:pointer}.brief-session-nav button:focus-visible{outline:2px solid #b5d7c7;outline-offset:3px}

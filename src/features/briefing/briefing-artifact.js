@@ -12,6 +12,8 @@ export function assertBriefingArtifact(artifact) {
   if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !hash(binding.screening_archive_sha256) || binding.normalizer_version !== 'briefing-native-input-v1' || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
   for (const value of Object.values(binding.radar_cipher_sha256 || {})) if (value !== null && !hash(value)) fail();
   if (['ready', 'cached'].includes(data.status)) {
+    const transport = artifact.execution_mode === 'provider' ? 'network' : 'fake';
+    if (data.execution_mode !== artifact.execution_mode || data.identity?.execution_mode !== artifact.execution_mode || data.provider_receipt?.transport !== transport || artifact.execution_mode === 'provider' && data.demo) fail();
     if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
     for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
     if (data.computed.market_available && (data.engines.Radar.current.status !== 'valid' || data.engines.Radar.current.session !== data.session)) fail();
@@ -55,11 +57,13 @@ export async function encryptBriefingArtifact(artifact, passphrase) {
 export async function readBriefingArtifact(envelope, passphrase, {
   expectedSession,
   expectedInputHash,
+  expectedExecutionMode,
   forcePrevious = false,
   now = Date.now(),
   maxAgeMs = 36 * 3600 * 1000
 } = {}) {
   const artifact = assertBriefingArtifact(await decryptEnvelope(envelope, passphrase));
+  if (expectedExecutionMode && artifact.execution_mode !== expectedExecutionMode) fail();
   const data = structuredClone(artifact.briefing);
   if (Date.parse(artifact.created_at) > now + 300000) return {
     status: 'unavailable',
@@ -118,7 +122,7 @@ export async function loadBriefingDelivery(statusUrl, cipherUrl, passphrase, opt
         ...options,
         expectedSession: options.expectedSession || status.expected_session,
         expectedInputHash: status.expected_input_hash,
-        forcePrevious: status.status !== 'READY'
+        forcePrevious: options.forcePrevious || status.status !== 'READY'
       });
     } catch {
       return {

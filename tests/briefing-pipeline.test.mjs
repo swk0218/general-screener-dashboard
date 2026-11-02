@@ -4,12 +4,29 @@ import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipelineFixture } from './fixtures/briefing-pipeline.mjs';
+import { encryptEnvelope } from '../src/crypto/envelope.js';
 import { nativeInput, nativeArchive, nativeRadar, fixturePassword, cutoff } from './fixtures/briefing-native.mjs';
 import { sha256, readScreeningArchive, readRadarSource, normalizeSources } from '../scripts/lib/briefing-input.mjs';
 import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact, loadBriefingArtifact, loadBriefingDelivery } from '../src/features/briefing/briefing-artifact.js';
 import { sealBriefingArtifact, rollbackBriefingArtifact, writeBriefingDeliveryStatus } from '../scripts/seal-briefing-artifact.mjs';
 const python = process.env.BRIEFING_TEST_PYTHON;
 const backend = process.env.BRIEFING_TEST_BACKEND;
+
+test('fake provenance cannot be promoted by artifact, reader or publication', {skip:!python||!backend}, async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'briefing-provenance-'));
+  const {artifact}=await pipelineFixture(directory,{demo:false});
+  const file=join(directory,'cipher.json');
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,file),/EXECUTION_MODE/);
+  const promoted=structuredClone(artifact);promoted.execution_mode='provider';
+  await assert.rejects(encryptBriefingArtifact(promoted,fixturePassword),/ARTIFACT_INVALID/);
+  const wrapped=await encryptEnvelope(promoted,fixturePassword);
+  await assert.rejects(readBriefingArtifact(wrapped,fixturePassword,{expectedSession:artifact.briefing.session,now:Date.parse(cutoff)}),/ARTIFACT_INVALID/);
+  const valid=await sealBriefingArtifact(artifact,fixturePassword,file,{executionMode:'fake_transport'});
+  await assert.rejects(readBriefingArtifact(valid,fixturePassword,{expectedExecutionMode:'provider'}),/ARTIFACT_INVALID/);
+  const provider=structuredClone(artifact);provider.execution_mode=provider.briefing.execution_mode=provider.briefing.identity.execution_mode='provider';provider.briefing.provider_receipt.transport='network';
+  await assert.rejects(sealBriefingArtifact(provider,fixturePassword,file),/EXECUTION_MODE/);
+  await assert.rejects(rollbackBriefingArtifact(Buffer.from(JSON.stringify(valid)),sha256(JSON.stringify(valid)),fixturePassword,file),/EXECUTION_MODE/);
+});
 test('native archive adapter preserves ranks and rejects wrong bytes or future availability', async () => {
   const value = await nativeInput({
     demo: false
@@ -58,7 +75,7 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   } = await pipelineFixture(directory);
   assert.equal(artifact.briefing.status, 'ready');
   const destination = join(directory, 'briefing.enc.json');
-  const sealed = await sealBriefingArtifact(artifact, fixturePassword, destination);
+  const sealed = await sealBriefingArtifact(artifact, fixturePassword, destination, {executionMode:'fake_transport'});
   assert.ok(!JSON.stringify(sealed).includes('DEMO-B'));
   const read = await readBriefingArtifact(sealed, fixturePassword, {
     expectedSession: '2026-10-30',
@@ -80,24 +97,24 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   assert.equal(missing.status, 'unavailable');
   const original = await readFile(destination);
   await writeFile(`${destination}.lock`,'owned-by-test');
-  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,destination));
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,destination,{executionMode:'fake_transport'}),/EEXIST/);
   assert.deepEqual(await readFile(destination),original,'busy publication preserves prior bytes');
   await rm(`${destination}.lock`);
   await sealBriefingArtifact({
     ...artifact,
     created_at: '2026-11-02T12:10:00Z'
-  }, fixturePassword, destination);
+  }, fixturePassword, destination, {executionMode:'fake_transport'});
   assert.deepEqual(await readFile(destination), original, 'rebuild does not replace identical sealed result');
   const bad = structuredClone(artifact);
   bad.briefing.identity.input_hash = '0'.repeat(64);
-  await assert.rejects(sealBriefingArtifact(bad, fixturePassword, destination));
+  await assert.rejects(sealBriefingArtifact(bad, fixturePassword, destination, {executionMode:'fake_transport'}));
   assert.deepEqual(await readFile(destination), original);
   const failed = structuredClone(artifact);
   failed.briefing = {
     status: 'unavailable',
     demo: true
   };
-  await sealBriefingArtifact(failed, fixturePassword, destination);
+  await sealBriefingArtifact(failed, fixturePassword, destination, {executionMode:'fake_transport'});
   assert.deepEqual(await readFile(destination), original, 'provider failure retains old valid artifact');
   failed.source_binding.input_hash='f'.repeat(64);
   const delivery=await writeBriefingDeliveryStatus(failed,original,join(directory,'briefing-status.json'));
@@ -115,11 +132,11 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   assert.equal(reads,4,'one bounded pair retry; no unbound fallback');
   const newer = structuredClone(artifact);
   newer.created_at = newer.briefing.generated_at = '2026-11-02T12:20:00Z';
-  await sealBriefingArtifact(newer, fixturePassword, destination);
+  await sealBriefingArtifact(newer, fixturePassword, destination, {executionMode:'fake_transport'});
   assert.notDeepEqual(await readFile(destination), original);
-  await rollbackBriefingArtifact(original, sha256(original), fixturePassword, destination);
+  await rollbackBriefingArtifact(original, sha256(original), fixturePassword, destination, {executionMode:'fake_transport'});
   assert.deepEqual(await readFile(destination), original, 'rollback restores exact prior ciphertext');
-  await assert.rejects(rollbackBriefingArtifact(original, '0'.repeat(64), fixturePassword, destination));
+  await assert.rejects(rollbackBriefingArtifact(original, '0'.repeat(64), fixturePassword, destination, {executionMode:'fake_transport'}));
   await assert.rejects(readBriefingArtifact(sealed, 'wrong-password'));
   const tampered = structuredClone(sealed);
   tampered.aad = 'wrong';

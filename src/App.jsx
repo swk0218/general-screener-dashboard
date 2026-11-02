@@ -303,7 +303,7 @@ function useHashRoute() {
   return [route, navigate];
 }
 
-function UnlockScreen({ envelope, envelopeError, onUnlock }) {
+export function UnlockScreen({ envelope, envelopeError, onUnlock }) {
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState("");
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -1579,7 +1579,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, radar, radarStatus, seasonality, onLock }) {
+export function Dashboard({ payload, radar, radarStatus, seasonality, onLock }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");

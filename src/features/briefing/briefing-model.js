@@ -56,10 +56,10 @@ export function briefingClocks(data, timeZone = "UTC") {
 }
 export function insightView(item, facts) {
   // All prose comes from reviewed templates. Numeric differences stay code-owned.
-  const change = item.fact_ids.map(id => facts[id]).find(fact => fact.kind === "candidate_change");
+  const changes = item.fact_ids.map(id => facts[id]).filter(fact => fact.kind === "candidate_change");
   if (item.kind === "market_conflict") return {
     title: "후보 변화와 시장 경계를 함께 보세요",
-    fact: `Radar는 경계 상태입니다. ${change.engine} 후보는 이전 대비 ${change.count_delta > 0 ? "+" : ""}${change.count_delta}개, 새 편입 ${change.entered.length}개·제외 ${change.exited.length}개입니다.`,
+    fact: changes.map(change => `Radar는 경계 상태입니다. ${change.engine} 후보는 이전 대비 ${change.count_delta > 0 ? "+" : ""}${change.count_delta}개, 새 편입 ${change.entered.length}개·제외 ${change.exited.length}개입니다.`).join(" "),
     interpretation: "개별 후보의 변화와 시장 전체의 위험은 서로 다른 신호입니다. 후보가 늘었다는 사실만으로 시장이 좋아졌다고 보기는 어렵습니다.",
     counter: "후보 증가는 일부 업종의 변화일 수 있습니다. 시장 전반으로 확산됐는지는 확인되지 않았습니다.",
     check: "새 후보의 업종 쏠림과 가격·거래량을 확인하세요. 시장 판단은 다음 유효한 Radar 결과를 기다립니다."
@@ -73,7 +73,7 @@ export function insightView(item, facts) {
   };
   return {
     title: "바뀐 후보부터 확인하세요",
-    fact: `${change.engine} 새 편입 ${change.entered.join(", ") || "없음"} · 제외 ${change.exited.join(", ") || "없음"}. 후보 수 차이 ${change.count_delta > 0 ? "+" : ""}${change.count_delta}개.`,
+    fact: changes.map(change => `${change.engine} 새 편입 ${change.entered.join(", ") || "없음"} · 제외 ${change.exited.join(", ") || "없음"}. 후보 수 차이 ${change.count_delta > 0 ? "+" : ""}${change.count_delta}개.`).join(" "),
     interpretation: "후보 구성이 바뀌었습니다. 시장 전체에 대한 판단은 유효한 Radar 결과를 확인한 뒤 연결할 수 있습니다.",
     counter: "후보 변화만으로 실적 개선이나 투자 매력을 확정할 수 없습니다.",
     check: "편입·제외 기업의 근거를 비교하세요. 시장 판단은 새 유효 자료가 확인될 때까지 보류합니다."

@@ -5,6 +5,19 @@ import { demoRequested } from "../src/features/briefing/demo-gate.js";
 import { briefingClocks, formatBriefingTime, engineState, insightView } from "../src/features/briefing/briefing-model.js";
 
 const fixture = JSON.parse(await readFile(new URL("../src/features/briefing/fixtures/ready.json", import.meta.url), "utf8"));
+
+test("merged insights preserve both engine changes in either fact order", () => {
+  const facts={...fixture.computed.facts,mlg_changes:{kind:'candidate_change',engine:'MLG',count_delta:-2,entered:['MLG-NEW'],exited:['MLG-OLD','MLG-OLD2','MLG-OLD3']}};
+  for (const kind of ['market_conflict', 'candidate_review']) {
+    for (const ids of [['tenx_changes','mlg_changes'],['mlg_changes','tenx_changes']]) {
+      const fact_ids=kind==='market_conflict'?['market',...ids]:ids;
+      const view=insightView({kind,fact_ids},facts);
+      assert.match(view.fact,/TENX/);assert.match(view.fact,/MLG/);
+      for(const id of ids)assert.ok(view.fact.includes(String(facts[id].count_delta)));
+      if(kind==='candidate_review'){assert.match(view.fact,/MLG-NEW/);assert.match(view.fact,/MLG-OLD/);}
+    }
+  }
+});
 test("demo needs both explicit development config and the preview query", () => {
   const input = { dev: true, enabled: "true", search: "?demo=briefing" };
   assert.equal(demoRequested(input), true);

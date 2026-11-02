@@ -13,7 +13,7 @@ test('actual adapter/transport/artifact reader supplies the shared UI', async ({
     artifact
   } = await pipelineFixture(directory);
   const file = join(directory, 'briefing.enc.json');
-  await sealBriefingArtifact(artifact, fixturePassword, file);
+  await sealBriefingArtifact(artifact, fixturePassword, file, {executionMode:'fake_transport'});
   const encrypted = await readFile(file, 'utf8');
   const status = await writeBriefingDeliveryStatus(artifact, Buffer.from(encrypted), join(directory, 'briefing-status.json'));
   const errors = [];

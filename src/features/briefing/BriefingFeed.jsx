@@ -13,7 +13,8 @@ export function BriefingFeed() {
     setLoading(true);
     try {
       const result = await loadBriefingDelivery('./data/briefing-status.json', './data/briefing.enc.json', password, {
-        expectedSession: session
+        expectedSession: session,
+        expectedExecutionMode: import.meta.env.DEV ? 'fake_transport' : 'provider'
       });
       setData(result);
     } finally {

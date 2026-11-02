@@ -3,11 +3,14 @@ import { writeFile, rename, readFile, rm, open } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { decryptEnvelope } from '../src/crypto/envelope.js';
 import { assertBriefingArtifact, assertBriefingDeliveryStatus, encryptBriefingArtifact, readBriefingArtifact } from '../src/features/briefing/briefing-artifact.js';
-export async function sealBriefingArtifact(artifact, passphrase, destination) {
+export async function sealBriefingArtifact(artifact, passphrase, destination, { executionMode = 'provider' } = {}) {
+  assertBriefingArtifact(artifact);
+  if (artifact.execution_mode !== executionMode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
   return withLock(destination, async () => {
     try {
       const existing = await readFile(destination, 'utf8');
       const prior = assertBriefingArtifact(await decryptEnvelope(existing, passphrase));
+      if (prior.execution_mode !== artifact.execution_mode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
       const comparable = value => JSON.stringify({
         ...value,
         created_at: null,
@@ -73,10 +76,11 @@ export async function writeBriefingDeliveryStatus(attempt, cipherRaw, destinatio
   await withLock(destination, () => replaceBytes(JSON.stringify(status), destination));
   return status;
 }
-export async function rollbackBriefingArtifact(raw, expectedHash, passphrase, destination) {
+export async function rollbackBriefingArtifact(raw, expectedHash, passphrase, destination, { executionMode = 'provider' } = {}) {
   return withLock(destination, async () => {
     if (createHash('sha256').update(raw).digest('hex') !== expectedHash) throw new Error('ROLLBACK_DIGEST_MISMATCH');
     const prior = await decryptEnvelope(raw.toString(), passphrase);
+    if (prior.execution_mode !== executionMode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
     // Validate purpose/schema even when it is a deliberately older, dated result.
     await readBriefingArtifact(JSON.parse(raw), passphrase, {
       expectedSession: prior.source_binding?.assessment_session,
