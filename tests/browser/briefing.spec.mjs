@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 
 test("keyboard entry and touch targets remain accessible", async({page})=>{
   await page.goto('/?demo=briefing');
+  const clocks=page.getByLabel('자료 기준일');
+  await expect(clocks).toContainText('2026-11-02 12:00 UTC');
   await page.getByRole('heading',{level:1}).waitFor();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link',{name:'본문으로 이동'})).toBeFocused();
@@ -51,5 +53,8 @@ test("stale, held, missing and failed inputs cannot invent today's market",async
   await control.selectOption('failure');
   await expect(page.getByRole('heading',{name:'브리핑을 준비하지 못했습니다'})).toBeVisible();
   await expect(page.getByText('스크리너 결과는 그대로 유지됩니다.',{exact:false})).toBeVisible();
+  await expect(page.getByLabel('자료 기준일')).toContainText('생성되지 않음');
+  await expect(page.getByLabel('자료 기준일')).not.toContainText('2026-11-02');
+  await expect(page.getByLabel('자료 기준일')).not.toContainText('2026-10-30');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

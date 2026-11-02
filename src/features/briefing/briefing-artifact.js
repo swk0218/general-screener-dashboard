@@ -1,0 +1,158 @@
+import { encryptEnvelope, decryptEnvelope } from '../../crypto/envelope.js';
+export const ARTIFACT_KIND = 'general_screener_briefing_v1';
+const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const stamp = value => typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+function fail() {
+  throw new Error('BRIEFING_ARTIFACT_INVALID');
+}
+export function assertBriefingArtifact(artifact) {
+  if (artifact?.artifact_kind !== ARTIFACT_KIND || artifact.version !== 1 || !stamp(artifact.created_at) || !['fake_transport', 'provider'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
+  const data = artifact.briefing,
+    binding = artifact.source_binding;
+  if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !hash(binding.screening_archive_sha256) || binding.normalizer_version !== 'briefing-native-input-v1' || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
+  for (const value of Object.values(binding.radar_cipher_sha256 || {})) if (value !== null && !hash(value)) fail();
+  if (['ready', 'cached'].includes(data.status)) {
+    if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
+    for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
+    if (data.computed.market_available && (data.engines.Radar.current.status !== 'valid' || data.engines.Radar.current.session !== data.session)) fail();
+    const ids = new Set();
+    for (const insight of data.insights) {
+      if (!['market_conflict', 'candidate_review', 'shared_exposure'].includes(insight.kind) || !Array.isArray(insight.fact_ids) || !insight.fact_ids.length || insight.fact_ids.some(id => !Object.hasOwn(data.computed.facts, id) || ids.has(id))) fail();
+      insight.fact_ids.forEach(id => ids.add(id));
+      const facts = insight.fact_ids.map(id => data.computed.facts[id]);
+      if (insight.kind === 'market_conflict' && (!data.computed.market_available || !insight.fact_ids.includes('market') || data.computed.facts.market?.state !== 'caution' || !facts.some(fact => fact.kind === 'candidate_change'))) fail();
+      if (insight.kind === 'candidate_review' && facts.some(fact => fact.kind !== 'candidate_change')) fail();
+      if (insight.kind === 'shared_exposure' && (insight.fact_ids.join() !== 'exposure' || !data.computed.facts.exposure.changed || !Array.isArray(data.computed.facts.exposure.symbols) || !data.computed.facts.exposure.symbols.length || !Array.isArray(data.computed.facts.exposure.sectors))) fail();
+      for (const fact of facts) if (fact.kind === 'candidate_change' && (!Array.isArray(fact.entered) || !Array.isArray(fact.exited) || !Number.isInteger(fact.count_delta) || !['MLG', 'TENX'].includes(fact.engine))) fail();
+    }
+    for (const role of data.roles) {
+      const company = data.companies.find(item => item.symbol === role.symbol);
+      if (!company || !['supported', 'unconfirmed'].includes(role.decision) || !['current', 'planned', 'past', 'unknown'].includes(role.period) || !['compute', 'semiconductor', 'interconnect', 'power_cooling', 'cloud', 'unknown'].includes(role.role)) fail();
+      if (role.decision === 'supported' && (role.period !== 'current' || !role.evidence?.length)) fail();
+      for (const evidence of [...(role.evidence || []), ...(role.counter_evidence || [])]) {
+        const source = company.sources.find(item => item.id === evidence.source_id);
+        if (!source || typeof evidence.quote !== 'string' || !evidence.quote || !source.text.includes(evidence.quote)) fail();
+        const hosts = {
+          SEC: 'www.sec.gov',
+          FMP: 'financialmodelingprep.com',
+          FRED: 'fred.stlouisfed.org'
+        };
+        let url;
+        try {
+          url = new URL(source.url);
+        } catch {
+          fail();
+        }
+        if (url.protocol !== 'https:' || url.hostname !== hosts[source.kind] || url.username || url.password) fail();
+      }
+    }
+  } else if (data.generated_at !== undefined || data.insights?.length) fail();
+  return artifact;
+}
+export async function encryptBriefingArtifact(artifact, passphrase) {
+  return encryptEnvelope(assertBriefingArtifact(artifact), passphrase);
+}
+export async function readBriefingArtifact(envelope, passphrase, {
+  expectedSession,
+  expectedInputHash,
+  forcePrevious = false,
+  now = Date.now(),
+  maxAgeMs = 36 * 3600 * 1000
+} = {}) {
+  const artifact = assertBriefingArtifact(await decryptEnvelope(envelope, passphrase));
+  const data = structuredClone(artifact.briefing);
+  if (Date.parse(artifact.created_at) > now + 300000) return {
+    status: 'unavailable',
+    demo: data.demo,
+    reason: 'future_artifact_clock'
+  };
+  if (['ready', 'cached'].includes(data.status)) {
+    // Re-encrypting or rebuilding cannot refresh a source session or generation clock.
+    const age = now - Date.parse(data.generated_at);
+    if (forcePrevious || !expectedSession || data.session !== expectedSession || age < 0 || age > maxAgeMs || expectedInputHash && artifact.source_binding.input_hash !== expectedInputHash) {
+      data.status = 'unavailable';
+      return {
+        status: 'unavailable',
+        demo: data.demo,
+        previous_is_current: false,
+        previous_briefing: artifact.briefing,
+        reason: 'dated_result_only'
+      };
+    }
+  }
+  return {
+    ...data,
+    execution_mode: artifact.execution_mode
+  };
+}
+export function assertBriefingDeliveryStatus(value) {
+  if (!value || Object.keys(value).sort().join() !== ['schema', 'status', 'expected_session', 'expected_input_hash', 'cipher_sha256', 'last_attempt_at'].sort().join() || value.schema !== 'briefing_delivery_status_v1' || !['READY', 'FAILED', 'STALE'].includes(value.status) || !/^\d{4}-\d{2}-\d{2}$/.test(value.expected_session) || !hash(value.expected_input_hash) || !hash(value.cipher_sha256) || !stamp(value.last_attempt_at)) fail();
+  return value;
+}
+export async function loadBriefingDelivery(statusUrl, cipherUrl, passphrase, options = {}, fetcher = fetch) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const statusResponse = await fetcher(statusUrl, {
+        signal: options.signal,
+        cache: 'no-store'
+      });
+      if (!statusResponse.ok) throw new Error('STATUS_MISSING');
+      const statusRaw = await statusResponse.text();
+      if (statusRaw.length > 4000) throw new Error('STATUS_TOO_LARGE');
+      const status = assertBriefingDeliveryStatus(JSON.parse(statusRaw));
+      const response = await fetcher(cipherUrl, {
+        signal: options.signal,
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('CIPHER_MISSING');
+      const raw = await response.arrayBuffer();
+      if (raw.byteLength > 256000) throw new Error('CIPHER_TOO_LARGE');
+      const actual = [...new Uint8Array(await crypto.subtle.digest('SHA-256', raw))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      if (actual !== status.cipher_sha256) {
+        if (attempt === 0) continue;
+        throw new Error('PAIR_MISMATCH');
+      }
+      return await readBriefingArtifact(JSON.parse(new TextDecoder('utf-8', {
+        fatal: true
+      }).decode(raw)), passphrase, {
+        ...options,
+        expectedSession: options.expectedSession || status.expected_session,
+        expectedInputHash: status.expected_input_hash,
+        forcePrevious: status.status !== 'READY'
+      });
+    } catch {
+      return {
+        status: 'unavailable',
+        demo: false,
+        reason: 'optional_delivery_unavailable'
+      };
+    }
+  }
+  return {
+    status: 'unavailable',
+    demo: false,
+    reason: 'optional_delivery_unavailable'
+  };
+}
+export async function loadBriefingArtifact(url, passphrase, options = {}, fetcher = fetch) {
+  try {
+    const response = await fetcher(url, {
+      signal: options.signal,
+      cache: 'no-store'
+    });
+    if (!response.ok) return {
+      status: 'unavailable',
+      demo: false,
+      reason: 'optional_artifact_missing'
+    };
+    const raw = await response.text();
+    if (raw.length > 256000) throw new Error('BRIEFING_TOO_LARGE');
+    return await readBriefingArtifact(JSON.parse(raw), passphrase, options);
+  } catch {
+    return {
+      status: 'unavailable',
+      demo: false,
+      reason: 'optional_artifact_unavailable'
+    };
+  }
+}

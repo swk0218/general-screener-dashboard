@@ -18,3 +18,8 @@ beta-check-results.txt
 test-results/
 playwright-report/
 __pycache__/
+.tmp/
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/briefing-native.mjs
+!tests/fixtures/briefing-pipeline.mjs

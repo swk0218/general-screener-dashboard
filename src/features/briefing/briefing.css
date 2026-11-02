@@ -20,6 +20,7 @@
 .brief-mobile-break { display: none; }
 .brief-scenario { display: grid; gap: 8px; color: var(--gs-muted); font-size: 12px; min-width: 230px; }
 .brief-scenario select { padding: 8px 30px 8px 12px; border: 1px solid var(--gs-divider-strong); color: var(--gs-text); background: var(--gs-bg-raised); border-radius: 0; }
+.brief-scenario input { min-height: 44px; padding: 8px 12px; border: 1px solid var(--gs-divider-strong); color: var(--gs-text); background: var(--gs-bg-raised); border-radius: 0; }
 .brief-clocks { display: grid; grid-template-columns: repeat(3,1fr) 1.5fr; border: 1px solid var(--gs-divider); }
 .brief-clocks > div { padding: 16px 20px; display: grid; border-right: 1px solid var(--gs-divider); }
 .brief-clocks > div:last-child { border: 0; }

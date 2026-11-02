@@ -1,0 +1,151 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pipelineFixture } from './fixtures/briefing-pipeline.mjs';
+import { nativeInput, nativeArchive, nativeRadar, fixturePassword, cutoff } from './fixtures/briefing-native.mjs';
+import { sha256, readScreeningArchive, readRadarSource, normalizeSources } from '../scripts/lib/briefing-input.mjs';
+import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact, loadBriefingArtifact, loadBriefingDelivery } from '../src/features/briefing/briefing-artifact.js';
+import { sealBriefingArtifact, rollbackBriefingArtifact, writeBriefingDeliveryStatus } from '../scripts/seal-briefing-artifact.mjs';
+const python = process.env.BRIEFING_TEST_PYTHON;
+const backend = process.env.BRIEFING_TEST_BACKEND;
+test('native archive adapter preserves ranks and rejects wrong bytes or future availability', async () => {
+  const value = await nativeInput({
+    demo: false
+  });
+  const rewrapped = await nativeInput({demo:false});
+  assert.deepEqual(value.data,rewrapped.data,'cipher rewrapping does not change the semantic model input');
+  assert.notEqual(value.binding.radar_cipher_sha256.current,rewrapped.binding.radar_cipher_sha256.current);
+  assert.equal(value.data.demo, false);
+  assert.equal(value.data.engines.Radar.current.market_state, 'caution');
+  assert.deepEqual(value.data.engines.TENX.current.candidates.map(row => row.score), [82, 79, 77]);
+  assert.throws(() => readScreeningArchive(value.archive.raw, '0'.repeat(64)), /BYTES_MISMATCH/);
+  await assert.rejects(readRadarSource(value.radar.raw, value.radar.status, fixturePassword, '2026-10-30', '2026-11-01T00:00:00Z'), /NOT_AVAILABLE/);
+  await assert.rejects(readRadarSource(value.radar.raw, {
+    ...value.radar.status,
+    feed_cipher_sha256: '0'.repeat(64)
+  }, fixturePassword, '2026-10-30', cutoff), /BINDING/);
+  const archive = nativeArchive();
+  const source = readScreeningArchive(archive.raw, archive.hash);
+  assert.throws(()=>normalizeSources({screening:source,selection:{TENX:{current:'TENX-previous'}},companies:[],session:'2026-10-30',cutoff}),/NONCONSECUTIVE/);
+  assert.throws(() => normalizeSources({
+    screening: source,
+    selection: {
+      TENX: {
+        current: 'TENX-current'
+      }
+    },
+    companies: [],
+    session: '2026-10-30',
+    cutoff: '2026-11-01T00:00:00Z'
+  }), /CUTOFF/);
+});
+test('quarantined Radar remains unavailable in actual adapter path', async () => {
+  const native = await nativeInput({
+    state: 'FAILED',
+    failure: 'REVISION_QUARANTINED'
+  });
+  assert.equal(native.data.engines.Radar.current.status, 'quarantined');
+  assert.equal(native.data.engines.Radar.current.market_state, 'unavailable');
+});
+test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
+  skip: !python || !backend
+}, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'briefing-pipeline-'));
+  const {
+    artifact
+  } = await pipelineFixture(directory);
+  assert.equal(artifact.briefing.status, 'ready');
+  const destination = join(directory, 'briefing.enc.json');
+  const sealed = await sealBriefingArtifact(artifact, fixturePassword, destination);
+  assert.ok(!JSON.stringify(sealed).includes('DEMO-B'));
+  const read = await readBriefingArtifact(sealed, fixturePassword, {
+    expectedSession: '2026-10-30',
+    now: Date.parse(cutoff)
+  });
+  assert.equal(read.insights.length, 2);
+  assert.equal(read.execution_mode, 'fake_transport');
+  assert.equal(read.engines.TENX.current.candidates[0].score, 82);
+  const stale = await readBriefingArtifact(sealed, fixturePassword, {
+    expectedSession: '2026-11-02',
+    now: Date.parse(cutoff)
+  });
+  assert.equal(stale.status, 'unavailable');
+  assert.equal(stale.previous_is_current, false);
+  assert.equal(stale.previous_briefing.generated_at, cutoff);
+  const missing = await loadBriefingArtifact('/missing', fixturePassword, {}, async () => ({
+    ok: false
+  }));
+  assert.equal(missing.status, 'unavailable');
+  const original = await readFile(destination);
+  await writeFile(`${destination}.lock`,'owned-by-test');
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,destination));
+  assert.deepEqual(await readFile(destination),original,'busy publication preserves prior bytes');
+  await rm(`${destination}.lock`);
+  await sealBriefingArtifact({
+    ...artifact,
+    created_at: '2026-11-02T12:10:00Z'
+  }, fixturePassword, destination);
+  assert.deepEqual(await readFile(destination), original, 'rebuild does not replace identical sealed result');
+  const bad = structuredClone(artifact);
+  bad.briefing.identity.input_hash = '0'.repeat(64);
+  await assert.rejects(sealBriefingArtifact(bad, fixturePassword, destination));
+  assert.deepEqual(await readFile(destination), original);
+  const failed = structuredClone(artifact);
+  failed.briefing = {
+    status: 'unavailable',
+    demo: true
+  };
+  await sealBriefingArtifact(failed, fixturePassword, destination);
+  assert.deepEqual(await readFile(destination), original, 'provider failure retains old valid artifact');
+  failed.source_binding.input_hash='f'.repeat(64);
+  const delivery=await writeBriefingDeliveryStatus(failed,original,join(directory,'briefing-status.json'));
+  let reads=0;
+  const fetcher=async url=>{reads++;return url==='/status'?{ok:true,text:async()=>JSON.stringify(delivery)}:
+    {ok:true,arrayBuffer:async()=>original.buffer.slice(original.byteOffset,original.byteOffset+original.byteLength)};};
+  const held=await loadBriefingDelivery('/status','/cipher',fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff)},fetcher);
+  assert.equal(held.status,'unavailable');
+  assert.equal(held.previous_is_current,false);
+  assert.equal(held.generated_at,undefined);
+  assert.equal(held.previous_briefing.generated_at,cutoff);
+  delivery.cipher_sha256='0'.repeat(64);reads=0;
+  const mismatched=await loadBriefingDelivery('/status','/cipher',fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff)},fetcher);
+  assert.equal(mismatched.status,'unavailable');
+  assert.equal(reads,4,'one bounded pair retry; no unbound fallback');
+  const newer = structuredClone(artifact);
+  newer.created_at = newer.briefing.generated_at = '2026-11-02T12:20:00Z';
+  await sealBriefingArtifact(newer, fixturePassword, destination);
+  assert.notDeepEqual(await readFile(destination), original);
+  await rollbackBriefingArtifact(original, sha256(original), fixturePassword, destination);
+  assert.deepEqual(await readFile(destination), original, 'rollback restores exact prior ciphertext');
+  await assert.rejects(rollbackBriefingArtifact(original, '0'.repeat(64), fixturePassword, destination));
+  await assert.rejects(readBriefingArtifact(sealed, 'wrong-password'));
+  const tampered = structuredClone(sealed);
+  tampered.aad = 'wrong';
+  await assert.rejects(readBriefingArtifact(tampered, fixturePassword));
+});
+test('failed artifact has no new generation time or invented current sources', async () => {
+  const native = await nativeInput();
+  const artifact = {
+    artifact_kind: ARTIFACT_KIND,
+    version: 1,
+    created_at: cutoff,
+    execution_mode: 'fake_transport',
+    source_binding: {
+      ...native.binding,
+      input_hash: 'e'.repeat(64)
+    },
+    briefing: {
+      status: 'unavailable',
+      demo: true
+    }
+  };
+  const sealed = await encryptBriefingArtifact(artifact, fixturePassword);
+  const read = await readBriefingArtifact(sealed, fixturePassword, {
+    expectedSession: '2026-10-30',
+    now: Date.parse(cutoff)
+  });
+  assert.equal(read.generated_at, undefined);
+  assert.equal(read.engines, undefined);
+});

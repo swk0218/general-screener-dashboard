@@ -4,6 +4,7 @@ import { webPublicAssets } from "./scripts/build-public-assets.mjs";
 
 const buildId = process.env.GITHUB_SHA || process.env.VITE_BUILD_ID || "local";
 
+let briefingEnabled = false;
 export default defineConfig({
   base: "./",
   define: {
@@ -37,5 +38,18 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react(), webPublicAssets()],
+  plugins: [react(), webPublicAssets(), {
+    name: "optional-briefing-entry",
+    configResolved(config) {
+      briefingEnabled = config.command === "serve" && config.mode === "briefing"
+        || config.env.VITE_GPT_BRIEFING_ENABLED === "true";
+    },
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        // OFF never puts optional modules in Rollup's graph, preserving vendor aliases too.
+        return briefingEnabled ? html.replace('src="/src/main.jsx"', 'src="/src/briefing-main.jsx"') : html;
+      },
+    },
+  }],
 });
