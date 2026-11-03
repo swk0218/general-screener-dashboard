@@ -1,6 +1,7 @@
 // Server/CLI only. Reuse the current consumer validators; never bundle Node APIs.
 import { createHash } from 'node:crypto';
 import { assertDashboardPayload } from '../../src/data/contract.js';
+import { isQuarantinedDashboardRun } from '../../src/data/payload-quarantine.js';
 import { validateRadarDelivery } from '../../src/features/radar/radar-contract.js';
 import { validateEngineStatus } from '../../src/features/radar/observation-status.js';
 import { decryptRadarEnvelope } from '../../src/features/radar/radar-envelope.js';
@@ -83,7 +84,10 @@ function screeningSnapshot(source, strategy, runId, cutoff) {
   if (!timestamp(source.packet.archive_committed_at) || Date.parse(source.packet.archive_committed_at) > Date.parse(cutoff)) throw new Error('ARCHIVE_NOT_AVAILABLE_AT_CUTOFF');
   const run = payload.runs.find(run => run.strategy === strategy && String(run.run_id) === String(runId));
   if (!run || !timestamp(run.report_created_at) || Date.parse(run.report_created_at) > Date.parse(cutoff)) throw new Error('RUN_NOT_AVAILABLE_AT_CUTOFF');
+  if (isQuarantinedDashboardRun(run)) return unavailable(`${strategy}:${runId}:quarantined`, 'quarantined');
   if (!/^[a-f0-9]{40}$/.test(run.sha || '')) throw new Error('RUN_REVISION_REQUIRED');
+  const contract = source.packet.engine_contracts?.[`${strategy}:${runId}`]?.contract_id;
+  if (!contract) return unavailable(`${strategy}:${runId}:contract_unverified`);
   const rows = payload.recommendations.filter(row => row.strategy === strategy && String(row.run_id) === String(runId));
   const sessions = [...new Set(rows.map(row => row.screening_price_as_of))];
   if (!rows.length || sessions.length !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(sessions[0] || '')) return unavailable(`${strategy}:${runId}:data_session_unavailable`);
@@ -93,7 +97,7 @@ function screeningSnapshot(source, strategy, runId, cutoff) {
     as_of: sessions[0],
     session: sessions[0],
     status: 'valid',
-    contract: `${payload.contract_version}:${source.packet.engine_contracts?.[`${strategy}:${runId}`]?.contract_id || run.sha}`,
+    contract: `${payload.contract_version}:${contract}`,
     source_id: `screening:${run.sha}:${strategy}:${runId}`,
     market_state: 'unavailable',
     candidates: rows.map(row => ({

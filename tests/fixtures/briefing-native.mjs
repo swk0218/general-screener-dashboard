@@ -2,7 +2,7 @@ import { createCipheriv, randomBytes, pbkdf2Sync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dailyFixture } from './radar-packets.mjs';
 import { unavailableEngineStatus } from '../../src/features/radar/observation-status.js';
-import { sha256, readScreeningArchive, readRadarSource, normalizeSources } from '../../scripts/lib/briefing-input.mjs';
+import { sha256, objectHash, readScreeningArchive, readRadarSource, normalizeSources } from '../../scripts/lib/briefing-input.mjs';
 const seed = JSON.parse(readFileSync(new URL('../../src/features/briefing/fixtures/ready.json', import.meta.url), 'utf8'));
 export const fixturePassword = 'synthetic-briefing-transport-only';
 export const cutoff = '2026-11-02T12:00:00Z';
@@ -54,6 +54,10 @@ export function nativeArchive() {
     payload_json,
     payload_sha256: sha256(payload_json)
   };
+  packet.engine_contracts = Object.fromEntries(payload.runs.map(run => {
+    const rule = {strategy:run.strategy, strategy_version:'fixture-v1', rule_hash:'a'.repeat(16), implementation_hash:'c'.repeat(64)};
+    return [`${run.strategy}:${run.run_id}`, {...rule, run_id:run.run_id, contract_id:objectHash(rule)}];
+  }));
   const raw = Buffer.from(JSON.stringify(packet));
   return {
     raw,

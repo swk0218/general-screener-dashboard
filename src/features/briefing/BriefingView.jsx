@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { briefingClocks, insightView, periodLabel, roleLabel } from "./briefing-model.js";
 import "./briefing.css";
+import roleTaxonomy from './role-taxonomy.json';
 function Evidence({
   data,
   insight
@@ -53,6 +54,7 @@ function SupplyRoles({
   return <section aria-labelledby="supply-title"><div className="brief-section-heading"><span>02 / BUSINESS EVIDENCE</span><h2 id="supply-title">공급망에서 맡은 역할</h2><p>AI라는 단어보다 실제 공급하는 제품과 사업 시점을 확인합니다.</p></div>
     <div className="brief-notice"><strong>검토용 분류입니다 · 기존 점수·순위 유지</strong><p>원문을 구조화한 {data.demo || data.execution_mode === "fake_transport" ? "모의 결과" : "보조 분류"}입니다. 실제 공급 여부의 최종 검증이나 AI 매출 비중 확인을 뜻하지 않습니다. 자료가 없으면 ‘미확인’으로 남깁니다.</p><p className="brief-muted">현재·계획·과거는 인용 자료의 시점을 뜻하며, 그 이후 사업 변화는 확인하지 않았습니다.</p></div>
     <div className="brief-filter" role="group" aria-label="분류 필터"><button aria-pressed={filter === "all"} onClick={() => setFilter("all")}>전체 기업</button><button aria-pressed={filter === "review"} onClick={() => setFilter("review")}>기존 분류와 다른 기업</button><span>{roles.length}개 기업</span></div>
+    <details className="brief-evidence"><summary>공급망 역할의 판단 기준</summary><p>제품명이나 기업 상식으로 빈 근거를 채우지 않습니다. 역할과 시제는 서로 독립적으로 판단합니다.</p><dl>{roleTaxonomy.role_priority.map(role=><div key={role}><dt>{roleLabel(role)}</dt><dd>{roleTaxonomy.labels_ko[role]}</dd></div>)}</dl></details>
     {roles.length === 0 ? <p className="brief-empty">지금 표시할 분류 결과가 없습니다.</p> : <div className="brief-role-grid">{roles.map(role => {
         const company = data.companies.find(item => item.symbol === role.symbol);
         return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" ? "brief-tag review" : "brief-tag"}>{role.comparison === "review" ? "추가 검토" : "기존 분류와 일치"}</span></header><h4>{roleLabel(role.role)}</h4><p>{periodLabel[role.period]} · {role.decision === "supported" ? "공급 역할 근거 있음" : "현재 공급 미확인"}</p><dl className="brief-comparison"><div><dt>기존 규칙</dt><dd>{role.baseline_supported ? "공급 역할 감지" : "공급 역할 미감지"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{role.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>

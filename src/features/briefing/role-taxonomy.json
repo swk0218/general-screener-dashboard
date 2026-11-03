@@ -1,0 +1,27 @@
+{
+  "schema": "gpt_role_taxonomy_v1",
+  "period_frame": "tense_of_statement_at_document_date_not_current_investment_truth",
+  "role_priority": [
+    "compute",
+    "semiconductor",
+    "interconnect",
+    "power_cooling",
+    "cloud",
+    "unknown"
+  ],
+  "compute": "processors, accelerators or servers",
+  "semiconductor": "memory, fabrication or semiconductor manufacturing equipment",
+  "interconnect": "data-center network connections or switches",
+  "power_cooling": "explicit digital infrastructure power or cooling; generic electrical products alone are insufficient",
+  "cloud": "explicit supplied cloud compute or storage",
+  "unknown": "name, segment heading, AI keyword, unavailable source or insufficient supply evidence",
+  "periods": "current=present-tense supplied product in document; planned=explicit future/development; past=explicit historical action; unknown=unsupported",
+  "labels_ko": {
+    "compute": "프로세서·가속기·서버를 공급한다는 명시적 근거",
+    "semiconductor": "메모리·반도체 제조·반도체 제조 장비를 공급한다는 근거",
+    "interconnect": "데이터센터 네트워크 연결 장치·스위치를 공급한다는 근거",
+    "power_cooling": "디지털 인프라의 전력·냉각 제품이라는 명시적 근거. 일반 전기 제품만으로는 부족",
+    "cloud": "클라우드 연산·저장 서비스를 공급한다는 명시적 근거",
+    "unknown": "기업명·제품명·AI 키워드만 있거나 사업 공급 역할의 근거가 부족함"
+  }
+}

@@ -1,11 +1,16 @@
 // Optional local/server callable. No environment key lookup, publishing or workflow trigger.
 import { writeFile, rename, readFile, rm, open } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { decryptEnvelope } from '../src/crypto/envelope.js';
 import { assertBriefingArtifact, assertBriefingDeliveryStatus, encryptBriefingArtifact, readBriefingArtifact } from '../src/features/briefing/briefing-artifact.js';
+function assertDestination(mode,destination) {
+  if(mode==='provider_test'&&!resolve(destination).replaceAll('\\','/').includes('/briefing-probe/')) throw new Error('PROBE_DESTINATION_REQUIRED');
+}
 export async function sealBriefingArtifact(artifact, passphrase, destination, { executionMode = 'provider' } = {}) {
   assertBriefingArtifact(artifact);
   if (artifact.execution_mode !== executionMode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
+  assertDestination(executionMode,destination);
   return withLock(destination, async () => {
     try {
       const existing = await readFile(destination, 'utf8');
@@ -28,7 +33,8 @@ export async function sealBriefingArtifact(artifact, passphrase, destination, { 
     const envelope = await encryptBriefingArtifact(artifact, passphrase);
     await readBriefingArtifact(envelope, passphrase, {
       expectedSession: artifact.source_binding.assessment_session,
-      now: Date.parse(artifact.created_at)
+      now: Date.parse(artifact.created_at),
+      expectedExecutionMode: executionMode
     });
     const temporary = `${destination}.pending-${randomUUID()}`;
     // Exclusive temp creation and atomic replacement preserve the old feed on failure.
@@ -65,6 +71,7 @@ async function withLock(destination, operation) {
 }
 export async function writeBriefingDeliveryStatus(attempt, cipherRaw, destination, {stale=false, attemptedAt=attempt.created_at}={}) {
   assertBriefingArtifact(attempt);
+  assertDestination(attempt.execution_mode,destination);
   const status = assertBriefingDeliveryStatus({
     schema: 'briefing_delivery_status_v1',
     status: stale ? 'STALE' : ['ready', 'cached'].includes(attempt.briefing.status) ? 'READY' : 'FAILED',
@@ -77,6 +84,7 @@ export async function writeBriefingDeliveryStatus(attempt, cipherRaw, destinatio
   return status;
 }
 export async function rollbackBriefingArtifact(raw, expectedHash, passphrase, destination, { executionMode = 'provider' } = {}) {
+  assertDestination(executionMode,destination);
   return withLock(destination, async () => {
     if (createHash('sha256').update(raw).digest('hex') !== expectedHash) throw new Error('ROLLBACK_DIGEST_MISMATCH');
     const prior = await decryptEnvelope(raw.toString(), passphrase);
@@ -84,7 +92,8 @@ export async function rollbackBriefingArtifact(raw, expectedHash, passphrase, de
     // Validate purpose/schema even when it is a deliberately older, dated result.
     await readBriefingArtifact(JSON.parse(raw), passphrase, {
       expectedSession: prior.source_binding?.assessment_session,
-      now: Date.parse(prior.created_at)
+      now: Date.parse(prior.created_at),
+      expectedExecutionMode: executionMode
     });
     await replaceBytes(raw, destination);
   });

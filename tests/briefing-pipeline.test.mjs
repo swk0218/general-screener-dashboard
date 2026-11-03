@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipelineFixture } from './fixtures/briefing-pipeline.mjs';
@@ -12,6 +12,24 @@ import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact, loadBrief
 import { sealBriefingArtifact, rollbackBriefingArtifact, writeBriefingDeliveryStatus } from '../scripts/seal-briefing-artifact.mjs';
 const python = process.env.BRIEFING_TEST_PYTHON;
 const backend = process.env.BRIEFING_TEST_BACKEND;
+
+test('unverified same-SHA contracts and quarantined TENX cannot become model facts', () => {
+  const packet=JSON.parse(nativeArchive().raw);
+  const normalize=value=>{const raw=JSON.stringify(value);return normalizeSources({screening:readScreeningArchive(raw,sha256(raw)),companies:[],session:'2026-10-30',cutoff});};
+  packet.engine_contracts={};
+  const missing=normalize(packet);
+  for(const engine of ['TENX','MLG']) for(const when of ['current','previous']) {
+    assert.equal(missing.engines[engine][when].status,'missing');
+    assert.deepEqual(missing.engines[engine][when].candidates,[]);
+    assert.match(missing.engines[engine][when].source_id,/contract_unverified/);
+  }
+  const payload=JSON.parse(packet.payload_json);
+  payload.runs.find(r=>r.run_id==='TENX-current').run_id='31390549097';
+  payload.recommendations.filter(r=>r.run_id==='TENX-current').forEach(r=>r.run_id='31390549097');
+  packet.payload_json=JSON.stringify(payload);packet.payload_sha256=sha256(packet.payload_json);
+  const held=normalize(packet).engines.TENX.current;
+  assert.equal(held.status,'quarantined');assert.deepEqual(held.candidates,[]);
+});
 
 test('validated rule identity permits changes across run commits; changed rules remain incomparable', () => {
   const native=nativeArchive();
@@ -52,6 +70,34 @@ test('fake provenance cannot be promoted by artifact, reader or publication', {s
   await assert.rejects(sealBriefingArtifact(provider,fixturePassword,file),/EXECUTION_MODE/);
   await assert.rejects(rollbackBriefingArtifact(Buffer.from(JSON.stringify(valid)),sha256(JSON.stringify(valid)),fixturePassword,file),/EXECUTION_MODE/);
 });
+test('synthetic provider artifacts require explicit test reader and isolated publication', {skip:!python||!backend},async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'briefing-test-mode-'));
+  const {artifact}=await pipelineFixture(directory);
+  // Constructed contract test, not an actual provider receipt or quality evidence.
+  artifact.execution_mode=artifact.briefing.execution_mode=artifact.briefing.identity.execution_mode='provider_test';
+  artifact.briefing.provider_receipt.transport='network';
+  const cipher=await encryptBriefingArtifact(artifact,fixturePassword);
+  const options={expectedSession:artifact.briefing.session,now:Date.parse(cutoff)};
+  await assert.rejects(readBriefingArtifact(cipher,fixturePassword,options),/ARTIFACT_INVALID/);
+  await assert.rejects(readBriefingArtifact(cipher,fixturePassword,{...options,expectedExecutionMode:'provider'}),/ARTIFACT_INVALID/);
+  await assert.rejects(readBriefingArtifact(cipher,fixturePassword,{...options,expectedExecutionMode:'fake_transport'}),/ARTIFACT_INVALID/);
+  const result=await readBriefingArtifact(cipher,fixturePassword,{...options,expectedExecutionMode:'provider_test'});
+  assert.equal(result.demo,true);assert.equal(result.execution_mode,'provider_test');
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,join(directory,'briefing.enc.json')),/EXECUTION_MODE/);
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,join(directory,'briefing.enc.json'),{executionMode:'provider_test'}),/DESTINATION/);
+  await assert.rejects(sealBriefingArtifact(artifact,fixturePassword,join(directory,'briefing-probe','..','briefing.enc.json'),{executionMode:'provider_test'}),/DESTINATION/);
+  await assert.rejects(writeBriefingDeliveryStatus(artifact,Buffer.from(JSON.stringify(cipher)),join(directory,'briefing-status.json')),/DESTINATION/);
+  await assert.rejects(rollbackBriefingArtifact(Buffer.from(JSON.stringify(cipher)),sha256(JSON.stringify(cipher)),fixturePassword,join(directory,'briefing.enc.json'),{executionMode:'provider_test'}),/DESTINATION/);
+  const isolated=join(directory,'briefing-probe');await mkdir(isolated);
+  await sealBriefingArtifact(artifact,fixturePassword,join(isolated,'briefing.enc.json'),{executionMode:'provider_test'});
+  artifact.briefing.demo=false;
+  await assert.rejects(encryptBriefingArtifact(artifact,fixturePassword),/ARTIFACT_INVALID/);
+  artifact.execution_mode=artifact.briefing.execution_mode=artifact.briefing.identity.execution_mode='provider';
+  await assert.rejects(encryptBriefingArtifact(artifact,fixturePassword),/ARTIFACT_INVALID/);
+  const promoted=await encryptEnvelope(artifact,fixturePassword);
+  await assert.rejects(readBriefingArtifact(promoted,fixturePassword,{...options,expectedExecutionMode:'provider'}),/ARTIFACT_INVALID/);
+});
+
 test('native archive adapter preserves ranks and rejects wrong bytes or future availability', async () => {
   const value = await nativeInput({
     demo: false
@@ -109,6 +155,16 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   assert.equal(read.insights.length, 2);
   assert.equal(read.execution_mode, 'fake_transport');
   assert.equal(read.engines.TENX.current.candidates[0].score, 82);
+  const heldMarket=await readBriefingArtifact(sealed,fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff),requireMarketUnavailable:true});
+  assert.equal(heldMarket.status,'unavailable','current delivery cannot endorse a no-longer-valid Radar interpretation');
+  const screenerOnly=structuredClone(artifact);
+  screenerOnly.briefing.computed.market_available=false;
+  delete screenerOnly.briefing.computed.facts.market;
+  screenerOnly.briefing.insights=screenerOnly.briefing.insights.filter(i=>!i.fact_ids.includes('market'));
+  const screenerSealed=await encryptBriefingArtifact(screenerOnly,fixturePassword);
+  const usableScreener=await readBriefingArtifact(screenerSealed,fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff),requireMarketUnavailable:true});
+  assert.equal(usableScreener.status,'ready','Radar delay alone cannot suppress grounded screener-only briefing');
+  assert.equal(usableScreener.computed.market_available,false);
   const stale = await readBriefingArtifact(sealed, fixturePassword, {
     expectedSession: '2026-11-02',
     now: Date.parse(cutoff)

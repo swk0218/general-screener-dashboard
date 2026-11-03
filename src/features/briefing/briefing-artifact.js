@@ -6,13 +6,14 @@ function fail() {
   throw new Error('BRIEFING_ARTIFACT_INVALID');
 }
 export function assertBriefingArtifact(artifact) {
-  if (artifact?.artifact_kind !== ARTIFACT_KIND || artifact.version !== 1 || !stamp(artifact.created_at) || !['fake_transport', 'provider'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
+  if (artifact?.artifact_kind !== ARTIFACT_KIND || artifact.version !== 1 || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
   const data = artifact.briefing,
     binding = artifact.source_binding;
   if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !hash(binding.screening_archive_sha256) || binding.normalizer_version !== 'briefing-native-input-v1' || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
   for (const value of Object.values(binding.radar_cipher_sha256 || {})) if (value !== null && !hash(value)) fail();
   if (['ready', 'cached'].includes(data.status)) {
-    const transport = artifact.execution_mode === 'provider' ? 'network' : 'fake';
+    const transport = artifact.execution_mode === 'fake_transport' ? 'fake' : 'network';
+    if (artifact.execution_mode === 'provider_test' && !data.demo) fail();
     if (data.execution_mode !== artifact.execution_mode || data.identity?.execution_mode !== artifact.execution_mode || data.provider_receipt?.transport !== transport || artifact.execution_mode === 'provider' && data.demo) fail();
     if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
     for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
@@ -52,17 +53,36 @@ export function assertBriefingArtifact(artifact) {
   return artifact;
 }
 export async function encryptBriefingArtifact(artifact, passphrase) {
-  return encryptEnvelope(assertBriefingArtifact(artifact), passphrase);
+  assertBriefingArtifact(artifact);
+  await assertInputBinding(artifact);
+  return encryptEnvelope(artifact, passphrase);
+}
+async function assertInputBinding(artifact) {
+  const data=artifact.briefing;
+  if(!['ready','cached'].includes(data.status)) return;
+  const input=Object.fromEntries(['schema_version','demo','session','engines','companies'].map(key=>[key,data[key]]));
+  const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+  if(typeof data.input_canonical_json!=='string'||data.input_canonical_json.length>200000) fail();
+  let bound;
+  try {bound=JSON.parse(data.input_canonical_json);} catch {fail();}
+  if(JSON.stringify(canonical(input))!==JSON.stringify(canonical(bound))) fail();
+  // Hash preserved server bytes: Python/JS float spelling and JSON spacing differ.
+  const bytes=new TextEncoder().encode(data.input_canonical_json);
+  const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+  if(digest!==artifact.source_binding.input_hash) fail();
 }
 export async function readBriefingArtifact(envelope, passphrase, {
   expectedSession,
   expectedInputHash,
   expectedExecutionMode,
   forcePrevious = false,
+  requireMarketUnavailable = false,
   now = Date.now(),
   maxAgeMs = 36 * 3600 * 1000
 } = {}) {
   const artifact = assertBriefingArtifact(await decryptEnvelope(envelope, passphrase));
+  await assertInputBinding(artifact);
+  if (artifact.execution_mode === 'provider_test' && expectedExecutionMode !== 'provider_test') fail();
   if (expectedExecutionMode && artifact.execution_mode !== expectedExecutionMode) fail();
   const data = structuredClone(artifact.briefing);
   if (Date.parse(artifact.created_at) > now + 300000) return {
@@ -73,7 +93,7 @@ export async function readBriefingArtifact(envelope, passphrase, {
   if (['ready', 'cached'].includes(data.status)) {
     // Re-encrypting or rebuilding cannot refresh a source session or generation clock.
     const age = now - Date.parse(data.generated_at);
-    if (forcePrevious || !expectedSession || data.session !== expectedSession || age < 0 || age > maxAgeMs || expectedInputHash && artifact.source_binding.input_hash !== expectedInputHash) {
+    if (forcePrevious || requireMarketUnavailable && data.computed.market_available || !expectedSession || data.session !== expectedSession || age < 0 || age > maxAgeMs || expectedInputHash && artifact.source_binding.input_hash !== expectedInputHash) {
       data.status = 'unavailable';
       return {
         status: 'unavailable',

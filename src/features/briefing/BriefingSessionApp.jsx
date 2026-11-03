@@ -9,8 +9,9 @@ import { quarantineDashboardPayload } from '../../data/payload-quarantine.js';
 import { loadOptionalRadarDelivery } from '../radar/radar-envelope.js';
 import { loadSeasonalityDelivery } from '../radar/seasonality-envelope.js';
 import { loadBriefingDelivery } from './briefing-artifact.js';
-import { selectBriefingSession } from './briefing-session.js';
+import { selectBriefingSession, currentRadarAvailable } from './briefing-session.js';
 import { BriefingView } from './BriefingView.jsx';
+import { latestCompletedSession } from './market-calendar.js';
 
 // Optional entry only: reuse the existing unlock and dashboard components.
 // The passphrase lives only in the unlock call, never in persistent state/storage.
@@ -41,16 +42,19 @@ export function BriefingSessionApp() {
     if(!active())return;
     update({radar,radarStatus});
     const expectedSession=selectBriefingSession(radar,radarStatus);
-    const briefing=await loadBriefingDelivery(`${base}briefing-status.json`,`${base}briefing.enc.json`,passphrase,{
+    const probe=import.meta.env.DEV&&import.meta.env.MODE==='briefing-probe';
+    const briefingBase=probe?`${base}briefing-probe/`:base;
+    const briefing=await loadBriefingDelivery(`${briefingBase}briefing-status.json`,`${briefingBase}briefing.enc.json`,passphrase,{
       expectedSession:expectedSession||undefined,forcePrevious:!expectedSession,signal:controller.signal,
-      expectedExecutionMode:import.meta.env.DEV?'fake_transport':'provider'
+      requireMarketUnavailable:!currentRadarAvailable(radar,radarStatus),
+      expectedExecutionMode:probe?'provider_test':import.meta.env.DEV?'fake_transport':'provider'
     });
-    update({briefing});
+    update({briefing, assessmentReference:latestCompletedSession()});
   }
   function lock(){generation.current++;request.current?.abort();setSession(null);}
   function open(next){setView(next);location.hash=next==='briefing'?'#/briefing':'#/overview';}
   return <Theme theme={neutralTheme} mode="dark">{!session?<UnlockScreen envelope={envelope} envelopeError={error} onUnlock={unlock}/>:<AppErrorBoundary onLock={lock} onRetry={()=>open('dashboard')}>
     <nav className="brief-session-nav" aria-label="화면 이동"><button onClick={()=>open('dashboard')}>스크리너</button><button onClick={()=>open('briefing')}>투자 판단 브리핑</button><button onClick={lock}>잠그기</button></nav>
-    {view==='briefing'?(session.briefing?<BriefingView data={session.briefing}/>:<main className="brief-demo brief-main" role="status">브리핑 자료를 확인하고 있습니다.</main>):<Dashboard payload={session.payload} radar={session.radar} radarStatus={session.radarStatus} seasonality={session.seasonality} onLock={lock}/>}
+    {view==='briefing'?(session.briefing?<><div className="brief-notice" role="status">{session.assessmentReference ? <p>검토 기준 거래일: {session.assessmentReference.session} · NYSE 정규장 마감 기준. 각 엔진의 실제 자료일은 아래에 별도로 표시합니다.</p> : <p>거래일 달력의 최신 확인이 필요해 당일 판단을 유보합니다.</p>}</div><BriefingView data={session.briefing}/></>:<main className="brief-demo brief-main" role="status">브리핑 자료를 확인하고 있습니다.</main>):<Dashboard payload={session.payload} radar={session.radar} radarStatus={session.radarStatus} seasonality={session.seasonality} onLock={lock}/>}
   </AppErrorBoundary>}</Theme>;
 }
