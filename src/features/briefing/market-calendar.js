@@ -14,7 +14,10 @@ const localParts = stamp => Object.fromEntries(new Intl.DateTimeFormat('en-CA', 
 }).formatToParts(stamp).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
 
 export function latestCompletedSession(now = Date.now(), calendar = MARKET_CALENDAR) {
-  if (!Number.isFinite(now) || now > Date.parse(calendar.valid_until)) return null;
+  if (!Number.isFinite(now) || !calendar || !Number.isFinite(Date.parse(calendar.valid_until))
+    || now >= Date.parse(calendar.valid_until) || !/^\d{4}-\d{2}-\d{2}$/.test(calendar.start || '')
+    || !/^\d{4}-\d{2}-\d{2}$/.test(calendar.end || '') || calendar.start > calendar.end
+    || !Array.isArray(calendar.holidays) || !Array.isArray(calendar.early)) return null;
   const local=localParts(now), today=`${local.year}-${local.month}-${local.day}`;
   if(today<calendar.start || today>calendar.end) return null;
   for(let offset=0;offset<10;offset++) {

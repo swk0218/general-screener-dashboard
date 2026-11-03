@@ -48,7 +48,7 @@ export function formatBriefingTime(value, timeZone = "UTC") {
     hour12: false
   }).format(date)} ${timeZone}`;
 }
-export function briefingClocks(data, timeZone = "UTC") {
+export function briefingClocks(data, timeZone = "UTC", receivedClocks = []) {
   const complete = ["ready", "cached"].includes(data.status);
   // An archive must be supplied explicitly. Never borrow the normal scenario's clocks.
   const previous = !complete && data.previous_is_current === false ? data.previous_briefing : null;
@@ -60,10 +60,12 @@ export function briefingClocks(data, timeZone = "UTC") {
     session: visible?.session || null,
     engines: ["Radar", "TENX", "MLG"].map(name => {
       const snapshot = visible?.engines?.[name]?.current;
+      const received = !visible ? receivedClocks.find(clock=>clock.name===name) : null;
       return {
         name,
-        asOf: snapshot?.as_of || null,
-        label: previous ? "이전 결과" : engineState(snapshot, visible?.session)
+        asOf: snapshot?.as_of || received?.asOf || null,
+        reported: received ? formatBriefingTime(received.reportedAt,timeZone) : null,
+        label: previous ? "이전 결과" : received?.label || engineState(snapshot, visible?.session)
       };
     })
   };

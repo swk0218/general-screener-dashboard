@@ -70,14 +70,15 @@ function SupplyRoles({
 export function BriefingView({
   data,
   toolbar = null,
-  timeZone = "UTC"
+  timeZone = "UTC",
+  receivedClocks
 }) {
   const [tab, setTab] = useState("briefing");
-  const clocks = briefingClocks(data, timeZone);
+  const clocks = briefingClocks(data, timeZone, receivedClocks);
   return <div className="brief-demo" data-build-id={__BUILD_ID__} data-input-hash={data.identity?.input_hash || "unavailable"}><a className="brief-skip" href="#brief-main" onClick={event => {event.preventDefault();document.getElementById("brief-main")?.focus();}}>본문으로 이동</a><header className="brief-top"><a href="./" className="brief-brand">GENERAL SCREENER</a><span>기능 미리보기</span><span className="brief-tag review">{data.execution_mode === "provider_test" ? probeResponseLabel(data) : data.demo ? "DEMO · 모의 데이터" : data.execution_mode === "fake_transport" ? "OFFLINE · 모의 응답" : "검토 브리핑"}</span></header>
     <div className="brief-demo-note"><strong>{data.execution_mode === "provider_test" ? "과거 합성 자료의 격리 검증" : data.demo ? "개발 검토용 예시" : "근거 확인이 필요한 분석"}</strong><span>{isMockResponse(data) ? "저장된 입력과 모의 응답입니다. 현재 시장 판단이나 추천 결과가 아닙니다." : "자료 기준일과 원문 근거를 확인하세요. 정성 분류는 점수에 반영되지 않습니다."}</span></div>
     <main id="brief-main" className="brief-main" tabIndex={-1}><div className="brief-hero"><div><p className="brief-eyebrow">MARKET & CANDIDATES</p><h1>시장과 후보를<br className="brief-mobile-break" /> 함께 읽는 브리핑</h1><p>달라진 것, 함께 볼 위험,<br className="brief-mobile-break" /> 다음 확인할 것을 한눈에.</p></div>{toolbar}</div>
-      <div className="brief-clocks" aria-label="자료 기준일">{clocks.engines.map(clock => <div key={clock.name}><strong>{clock.name}</strong><span>{clock.asOf || "확인되지 않음"}</span><small>{clock.label}</small></div>)}<div><strong>{clocks.generationLabel}</strong><span>{clocks.generated || "생성되지 않음"}</span><small>{clocks.session ? `대상 미국 거래일 ${clocks.session}` : "대상 거래일 확인 불가"}</small>{clocks.previousGenerated ? <small>이전 브리핑 생성 {clocks.previousGenerated}</small> : null}</div></div>
+      <div className="brief-clocks" aria-label="자료 기준일">{clocks.engines.map(clock => <div key={clock.name}><strong>{clock.name}</strong><span>{clock.asOf || "확인되지 않음"}</span><small>{clock.label}</small>{clock.reported ? <small>원자료 보고 {clock.reported}<br/>데이터 기준일과 다릅니다</small> : null}</div>)}<div><strong>{clocks.generationLabel}</strong><span>{clocks.generated || "생성되지 않음"}</span><small>{clocks.session ? `대상 미국 거래일 ${clocks.session}` : "대상 거래일 확인 불가"}</small>{clocks.previousGenerated ? <small>이전 브리핑 생성 {clocks.previousGenerated}</small> : null}</div></div>
       <nav className="brief-tabs" aria-label="검토 기능"><button aria-current={tab === "briefing" ? "page" : undefined} onClick={() => setTab("briefing")}>투자 브리핑</button><button aria-current={tab === "roles" ? "page" : undefined} onClick={() => setTab("roles")}>공급망 역할 검토</button></nav>
       {tab === "briefing" ? <Briefing data={data} /> : <SupplyRoles key={data.identity?.input_hash || data.status} data={data} />}
       <footer className="brief-footer"><p>{isMockResponse(data) ? "모의 응답 · 투자 판단에 사용하지 마세요" : "자료 기준일과 원문 확인 필요 · 점수 반영 없음"}</p><details><summary>처리 이력과 검토 범위</summary><p>기존 엔진의 점수·순위·경보는 변경하지 않습니다. 공급 역할은 별도 검토 결과로만 남깁니다. TENX와 Radar의 정성 입력 보강은 후속 검증 대상입니다.</p>{data.identity ? <dl><div><dt>입력 해시</dt><dd><code>{data.identity.input_hash}</code></dd></div><div><dt>모델 · 프롬프트 · 스키마</dt><dd>{data.identity.model} · {data.identity.prompt_version} · {data.identity.schema_version}</dd></div></dl> : <p>브리핑 생성이 완료되지 않았습니다.</p>}</details></footer>

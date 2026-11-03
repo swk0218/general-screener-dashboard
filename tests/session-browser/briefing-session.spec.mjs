@@ -7,14 +7,18 @@ import {pipelineFixture} from '../fixtures/briefing-pipeline.mjs';
 import {fixturePassword,cutoff} from '../fixtures/briefing-native.mjs';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../../scripts/seal-briefing-artifact.mjs';
 
-for(const scenario of ['current','delayed','missing'])test(`one unlock and automatic session: ${scenario}`,async({page})=>{
+for(const scenario of ['current','delayed','missing','unknown-data-date'])test(`one unlock and automatic session: ${scenario}`,async({page})=>{
   const temp=await mkdtemp(join(tmpdir(),'briefing-session-'));
   const {artifact,native}=await pipelineFixture(temp);
   const file=join(temp,'cipher.json');
   await sealBriefingArtifact(artifact,fixturePassword,file,{executionMode:'fake_transport'});
   const raw=await readFile(file),status=await writeBriefingDeliveryStatus(artifact,raw,join(temp,'status.json'));
   const packet=JSON.parse(native.archive.raw.toString());
-  const encrypted=await encryptEnvelope(JSON.parse(packet.payload_json),fixturePassword);
+  const dashboardPayload=JSON.parse(packet.payload_json);
+  if(scenario==='unknown-data-date')for(const row of dashboardPayload.recommendations){
+    row.screening_price_as_of=null;row.current_price_as_of='2026-11-02';
+  }
+  const encrypted=await encryptEnvelope(dashboardPayload,fixturePassword);
   const radarStatus={...native.radar.status,source_market_close_utc:'2026-10-30T20:00:00Z'};
   if(scenario==='delayed'){radarStatus.status='STALE';radarStatus.expected_session='2026-11-02';}
   await page.clock.install({time:new Date(cutoff)});
@@ -22,7 +26,7 @@ for(const scenario of ['current','delayed','missing'])test(`one unlock and autom
   await page.route('**/data/radar-observation.json',r=>r.fulfill({json:radarStatus}));
   await page.route('**/data/market-radar.enc.json',r=>r.fulfill({body:native.radar.raw,contentType:'application/json'}));
   await page.route('**/data/radar-seasonality.enc.json',r=>r.fulfill({status:404}));
-  await page.route('**/data/briefing-status.json',r=>r.fulfill(scenario==='missing'?{status:404}:{json:status}));
+  await page.route('**/data/briefing-status.json',r=>r.fulfill(['missing','unknown-data-date'].includes(scenario)?{status:404}:{json:status}));
   await page.route('**/data/briefing.enc.json',r=>r.fulfill({body:raw,contentType:'application/json'}));
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/#/briefing');
@@ -38,8 +42,30 @@ for(const scenario of ['current','delayed','missing'])test(`one unlock and autom
     await expect(page.locator('.brief-role a[href="https://www.sec.gov/Archives/"]').first()).toBeVisible();
     await expect(page.locator('.brief-role a[href="https://www.sec.gov/Archives/"]').first()).not.toContainText('원문');
     await page.locator('.brief-tabs button').first().click();
+    const before=await page.locator('.brief-clocks').innerText();
+    for(const clock of ['2026-11-02T14:40:01Z','2026-11-02T21:00:01Z','2026-11-10T03:20:00Z']){
+      await page.clock.setSystemTime(new Date(clock));
+      await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+      await expect(page.locator('.brief-card')).toHaveCount(0);
+      await expect(page.locator('.brief-clocks')).toContainText('이전 결과');
+      await expect(page.locator('.brief-clocks')).toContainText('생성되지 않음');
+      await expect(page.locator('.brief-clocks')).toContainText('2026-10-30');
+      if(clock.startsWith('2026-11-10'))await expect(page.locator('.brief-notice').first()).toContainText('달력의 최신 확인');
+    }
+    // Reassessment neither edits the stored result nor refreshes its generation clock.
+    await page.clock.setSystemTime(new Date(cutoff));
+    await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('.brief-card')).toHaveCount(2);
+    await expect.poll(()=>page.locator('.brief-clocks').innerText()).toBe(before);
   }
   else{await expect(page.locator('.brief-card')).toHaveCount(0);await expect(page.locator('.brief-clocks')).toContainText('생성되지 않음');}
+  if(scenario==='unknown-data-date'){
+    const tenx=page.locator('.brief-clocks>div').nth(1);
+    await expect(tenx).toContainText('기준일 확인 불가');
+    await expect(tenx).toContainText('2026-11-02 10:00 UTC');
+    await expect(tenx).toContainText('데이터 기준일과 다릅니다');
+    await expect(tenx).not.toContainText('기준일 일치');
+  }
   await page.getByRole('button',{name:'스크리너',exact:true}).click();
   await expect(page.locator('.app-shell')).toBeVisible();
   await page.getByRole('button',{name:'투자 판단 브리핑',exact:true}).click();
