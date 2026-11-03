@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { briefingClocks, insightView, periodLabel, roleLabel, isMockResponse, probeResponseLabel } from "./briefing-model.js";
+import { briefingClocks, insightView, periodLabel, roleLabel, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "./briefing-model.js";
 import "./briefing.css";
 import roleTaxonomy from './role-taxonomy.json';
 function Evidence({
@@ -51,14 +51,17 @@ function SupplyRoles({
   data
 }) {
   const [filter, setFilter] = useState("all");
-  const roles = (data.roles || []).filter(role => filter === "all" || role.comparison === "review");
+  const review = roleReviewState(data);
+  const activeFilter = review.baselineDisplayAvailable ? filter : "all";
+  const roles = review.roles.filter(role => activeFilter === "all" || role.comparison === "review");
   return <section aria-labelledby="supply-title"><div className="brief-section-heading"><span>02 / BUSINESS EVIDENCE</span><h2 id="supply-title">공급망에서 맡은 역할</h2><p>AI라는 단어보다 실제 공급하는 제품과 사업 시점을 확인합니다.</p></div>
     <div className="brief-notice"><strong>검토용 분류입니다 · 기존 점수·순위 유지</strong><p>원문을 구조화한 {isMockResponse(data) ? "모의 결과" : "보조 분류"}입니다. 실제 공급 여부의 최종 검증이나 AI 매출 비중 확인을 뜻하지 않습니다. 자료가 없으면 ‘미확인’으로 남깁니다.</p><p className="brief-muted">현재·계획·과거는 인용 자료의 시점을 뜻하며, 그 이후 사업 변화는 확인하지 않았습니다.</p></div>
-    <div className="brief-filter" role="group" aria-label="분류 필터"><button aria-pressed={filter === "all"} onClick={() => setFilter("all")}>전체 기업</button><button aria-pressed={filter === "review"} onClick={() => setFilter("review")}>기존 분류와 다른 기업</button><span>{roles.length}개 기업</span></div>
+    <div className="brief-notice" role="status" data-role-review-state={review.state}><strong>{review.title}</strong><p>{review.explanation}</p><details><summary>검토 범위와 보류 이유</summary><p>이 화면은 문서의 사업 역할을 확인하기 위한 보조 자료입니다. 과거 계산의 전체 원본 자료를 확보하지 못한 상태에서는 엔진 전체 검증이 끝났다고 표시하지 않습니다. 일부 자료의 검사는 전체 점수·순위의 재검증을 대신하지 않습니다.</p><p>자료 시점과 원문 근거를 확인한 뒤 다시 대조합니다. 새 분류를 기존 점수와 순위에 반영하지 않습니다.</p></details></div>
+    {review.roles.length ? <div className="brief-filter" role="group" aria-label="분류 필터"><button aria-pressed={activeFilter === "all"} onClick={() => setFilter("all")}>전체 기업</button><button aria-pressed={activeFilter === "review"} disabled={!review.baselineDisplayAvailable} onClick={() => setFilter("review")}>기존 분류와 다른 기업</button><span>{roles.length}개 기업</span></div> : null}
     <details className="brief-evidence"><summary>공급망 역할의 판단 기준</summary><p>제품명이나 기업 상식으로 빈 근거를 채우지 않습니다. 역할과 시제는 서로 독립적으로 판단합니다.</p><dl>{roleTaxonomy.role_priority.map(role=><div key={role}><dt>{roleLabel(role)}</dt><dd>{roleTaxonomy.labels_ko[role]}</dd></div>)}</dl></details>
-    {roles.length === 0 ? <p className="brief-empty">지금 표시할 분류 결과가 없습니다.</p> : <div className="brief-role-grid">{roles.map(role => {
+    {roles.length === 0 ? <p className="brief-empty">{review.roles.length ? "현재 보기 조건에 해당하는 기업이 없습니다." : "검토할 자료와 결과를 확인한 뒤 표시하겠습니다. 해당 사업이 없다는 뜻은 아닙니다."}</p> : <div className="brief-role-grid">{roles.map(role => {
         const company = data.companies.find(item => item.symbol === role.symbol);
-        return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" ? "brief-tag review" : "brief-tag"}>{role.comparison === "review" ? "추가 검토" : "기존 분류와 일치"}</span></header><h4>{roleLabel(role.role)}</h4><p>{periodLabel[role.period]} · {role.decision === "supported" ? "공급 역할 근거 있음" : "현재 공급 미확인"}</p><dl className="brief-comparison"><div><dt>기존 규칙</dt><dd>{role.baseline_supported ? "공급 역할 감지" : "공급 역할 미감지"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{role.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
+        return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" || !review.baselineDisplayAvailable ? "brief-tag review" : "brief-tag"}>{roleReviewBadge(role, review)}</span></header><h4>{roleLabel(role.role)}</h4><p>{periodLabel[role.period]} · {role.decision === "supported" ? "공급 역할 근거 있음" : "현재 공급 미확인"}</p><dl className="brief-comparison"><div><dt>기존 규칙 표시</dt><dd>{!review.baselineDisplayAvailable ? "대조 보류" : role.baseline_supported ? "기존 가점 적용" : "기존 가점 미적용"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{role.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
         {role.evidence.length === 0 ? <p>허용된 자료에서 근거를 확인하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.</p> : role.evidence.map((evidence, index) => {
               const source = company.sources.find(item => item.id === evidence.source_id);
               return <div className="brief-quote" key={index}><p>{data.demo ? "검증자료의 인용 구간" : "출처 · 원문"}</p><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={source} demo={data.demo} /></div>;

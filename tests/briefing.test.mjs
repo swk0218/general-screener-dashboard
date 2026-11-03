@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { demoRequested } from "../src/features/briefing/demo-gate.js";
-import { briefingClocks, formatBriefingTime, engineState, insightView, isMockResponse, probeResponseLabel } from "../src/features/briefing/briefing-model.js";
+import { briefingClocks, formatBriefingTime, engineState, insightView, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "../src/features/briefing/briefing-model.js";
 
 test('synthetic input and real provider response are labelled independently',()=>{
   const real={demo:true,execution_mode:'provider_test',probe_context:{response_origin:'openai_network',call_status:'complete'}};
@@ -13,6 +13,28 @@ test('synthetic input and real provider response are labelled independently',()=
 });
 
 const fixture = JSON.parse(await readFile(new URL("../src/features/briefing/fixtures/ready.json", import.meta.url), "utf8"));
+
+test('failed or unavailable generation never exposes leftover role classifications',()=>{
+  for(const status of ['unavailable','failed','pending']){
+    const state=roleReviewState({...fixture,status});
+    assert.equal(state.state,'held');assert.deepEqual(state.roles,[]);
+    assert.equal(state.baselineDisplayAvailable,false);
+  }
+});
+test('missing, quarantined or mismatched MLG data permits only document review',()=>{
+  for(const patch of [{status:'missing'},{status:'quarantined'},{session:'1900-01-01'},{contract:'unavailable'},{contract:''}]){
+    const data=structuredClone(fixture);Object.assign(data.engines.MLG.current,patch);
+    const before=JSON.stringify(data);const state=roleReviewState(data);
+    assert.equal(state.state,'comparison_held');assert.equal(state.roles.length,fixture.roles.length);
+    assert.equal(state.baselineDisplayAvailable,false);assert.equal(roleReviewBadge(data.roles[0],state),'대조 보류');
+    assert.equal(JSON.stringify(data),before);
+  }
+});
+test('unconfirmed roles never receive a matching-classification badge',()=>{
+  const state=roleReviewState(fixture);assert.equal(state.baselineDisplayAvailable,true);
+  assert.equal(roleReviewBadge({role:'unknown',decision:'unconfirmed',comparison:'agree'},state),'공급 미확인');
+  assert.equal(roleReviewState({...fixture,roles:[]}).state,'no_evidence');
+});
 
 test("merged insights preserve both engine changes in either fact order", () => {
   const facts={...fixture.computed.facts,mlg_changes:{kind:'candidate_change',engine:'MLG',count_delta:-2,entered:['MLG-NEW'],exited:['MLG-OLD','MLG-OLD2','MLG-OLD3']}};

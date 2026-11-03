@@ -5,6 +5,7 @@ import quarantined from "./fixtures/quarantined.json";
 import missing from "./fixtures/missing.json";
 import noChange from "./fixtures/no_change.json";
 import failure from "./fixtures/failure.json";
+import mlgInputHold from "./fixtures/mlg_input_hold.json";
 import { BriefingView } from "./BriefingView.jsx";
 const scenarios = Object.freeze({
   ready,
@@ -12,7 +13,8 @@ const scenarios = Object.freeze({
   quarantined,
   missing,
   no_change: noChange,
-  failure
+  failure,
+  mlg_input_hold: mlgInputHold
 });
 const scenarioLabels = Object.freeze({
   ready: "변화가 있는 날",
@@ -20,7 +22,8 @@ const scenarioLabels = Object.freeze({
   quarantined: "시장 자료 확인 보류",
   missing: "시장 자료가 없는 날",
   no_change: "주요 변화가 없는 날",
-  failure: "브리핑을 만들지 못한 날"
+  failure: "브리핑을 만들지 못한 날",
+  mlg_input_hold: "MLG 자료 비교 보류"
 });
 export function BriefingDemo() {
   const [scenario, setScenario] = useState("ready");

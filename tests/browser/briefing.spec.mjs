@@ -1,5 +1,24 @@
 import { test, expect } from "@playwright/test";
 
+test("MLG source hold keeps document evidence and suppresses unsupported comparison",async({page})=>{
+  await page.goto('/?demo=briefing');
+  await page.locator('select').selectOption('mlg_input_hold');
+  await expect(page.getByLabel('자료 기준일')).toContainText('확인되지 않음');
+  await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
+  const status=page.locator('[data-role-review-state="comparison_held"]');
+  await expect(status).toContainText('기존 분류와의 대조는 보류');
+  await expect(page.locator('.brief-role')).toHaveCount(5);
+  await expect(page.getByRole('button',{name:'기존 분류와 다른 기업',exact:true})).toBeDisabled();
+  await expect(page.locator('.brief-role').first()).toContainText('대조 보류');
+  await status.getByText('검토 범위와 보류 이유',{exact:true}).click();
+  await expect(status).toContainText('일부 자료의 검사는 전체 점수·순위의 재검증을 대신하지 않습니다');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.locator('select').selectOption('failure');
+  await expect(page.locator('[data-role-review-state="held"]')).toBeVisible();
+  await expect(page.locator('.brief-role')).toHaveCount(0);
+  await expect(page.locator('.brief-main')).toContainText('해당 사업이 없다는 뜻은 아닙니다');
+});
+
 test("keyboard entry and touch targets remain accessible", async({page})=>{
   await page.goto('/?demo=briefing');
   const clocks=page.getByLabel('자료 기준일');

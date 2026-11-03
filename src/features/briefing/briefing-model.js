@@ -15,6 +15,30 @@ export const periodLabel = Object.freeze({
 export function roleLabel(role) {
   return roles[role] || "확인되지 않음";
 }
+export function roleReviewState(data) {
+  const complete = ["ready", "cached"].includes(data.status);
+  const shownRoles = complete && Array.isArray(data.roles) ? data.roles : [];
+  const mlg = data.engines?.MLG?.current;
+  // This only admits a display comparison. It never certifies a full MLG replay.
+  const baselineDisplayAvailable = complete && typeof data.session === "string" && mlg?.status === "valid"
+    && mlg.session === data.session && typeof mlg.contract === "string"
+    && mlg.contract.length > 0 && mlg.contract !== "unavailable";
+  return { roles: shownRoles, baselineDisplayAvailable,
+    state: !complete ? "held" : !shownRoles.length ? "no_evidence"
+      : baselineDisplayAvailable ? "document_review" : "comparison_held",
+    title: !complete ? "추가 검토 결과를 표시하지 않습니다"
+      : !shownRoles.length ? "확인할 기업 자료가 아직 없습니다" : "문서 근거를 검토하는 보조 자료입니다",
+    explanation: !complete ? "자료 확인 또는 결과 검증을 마치지 못했습니다. 기존 점수와 순위에는 영향을 주지 않습니다."
+      : !shownRoles.length ? "확인할 근거가 부족합니다. 해당 사업이 없다는 뜻은 아닙니다."
+        : !baselineDisplayAvailable ? "MLG 자료의 시점이나 비교 기준을 확인하지 못해 기존 분류와의 대조는 보류합니다. 아래에서는 문서의 근거만 확인할 수 있습니다."
+          : "기존 규칙의 표시와 대조하는 자료입니다. MLG 전체 계산의 재검증이나 분류 정확도 개선을 뜻하지 않습니다."
+  };
+}
+export function roleReviewBadge(role, state) {
+  if (!state.baselineDisplayAvailable) return "대조 보류";
+  if (role.decision !== "supported" || role.role === "unknown") return "공급 미확인";
+  return role.comparison === "review" ? "추가 검토" : "규칙 표시와 같은 결과";
+}
 export function isMockResponse(data) {
   if(data.execution_mode==='provider_test') return data.probe_context?.response_origin!=='openai_network'||data.probe_context?.call_status!=='complete';
   return data.demo||data.execution_mode==='fake_transport';
