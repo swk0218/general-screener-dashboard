@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { copyWebPublicAssets, webPublicAssets } from "../scripts/build-public-assets.mjs";
 
-test("web copy excludes only the journal subtree and leaves all source bytes intact", async () => {
+test("web copy excludes private journal/probe subtrees and leaves all source bytes intact", async () => {
   const root = await mkdtemp(join(tmpdir(), "web-public-assets-"));
   try {
     const source = join(root, "public");
@@ -16,6 +16,8 @@ test("web copy excludes only the journal subtree and leaves all source bytes int
     const fixtures = {
       "data/radar-journal/index.json": "TEST_ONLY index",
       "data/radar-journal/nested/failure.enc.json": "TEST_ONLY ciphertext",
+      "data/briefing-probe/product-v1-normal/briefing.enc.json": "TEST_ONLY real-response ciphertext",
+      "probe-preview-manifest.json": "TEST_ONLY private preview manifest",
       "data/radar-observation.json": "TEST_ONLY status",
       "data/market-radar.enc.json": "TEST_ONLY feed",
       "data/radar-seasonality.enc.json": "TEST_ONLY seasonality",
@@ -31,9 +33,10 @@ test("web copy excludes only the journal subtree and leaves all source bytes int
     }
     await copyWebPublicAssets(source, output);
     await assert.rejects(readdir(join(output, "data/radar-journal")), { code: "ENOENT" });
+    await assert.rejects(readdir(join(output, "data/briefing-probe")), { code: "ENOENT" });
     for (const [path, bytes] of Object.entries(fixtures)) {
       assert.equal(await readFile(join(source, path), "utf8"), bytes);
-      if (!path.startsWith("data/radar-journal/")) {
+      if (!path.startsWith("data/radar-journal/")&&!path.startsWith('data/briefing-probe/')&&path!=='probe-preview-manifest.json') {
         assert.equal(await readFile(join(output, path), "utf8"), bytes);
       }
     }

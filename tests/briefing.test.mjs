@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { demoRequested } from "../src/features/briefing/demo-gate.js";
-import { briefingClocks, formatBriefingTime, engineState, insightView } from "../src/features/briefing/briefing-model.js";
+import { briefingClocks, formatBriefingTime, engineState, insightView, isMockResponse, probeResponseLabel } from "../src/features/briefing/briefing-model.js";
+
+test('synthetic input and real provider response are labelled independently',()=>{
+  const real={demo:true,execution_mode:'provider_test',probe_context:{response_origin:'openai_network',call_status:'complete'}};
+  assert.equal(isMockResponse(real),false);assert.match(probeResponseLabel(real),/실제 GPT/);
+  assert.equal(isMockResponse({...real,probe_context:{response_origin:'offline_contract_fixture',call_status:'complete'}}),true);
+  assert.equal(isMockResponse({...real,probe_context:{response_origin:'openai_network',call_status:'insufficient_zero_calls'}}),true);
+  assert.equal(isMockResponse({demo:true,execution_mode:'fake_transport'}),true);
+});
 
 const fixture = JSON.parse(await readFile(new URL("../src/features/briefing/fixtures/ready.json", import.meta.url), "utf8"));
 

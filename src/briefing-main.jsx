@@ -15,7 +15,7 @@ const feed = window.location.hash === "#/briefing" && (demo || import.meta.env.V
 const root = createRoot(document.getElementById("root"));
 function render(View) { root.render(<React.StrictMode><View /></React.StrictMode>); }
 function unavailable() { root.render(<p role="alert">검토 화면을 열지 못했습니다. 새로고침해 주세요.</p>); }
-if (import.meta.env.VITE_GPT_BRIEFING_ENABLED === "true") {
+if (import.meta.env.VITE_GPT_BRIEFING_ENABLED === "true" || import.meta.env.DEV && import.meta.env.MODE === 'briefing-probe') {
   import("./features/briefing/BriefingSessionApp.jsx").then(module=>render(module.BriefingSessionApp)).catch(unavailable);
 } else if (feed) {
   import("./features/briefing/BriefingFeed.jsx").then(module=>render(module.BriefingFeed)).catch(unavailable);

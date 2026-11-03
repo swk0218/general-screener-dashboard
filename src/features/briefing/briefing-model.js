@@ -15,6 +15,13 @@ export const periodLabel = Object.freeze({
 export function roleLabel(role) {
   return roles[role] || "확인되지 않음";
 }
+export function isMockResponse(data) {
+  if(data.execution_mode==='provider_test') return data.probe_context?.response_origin!=='openai_network'||data.probe_context?.call_status!=='complete';
+  return data.demo||data.execution_mode==='fake_transport';
+}
+export function probeResponseLabel(data) {
+  return isMockResponse(data)?'격리 시험 · 주입 응답':'격리 시험 · 실제 GPT 응답';
+}
 export function engineState(snapshot, session) {
   if (!snapshot) return "자료 확인 불가";
   if (snapshot.status !== "valid") return "확인 보류";

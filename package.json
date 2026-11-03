@@ -13,12 +13,15 @@
     "encrypt:payload": "node scripts/encrypt-payload.mjs",
     "preview": "vite preview",
     "pretest": "node scripts/verify-node-version.mjs",
-    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs tests/seasonality.test.mjs tests/engine-status.test.mjs tests/build-public-assets.test.mjs tests/briefing.test.mjs tests/briefing-pipeline.test.mjs tests/briefing-calendar.test.mjs",
+    "test": "node --test --test-isolation=none tests/envelope.test.mjs tests/contract.test.mjs tests/dashboard-model.test.mjs tests/payload-quarantine.test.mjs tests/ui-copy.test.mjs tests/radar.test.mjs tests/seasonality.test.mjs tests/engine-status.test.mjs tests/build-public-assets.test.mjs tests/briefing.test.mjs tests/briefing-pipeline.test.mjs tests/briefing-calendar.test.mjs tests/probe-preview.test.mjs",
     "verify:payload": "node scripts/verify-encrypted-payload.mjs",
     "verify:build": "node scripts/verify-build-assets.mjs",
     "test:browser": "playwright test",
     "dev:briefing": "vite --mode briefing --host 127.0.0.1 --port 4178",
-    "test:briefing": "node --test tests/briefing.test.mjs"
+    "test:briefing": "node --test tests/briefing.test.mjs",
+    "dev:probe": "vite --mode briefing-probe --host 127.0.0.1 --port 4183",
+    "test:probe:browser": "playwright test --config playwright.product-probe.config.mjs --workers=1",
+    "verify:probe-off": "node scripts/verify-probe-off-build.mjs"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.2.0",

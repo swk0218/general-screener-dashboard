@@ -9,7 +9,12 @@ export function assertBriefingArtifact(artifact) {
   if (artifact?.artifact_kind !== ARTIFACT_KIND || artifact.version !== 1 || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
   const data = artifact.briefing,
     binding = artifact.source_binding;
-  if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !hash(binding.screening_archive_sha256) || binding.normalizer_version !== 'briefing-native-input-v1' || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
+  if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
+  if(binding.normalizer_version==='briefing-product-probe-input-v1') {
+    if(artifact.execution_mode!=='provider_test'||!data.demo||binding.source_kind!=='synthetic_probe'||binding.screening_archive_sha256!==null||binding.synthetic_input_sha256!==binding.input_hash||!hash(binding.probe_freeze_hash)||!/^product-v1-(normal|date_mismatch|quarantined|insufficient|conflict)$/.test(binding.probe_case_id)||!['openai_network','offline_contract_fixture'].includes(binding.response_origin)) fail();
+    if(!['complete','insufficient_zero_calls','failed_reservation_retained','not_sent'].includes(binding.probe_call_status)
+      || ['ready','cached'].includes(data.status)!==(binding.probe_call_status==='complete')) fail();
+  } else if(!hash(binding.screening_archive_sha256)||binding.normalizer_version!=='briefing-native-input-v1') fail();
   for (const value of Object.values(binding.radar_cipher_sha256 || {})) if (value !== null && !hash(value)) fail();
   if (['ready', 'cached'].includes(data.status)) {
     const transport = artifact.execution_mode === 'fake_transport' ? 'fake' : 'network';
@@ -106,6 +111,7 @@ export async function readBriefingArtifact(envelope, passphrase, {
   }
   return {
     ...data,
+    ...(artifact.execution_mode==='provider_test'?{probe_context:{case_id:artifact.source_binding.probe_case_id,response_origin:artifact.source_binding.response_origin,call_status:artifact.source_binding.probe_call_status,assessment_session:artifact.source_binding.assessment_session,freeze_hash:artifact.source_binding.probe_freeze_hash}}:{}),
     execution_mode: artifact.execution_mode
   };
 }

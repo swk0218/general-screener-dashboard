@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { PRIVATE_WEB_SUBTREES, isPrivateWebPath, isPrivateWebMetadata } from './build-public-assets.mjs';
 
 const publicDirectory = resolve("public");
 const outputDirectory = resolve("dist/client");
@@ -9,12 +10,27 @@ for (const directory of [publicDirectory, outputDirectory]) {
 }
 await assert.rejects(lstat(resolve(outputDirectory, "data/radar-journal")), { code: "ENOENT" },
   "Recovery journals must not be included in the web build.");
+for(const path of PRIVATE_WEB_SUBTREES) await assert.rejects(lstat(resolve(outputDirectory,path)),{code:'ENOENT'},'Private test artifacts must not be included in the web build.');
+async function scanOutput(directory='') {
+  for(const entry of await readdir(resolve(outputDirectory,directory),{withFileTypes:true})) {
+    const path=directory?`${directory}/${entry.name}`:entry.name;
+    assert.ok(!isPrivateWebPath(path),`Private test artifact in web build: ${path}`);
+    assert.ok(!entry.isSymbolicLink(),`Built asset symlink: ${path}`);
+    if(entry.isDirectory()) await scanOutput(path);
+    else if(path.endsWith('.json')) {
+      const text=await readFile(resolve(outputDirectory,path),'utf8');
+      let value;try{value=JSON.parse(text);}catch{continue;}
+      assert.ok(!isPrivateWebMetadata(value),`Private test metadata in web build: ${path}`);
+    }
+  }
+}
+await scanOutput();
 
 // Verify every other public asset, including all encrypted feeds and status.
 async function verifyPublicAssets(directory = "") {
   for (const entry of await readdir(resolve(publicDirectory, directory), { withFileTypes: true })) {
     const path = directory ? `${directory}/${entry.name}` : entry.name;
-    if (path === "data/radar-journal") continue;
+    if (isPrivateWebPath(path)) continue;
     assert.ok(!entry.isSymbolicLink(), `Public asset symlink: ${path}`);
     assert.ok(!(await lstat(resolve(outputDirectory, path))).isSymbolicLink(),
       `Built public asset symlink: ${path}`);

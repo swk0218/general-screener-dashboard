@@ -16,12 +16,17 @@ import { latestCompletedSession } from './market-calendar.js';
 // Optional entry only: reuse the existing unlock and dashboard components.
 // The passphrase lives only in the unlock call, never in persistent state/storage.
 export function BriefingSessionApp() {
+  const probe=import.meta.env.DEV&&import.meta.env.MODE==='briefing-probe';
+  const cases=['normal','date_mismatch','quarantined','insufficient','conflict'];
+  const requested=new URLSearchParams(location.search).get('probe_case');
+  const probeCase=cases.includes(requested)?requested:'normal';
+  const sourceBase=probe?`${import.meta.env.BASE_URL}data/briefing-probe/product-v1-${probeCase}/`:`${import.meta.env.BASE_URL}data/`;
   const [envelope,setEnvelope]=useState(null),[error,setError]=useState('');
   const [session,setSession]=useState(null),[view,setView]=useState(()=>location.hash==='#/briefing'?'briefing':'dashboard');
   const generation=useRef(0),request=useRef(null);
   useEffect(()=>{
     const controller=new AbortController();
-    fetch(`${import.meta.env.BASE_URL}data/payload.enc.json?v=${encodeURIComponent(__BUILD_ID__)}`,{signal:controller.signal,cache:'no-store'})
+    fetch(`${sourceBase}payload.enc.json?v=${encodeURIComponent(__BUILD_ID__)}`,{signal:controller.signal,cache:'no-store'})
       .then(r=>{if(!r.ok)throw Error();return r.json();}).then(setEnvelope)
       .catch(e=>{if(e.name!=='AbortError')setError('스크리너 자료를 불러오지 못했습니다.');});
     const onHash=()=>setView(location.hash==='#/briefing'?'briefing':'dashboard');
@@ -36,25 +41,24 @@ export function BriefingSessionApp() {
     const active=()=>generation.current===id&&!controller.signal.aborted;
     const update=patch=>{if(active())setSession(old=>old?{...old,...patch}:null);};
     const base=`${import.meta.env.BASE_URL}data/`;
-    loadSeasonalityDelivery(`${base}radar-seasonality.enc.json`,passphrase,controller.signal).then(seasonality=>update({seasonality})).catch(()=>{});
+    if(!probe)loadSeasonalityDelivery(`${base}radar-seasonality.enc.json`,passphrase,controller.signal).then(seasonality=>update({seasonality})).catch(()=>{});
     let radar=null,radarStatus=null;
-    try{radar=await loadOptionalRadarDelivery(`${base}radar-observation.json`,`${base}market-radar.enc.json`,passphrase,controller.signal,value=>{radarStatus=value;});}catch{/* Optional source holds briefing freshness. */}
+    if(!probe)try{radar=await loadOptionalRadarDelivery(`${base}radar-observation.json`,`${base}market-radar.enc.json`,passphrase,controller.signal,value=>{radarStatus=value;});}catch{/* Optional source holds briefing freshness. */}
     if(!active())return;
     update({radar,radarStatus});
     const expectedSession=selectBriefingSession(radar,radarStatus);
-    const probe=import.meta.env.DEV&&import.meta.env.MODE==='briefing-probe';
-    const briefingBase=probe?`${base}briefing-probe/`:base;
+    const briefingBase=probe?sourceBase:base;
     const briefing=await loadBriefingDelivery(`${briefingBase}briefing-status.json`,`${briefingBase}briefing.enc.json`,passphrase,{
-      expectedSession:expectedSession||undefined,forcePrevious:!expectedSession,signal:controller.signal,
-      requireMarketUnavailable:!currentRadarAvailable(radar,radarStatus),
+      expectedSession:probe?undefined:expectedSession||undefined,forcePrevious:!probe&&!expectedSession,signal:controller.signal,
+      requireMarketUnavailable:!probe&&!currentRadarAvailable(radar,radarStatus),
       expectedExecutionMode:probe?'provider_test':import.meta.env.DEV?'fake_transport':'provider'
     });
     update({briefing, assessmentReference:latestCompletedSession()});
   }
   function lock(){generation.current++;request.current?.abort();setSession(null);}
   function open(next){setView(next);location.hash=next==='briefing'?'#/briefing':'#/overview';}
-  return <Theme theme={neutralTheme} mode="dark">{!session?<UnlockScreen envelope={envelope} envelopeError={error} onUnlock={unlock}/>:<AppErrorBoundary onLock={lock} onRetry={()=>open('dashboard')}>
+  return <Theme theme={neutralTheme} mode="dark">{probe?<aside className="brief-notice" aria-label="격리된 제품 시험"><strong>과거 합성 엔진 자료 · 현재 투자 판단에 사용하지 마세요</strong><p>{session?.briefing?.probe_context?.response_origin==='openai_network'&&session?.briefing?.probe_context?.call_status==='complete'?'실제 GPT 응답의 격리 검증':'오프라인 계약 검증 자료 또는 응답 확인 전'}. 운영 자료와 연결하지 않습니다.</p><nav aria-label="시험 조건">{cases.map((name,i)=><a key={name} href={`?probe_case=${name}#/briefing`}>{['정상 합성 자료','엔진 시점 차이','Radar 격리','자료 부족','근거 상충'][i]} </a>)}</nav></aside>:null}{!session?<UnlockScreen envelope={envelope} envelopeError={error} onUnlock={unlock}/>:<AppErrorBoundary onLock={lock} onRetry={()=>open('dashboard')}>
     <nav className="brief-session-nav" aria-label="화면 이동"><button onClick={()=>open('dashboard')}>스크리너</button><button onClick={()=>open('briefing')}>투자 판단 브리핑</button><button onClick={lock}>잠그기</button></nav>
-    {view==='briefing'?(session.briefing?<><div className="brief-notice" role="status">{session.assessmentReference ? <p>검토 기준 거래일: {session.assessmentReference.session} · NYSE 정규장 마감 기준. 각 엔진의 실제 자료일은 아래에 별도로 표시합니다.</p> : <p>거래일 달력의 최신 확인이 필요해 당일 판단을 유보합니다.</p>}</div><BriefingView data={session.briefing}/></>:<main className="brief-demo brief-main" role="status">브리핑 자료를 확인하고 있습니다.</main>):<Dashboard payload={session.payload} radar={session.radar} radarStatus={session.radarStatus} seasonality={session.seasonality} onLock={lock}/>}
+    {view==='briefing'?(session.briefing?<><div className="brief-notice" role="status">{probe ? <p>합성 시험의 검토 거래일: {session.briefing.session || session.briefing.probe_context?.assessment_session || "확인 불가"} · 과거 합성 자료이며 현재 거래일의 실제 관측이 아닙니다.</p> : session.assessmentReference ? <p>검토 기준 거래일: {session.assessmentReference.session} · NYSE 정규장 마감 기준. 각 엔진의 실제 자료일은 아래에 별도로 표시합니다.</p> : <p>거래일 달력의 최신 확인이 필요해 당일 판단을 유보합니다.</p>}</div><BriefingView data={session.briefing}/></>:<main className="brief-demo brief-main" role="status">브리핑 자료를 확인하고 있습니다.</main>):<Dashboard payload={session.payload} radar={session.radar} radarStatus={session.radarStatus} seasonality={session.seasonality} onLock={lock}/>}
   </AppErrorBoundary>}</Theme>;
 }

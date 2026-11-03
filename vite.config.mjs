@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { webPublicAssets } from "./scripts/build-public-assets.mjs";
+import { probePreviewConfig } from './scripts/probe-preview-config.mjs';
 
 const buildId = process.env.GITHUB_SHA || process.env.VITE_BUILD_ID || "local";
 
@@ -38,10 +39,10 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react(), webPublicAssets(), {
+  plugins: [react(), webPublicAssets(), probePreviewConfig(), {
     name: "optional-briefing-entry",
     configResolved(config) {
-      briefingEnabled = config.command === "serve" && config.mode === "briefing"
+      briefingEnabled = config.command === "serve" && ['briefing','briefing-probe'].includes(config.mode)
         || config.env.VITE_GPT_BRIEFING_ENABLED === "true";
     },
     transformIndexHtml: {
