@@ -2,7 +2,7 @@ import {writeFile,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {nativeInput,cutoff} from './briefing-native.mjs';
-export async function roleDocumentsFixture(directory,{fragment=false,multiDocument=false,unicode=false}={}){
+export async function roleDocumentsFixture(directory,{fragment=false,multiDocument=false,unicode=false,direct=false}={}){
   const python=process.env.BRIEFING_TEST_PYTHON,backend=process.env.BRIEFING_TEST_BACKEND;
   if(!python||!backend)throw Error('Explicit private offline backend required');
   const native=await nativeInput();
@@ -20,7 +20,7 @@ export async function roleDocumentsFixture(directory,{fragment=false,multiDocume
   const extraction={symbol:company.symbol,source_id:source.id,role:'power_cooling',document_tense:'present_in_document',spans:[{start:0,end:fragment?3:Array.from(source.text).length}]};
   await writeFile(join(directory,'artifact.json'),JSON.stringify(artifact));
   await writeFile(join(directory,'extractions.json'),JSON.stringify([extraction]));
-  execFileSync(python,['scripts/write_role_documents.py','--enable-role-documents-v2','--artifact',join(directory,'artifact.json'),
+  execFileSync(python,['scripts/write_role_documents.py','--enable-role-documents-v2',...(direct?['--enable-direct-document-evidence']:[]),'--artifact',join(directory,'artifact.json'),
     '--extractions',join(directory,'extractions.json'),'--output',join(directory,'role-v2.json')],{cwd:backend,env:{...process.env,PYTHONPATH:'src'},stdio:'pipe'});
   return {artifact:JSON.parse(await readFile(join(directory,'role-v2.json'),'utf8')),legacy:artifact};
 }

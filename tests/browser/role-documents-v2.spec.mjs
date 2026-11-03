@@ -7,13 +7,12 @@ import {fixturePassword,cutoff} from '../fixtures/briefing-native.mjs';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../../scripts/seal-briefing-artifact.mjs';
 const available=Boolean(process.env.BRIEFING_TEST_PYTHON&&process.env.BRIEFING_TEST_BACKEND);
 if(process.env.BRIEFING_REQUIRE_BACKEND==='true'&&!available)throw Error('Required private v2 writer environment missing');
-for(const variant of ['reviewed','fragment','legacy','direct_profile']){
+for(const variant of ['reviewed','fragment','legacy','direct_profile','direct_fragment']){
   test(`actual document writer -> encrypted reader -> existing card: ${variant}`,async({page})=>{
     test.skip(!available,'Private offline writer integration runs in its repository job');
     const directory=await mkdtemp(join(tmpdir(),'role-v2-browser-'));
-    const {artifact,legacy}=await roleDocumentsFixture(directory,{fragment:variant==='fragment'});
+    const {artifact,legacy}=await roleDocumentsFixture(directory,{fragment:['fragment','direct_fragment'].includes(variant),direct:variant.startsWith('direct_')});
     const used=variant==='legacy'?legacy:artifact;
-    if(variant==='direct_profile')used.briefing.identity.prompt_version='direct-reviewed-document-candidates-v1';
     const file=join(directory,'briefing.enc.json');
     await sealBriefingArtifact(used,fixturePassword,file,{executionMode:'fake_transport'});
     const encrypted=await readFile(file,'utf8');
@@ -29,7 +28,7 @@ for(const variant of ['reviewed','fragment','legacy','direct_profile']){
     await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
     await expect(page.locator('.brief-role')).toHaveCount(5);
     const card=page.locator('.brief-role').first();
-    if(variant==='direct_profile'){
+    if(variant.startsWith('direct_')){
       const criteria=page.locator('details.brief-evidence');
       await criteria.locator('summary').click();
       await expect(criteria.locator('dd').nth(1)).toHaveText(''+(await import('../../src/features/briefing/role-taxonomy-v2.json',{with:{type:'json'}})).default.labels_ko.semiconductor);
@@ -42,7 +41,7 @@ for(const variant of ['reviewed','fragment','legacy','direct_profile']){
     }else{
       await expect(card.locator('h4')).toHaveText('확인되지 않음');
       await expect(card).not.toContainText('문서상 제공 주장');
-      await expect(card).toContainText(variant==='fragment'?'문서 해석 보류':'시간축 분리 전 기록');
+      await expect(card).toContainText(['fragment','direct_fragment'].includes(variant)?'문서 해석 보류':'시간축 분리 전 기록');
     }
     await card.locator('details summary').click();
     await expect(card).toContainText('공시일 2026-10-28');

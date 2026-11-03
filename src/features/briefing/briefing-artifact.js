@@ -1,5 +1,6 @@
 import { encryptEnvelope, decryptEnvelope } from '../../crypto/envelope.js';
 import { assertRoleDocumentContract } from './role-documents.js';
+import {DIRECT_ROLE_PROFILE} from './role-taxonomy.js';
 export const ARTIFACT_KIND = 'general_screener_briefing_v1';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const stamp = value => typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
@@ -99,7 +100,9 @@ export async function readBriefingArtifact(envelope, passphrase, {
   const data = structuredClone(artifact.briefing);
   // Model/legacy payload fields never establish reader-owned v2 admission.
   delete data._validated_role_documents;
+  delete data._validated_role_profile;
   if(artifact.version===2)data._validated_role_documents=await assertRoleDocumentContract(artifact);
+  if(artifact.version===2&&artifact.role_document_contract.schema==='role_document_reviews_direct_v1')data._validated_role_profile=DIRECT_ROLE_PROFILE;
   if (Date.parse(artifact.created_at) > now + 300000) return {
     status: 'unavailable',
     demo: data.demo,

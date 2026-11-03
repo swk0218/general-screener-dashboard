@@ -1,5 +1,7 @@
 // Versioned document semantics. Registry is code-owned; no model field can extend it.
 import registry from './document-review-registry.json' with {type:'json'};
+import {assertDirectRegistry,directAdmission,DIRECT_REVIEWS_HASH} from './direct-evidence.js';
+import {DIRECT_ROLE_PROFILE,DIRECT_TAXONOMY_HASH} from './role-taxonomy.js';
 export const ROLE_REGISTRY_HASH='c5b8c9d058c1a31f40725a7179aeb1e8c2d65138677bcff6ab5e80abfa8a16d8';
 const roles=['compute','semiconductor','interconnect','power_cooling','cloud','unknown'];
 const tenses=['present_in_document','planned_in_document','past_in_document','unclear'];
@@ -49,8 +51,11 @@ export async function assertRoleDocumentContract(artifact){
   if(bytes(JSON.stringify(artifact)).length>160000||artifact.briefing.companies.length>64)fail();
   if(await sha(registry)!==ROLE_REGISTRY_HASH)fail();
   const contract=artifact.role_document_contract,data=artifact.briefing;
-  if(artifact.version!==2||!['ready','cached'].includes(data.status)||!exact(contract,['schema','registry_version','registry_hash','reviews'])
-    ||contract.schema!=='role_document_reviews_v2'||contract.registry_version!==registry.version||contract.registry_hash!==ROLE_REGISTRY_HASH
+  const direct=contract?.schema==='role_document_reviews_direct_v1';
+  if(direct)await assertDirectRegistry();
+  if(artifact.version!==2||!['ready','cached'].includes(data.status)||!exact(contract,direct?['schema','registry_version','registry_hash','reviews','profile','taxonomy_hash']:['schema','registry_version','registry_hash','reviews'])
+    ||(direct?(contract.profile!==DIRECT_ROLE_PROFILE||contract.taxonomy_hash!==DIRECT_TAXONOMY_HASH||contract.registry_version!=='2026-11-03.contract-fixtures-1'||contract.registry_hash!==DIRECT_REVIEWS_HASH)
+      :(contract.schema!=='role_document_reviews_v2'||contract.registry_version!==registry.version||contract.registry_hash!==ROLE_REGISTRY_HASH))
     ||!Array.isArray(contract.reviews)||contract.reviews.length!==data.companies.length)fail();
   const expected=[];
   for(let index=0;index<data.companies.length;index++){
@@ -58,7 +63,12 @@ export async function assertRoleDocumentContract(artifact){
     if(row?.symbol!==data.companies[index].symbol)fail();
     const extraction=claim?{symbol:row.symbol,source_id:claim.evidence?.[0]?.source_id,role:claim.role,document_tense:claim.document_tense,
       spans:claim.evidence.map(e=>({start:e.start,end:e.end}))}:null;
-    expected.push(await reviewCompany(data.companies[index],extraction,data.generated_at,data.demo));
+    const reviewed=await reviewCompany(data.companies[index],extraction,data.generated_at,data.demo);
+    if(direct){
+      const admission=directAdmission(data.companies[index],reviewed,data.demo);
+      Object.assign(reviewed,{direct_evidence:admission,review_status:admission.state,reason:admission.reason});
+    }
+    expected.push(reviewed);
   }
   if(canonical(expected)!==canonical(contract.reviews))fail();
   return structuredClone(contract.reviews);

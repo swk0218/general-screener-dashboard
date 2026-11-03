@@ -1,0 +1,146 @@
+{
+  "schema": "direct_role_review_registry_v1",
+  "version": "2026-11-03.contract-fixtures-1",
+  "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+  "scope": "Synthetic protocol controls only. No live source admission or company-specific rule. Real entries require separately reviewed source-only receipts.",
+  "entries": [
+    {
+      "source_version_hash": "02e03d03f0ab4d8e9821a4cddcd338e37385d365a2703d49e96a4cc7f70d50d4",
+      "start": 0,
+      "end": 34,
+      "role": "compute",
+      "document_tense": "present_in_document",
+      "object_family": "processor",
+      "context": null,
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    },
+    {
+      "source_version_hash": "6369ea8271fa98c851450799381faf098e105adb94c5e629d1c5f31a92a1ca17",
+      "start": 0,
+      "end": 42,
+      "role": "semiconductor",
+      "document_tense": "present_in_document",
+      "object_family": "semiconductor_memory",
+      "context": null,
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    },
+    {
+      "source_version_hash": "348b9e719a813ea09a095b81a882d4bae3155b781a07f8cddd5acef59043ddb2",
+      "start": 0,
+      "end": 44,
+      "role": "interconnect",
+      "document_tense": "present_in_document",
+      "object_family": "network_switch",
+      "context": "data_center",
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    },
+    {
+      "source_version_hash": "7a98f190d7d76638617a13a719e710695d3ac93cb14be647e5b57441e59fd64a",
+      "start": 0,
+      "end": 53,
+      "role": "power_cooling",
+      "document_tense": "present_in_document",
+      "object_family": "cooling_system",
+      "context": "digital_infrastructure",
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    },
+    {
+      "source_version_hash": "179b937b494eecc97917152f167e9176d46d5ed58ba4ea75099716a9f279e52c",
+      "start": 0,
+      "end": 49,
+      "role": "cloud",
+      "document_tense": "present_in_document",
+      "object_family": "cloud_compute_service",
+      "context": null,
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    },
+    {
+      "source_version_hash": "4f6700f94fbc406ac546eeb48d5b5325e9ef1f97208aaace50ff128eadb16a7f",
+      "start": 0,
+      "end": 102,
+      "role": "power_cooling",
+      "document_tense": "present_in_document",
+      "object_family": "cooling_system",
+      "context": "digital_infrastructure",
+      "review_kind": "synthetic_contract_fixture",
+      "demo_only": true,
+      "verdict": "direct_support",
+      "checks": {
+        "complete_proposition": true,
+        "issuer_as_supplier": true,
+        "supply_relation_explicit": true,
+        "object_role_explicit": true,
+        "context_explicit_when_required": true,
+        "document_time_only": true,
+        "no_unresolved_contradiction": true
+      },
+      "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+      "review_receipt": null
+    }
+  ]
+}
