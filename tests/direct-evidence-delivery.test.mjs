@@ -48,3 +48,17 @@ test('legacy/model profile claims cannot select the reviewed taxonomy',{skip},as
   assert.equal(read._validated_role_profile,undefined);
   assert.equal(roleTaxonomyFor(read).schema,'gpt_role_taxonomy_v1');
 });
+
+test('unknown role never acquires a displayed role tense from sentence tense',{skip},async()=>{
+  for(const tense of ['present_in_document','past_in_document','unclear']){
+    const {artifact}=await roleDocumentsFixture(await mkdtemp(join(tmpdir(),'direct-unknown-')),
+      {direct:true,role:'unknown',tense});
+    const read=await readBriefingArtifact(await encryptBriefingArtifact(artifact,fixturePassword),fixturePassword,options);
+    const row=read._validated_role_documents[0],view=roleDocumentView(read,read.roles[0]);
+    assert.equal(row.claim.document_tense,tense); // Preserve historical candidate, no relabeling.
+    assert.equal(row.review_status,'held');assert.equal(row.direct_evidence.display_role,'unknown');
+    assert.equal(view.admitted,false);assert.equal(view.role,'unknown');
+    assert.notEqual(view.statement,'문서상 제공 주장');assert.notEqual(view.statement,'문서상 과거 주장');
+    assert.equal(row.current_verification.state,'unverified');assert.equal(read.score_effect,0);
+  }
+});

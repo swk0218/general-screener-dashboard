@@ -2,7 +2,7 @@ import {writeFile,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {nativeInput,cutoff} from './briefing-native.mjs';
-export async function roleDocumentsFixture(directory,{fragment=false,multiDocument=false,unicode=false,direct=false}={}){
+export async function roleDocumentsFixture(directory,{fragment=false,multiDocument=false,unicode=false,direct=false,role='power_cooling',tense='present_in_document'}={}){
   const python=process.env.BRIEFING_TEST_PYTHON,backend=process.env.BRIEFING_TEST_BACKEND;
   if(!python||!backend)throw Error('Explicit private offline backend required');
   const native=await nativeInput();
@@ -17,7 +17,7 @@ export async function roleDocumentsFixture(directory,{fragment=false,multiDocume
   const artifact={artifact_kind:'general_screener_briefing_v1',version:1,created_at:cutoff,execution_mode:'fake_transport',
     source_binding:{...native.binding,input_hash:result.input_hash},briefing:result.briefing};
   const company=native.data.companies[0],source=company.sources[0];
-  const extraction={symbol:company.symbol,source_id:source.id,role:'power_cooling',document_tense:'present_in_document',spans:[{start:0,end:fragment?3:Array.from(source.text).length}]};
+  const extraction={symbol:company.symbol,source_id:source.id,role,document_tense:tense,spans:[{start:0,end:fragment?3:Array.from(source.text).length}]};
   await writeFile(join(directory,'artifact.json'),JSON.stringify(artifact));
   await writeFile(join(directory,'extractions.json'),JSON.stringify([extraction]));
   execFileSync(python,['scripts/write_role_documents.py','--enable-role-documents-v2',...(direct?['--enable-direct-document-evidence']:[]),'--artifact',join(directory,'artifact.json'),
