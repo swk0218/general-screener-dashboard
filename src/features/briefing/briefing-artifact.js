@@ -112,12 +112,13 @@ export async function readBriefingArtifact(envelope, passphrase, {
     // Re-encrypting or rebuilding cannot refresh a source session or generation clock.
     const age = now - Date.parse(data.generated_at);
     if (forcePrevious || requireMarketUnavailable && data.computed.market_available || !expectedSession || data.session !== expectedSession || age < 0 || age > maxAgeMs || expectedInputHash && artifact.source_binding.input_hash !== expectedInputHash) {
-      data.status = 'unavailable';
       return {
         status: 'unavailable',
         demo: data.demo,
         previous_is_current: false,
-        previous_briefing: artifact.briefing,
+        // Archived results share the ready-result trust boundary: payload fields
+        // cannot manufacture reader-owned admission, even in a dated snapshot.
+        previous_briefing: data,
         reason: 'dated_result_only'
       };
     }

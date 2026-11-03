@@ -7,7 +7,7 @@ import {roleDocumentsFixture} from './fixtures/role-documents-v2.mjs';
 import {fixturePassword,cutoff} from './fixtures/briefing-native.mjs';
 import {encryptBriefingArtifact,readBriefingArtifact} from '../src/features/briefing/briefing-artifact.js';
 import {roleDocumentView} from '../src/features/briefing/role-documents.js';
-import {roleReviewState,roleLabel} from '../src/features/briefing/briefing-model.js';
+import {roleReviewState,roleLabel,briefingClocks} from '../src/features/briefing/briefing-model.js';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../scripts/seal-briefing-artifact.mjs';
 const skip=!process.env.BRIEFING_TEST_PYTHON||!process.env.BRIEFING_TEST_BACKEND;
 const folder=()=>mkdtemp(join(tmpdir(),'role-documents-v2-'));
@@ -74,4 +74,33 @@ test('invalid v2 admission preserves prior ciphertext and delivery status',{skip
   await assert.rejects(sealBriefingArtifact(bad,fixturePassword,destination,{executionMode:'fake_transport'}));
   await assert.rejects(writeBriefingDeliveryStatus(bad,before,status));
   assert.deepEqual(await readFile(destination),before);assert.deepEqual(await readFile(status),statusBefore);
+});
+
+test('dated results retain only reader-validated document authority and remain held',{skip},async()=>{
+  const {artifact,legacy}=await roleDocumentsFixture(await folder());
+  legacy.briefing._validated_role_documents=artifact.role_document_contract.reviews;
+  legacy.briefing._validated_role_profile='direct-reviewed-document-candidates-v1';
+  const before=structuredClone(legacy);
+  for(const boundary of [
+    {forcePrevious:true},
+    {expectedSession:'2026-11-02'},
+    {now:Date.parse(cutoff)+37*3600000},
+    {expectedInputHash:'0'.repeat(64)}
+  ]){
+    const held=await readBriefingArtifact(await encryptBriefingArtifact(legacy,fixturePassword),fixturePassword,{...options,...boundary});
+    assert.equal(held.status,'unavailable');assert.equal(held.previous_is_current,false);
+    const previous=held.previous_briefing;
+    assert.equal(previous._validated_role_documents,undefined);
+    assert.equal(previous._validated_role_profile,undefined);
+    assert.equal(roleDocumentView(previous,previous.roles[0]).admitted,false);
+    assert.deepEqual(roleReviewState(held).roles,[]);
+    assert.equal(briefingClocks(held).generated,null);
+    assert.equal(briefingClocks(held).previousGenerated,briefingClocks(before.briefing).generated);
+    assert.deepEqual(previous.engines,before.briefing.engines);
+  }
+  assert.deepEqual(legacy,before);
+  const held=await readBriefingArtifact(await encryptBriefingArtifact(artifact,fixturePassword),fixturePassword,{...options,forcePrevious:true});
+  assert.deepEqual(held.previous_briefing._validated_role_documents,artifact.role_document_contract.reviews);
+  assert.equal(roleDocumentView(held.previous_briefing,held.previous_briefing.roles[0]).admitted,true);
+  assert.deepEqual(roleReviewState(held).roles,[]);
 });

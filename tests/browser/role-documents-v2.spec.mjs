@@ -7,16 +7,21 @@ import {fixturePassword,cutoff} from '../fixtures/briefing-native.mjs';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../../scripts/seal-briefing-artifact.mjs';
 const available=Boolean(process.env.BRIEFING_TEST_PYTHON&&process.env.BRIEFING_TEST_BACKEND);
 if(process.env.BRIEFING_REQUIRE_BACKEND==='true'&&!available)throw Error('Required private v2 writer environment missing');
-for(const variant of ['reviewed','fragment','legacy','direct_profile','direct_fragment']){
+for(const variant of ['reviewed','fragment','legacy','direct_profile','direct_fragment','legacy_dated']){
   test(`actual document writer -> encrypted reader -> existing card: ${variant}`,async({page})=>{
     test.skip(!available,'Private offline writer integration runs in its repository job');
     const directory=await mkdtemp(join(tmpdir(),'role-v2-browser-'));
     const {artifact,legacy}=await roleDocumentsFixture(directory,{fragment:['fragment','direct_fragment'].includes(variant),direct:variant.startsWith('direct_')});
-    const used=variant==='legacy'?legacy:artifact;
+    const used=variant.startsWith('legacy')?legacy:artifact;
+    if(variant==='legacy_dated'){
+      used.briefing._validated_role_documents=artifact.role_document_contract.reviews;
+      used.briefing._validated_role_profile='direct-reviewed-document-candidates-v1';
+    }
     const file=join(directory,'briefing.enc.json');
     await sealBriefingArtifact(used,fixturePassword,file,{executionMode:'fake_transport'});
     const encrypted=await readFile(file,'utf8');
     const status=await writeBriefingDeliveryStatus(used,Buffer.from(encrypted),join(directory,'briefing-status.json'));
+    if(variant==='legacy_dated')status.status='STALE';
     const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
     await page.clock.install({time:new Date(cutoff)});
     await page.route('**/data/briefing.enc.json',r=>r.fulfill({body:encrypted,contentType:'application/json'}));
@@ -26,6 +31,15 @@ for(const variant of ['reviewed','fragment','legacy','direct_profile','direct_fr
     await page.getByLabel('결과 암호').fill(fixturePassword);
     await page.getByRole('button',{name:'브리핑 열기',exact:true}).click();
     await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
+    if(variant==='legacy_dated'){
+      await expect(page.locator('.brief-role')).toHaveCount(0);
+      await expect(page.locator('.brief-clocks > div').last()).toContainText('생성되지 않음');
+      await expect(page.locator('.brief-clocks > div').last()).toContainText('이전 브리핑 생성');
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      expect(requests.some(url=>url.includes('api.openai.com'))).toBe(false);
+      expect(errors).toEqual([]);
+      return;
+    }
     await expect(page.locator('.brief-role')).toHaveCount(5);
     const card=page.locator('.brief-role').first();
     if(variant.startsWith('direct_')){
