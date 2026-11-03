@@ -22,6 +22,9 @@ export function assertBriefingArtifact(artifact) {
     if (data.execution_mode !== artifact.execution_mode || data.identity?.execution_mode !== artifact.execution_mode || data.provider_receipt?.transport !== transport || artifact.execution_mode === 'provider' && data.demo) fail();
     if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
     for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
+    for (const company of data.companies) for (const source of company.sources || []) {
+      if (source.kind === 'TEST' && (artifact.execution_mode !== 'provider_test' || !data.demo || binding.source_kind !== 'synthetic_probe')) fail();
+    }
     if (data.computed.market_available && (data.engines.Radar.current.status !== 'valid' || data.engines.Radar.current.session !== data.session)) fail();
     const ids = new Set();
     for (const insight of data.insights) {
@@ -43,7 +46,8 @@ export function assertBriefingArtifact(artifact) {
         const hosts = {
           SEC: 'www.sec.gov',
           FMP: 'financialmodelingprep.com',
-          FRED: 'fred.stlouisfed.org'
+          FRED: 'fred.stlouisfed.org',
+          TEST: 'example.invalid'
         };
         let url;
         try {

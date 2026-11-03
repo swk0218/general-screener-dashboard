@@ -44,6 +44,7 @@ function Briefing({
 }
 function CitationSource({ source, demo }) {
   if (!source) return null;
+  if (source.kind === "TEST") return <small>합성 검증 자료 · 실제 제공자 원문 아님 · 자료 시점 {source.published_on} · 이용 확인일 {source.available_on}</small>;
   return <small><a href={source.url} target="_blank" rel="noreferrer">{demo ? `${source.kind} 제공 링크` : `${source.kind} 원문`}</a> · 공개일 {source.published_on || "미확인"} · 이용 가능일 {source.available_on}</small>;
 }
 function SupplyRoles({

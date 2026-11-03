@@ -36,6 +36,13 @@ for(const name of ['normal','date_mismatch','quarantined','insufficient','confli
       await page.locator('.brief-tabs button').nth(1).click();
       await expect(page.locator('.brief-role')).toHaveCount(expected.roles.length);
       for(const role of expected.roles)await expect(page.locator('.brief-role').filter({hasText:role.symbol})).toContainText(roleLabel(role.role));
+      for(const company of expected.companies.filter(c=>c.sources.some(s=>s.kind==='TEST'))) {
+        const card=page.locator('.brief-role').filter({hasText:company.symbol});
+        await card.locator('details summary').click();
+        for(const source of company.sources) await expect(card).toContainText(source.text);
+        await expect(card.locator('a[href*="example.invalid"]')).toHaveCount(0);
+        await expect(card).toContainText('실제 제공자 원문 아님');
+      }
       if(expectedOrigin==='openai_network')await expect(page.getByLabel('격리된 제품 시험')).toContainText('실제 GPT 응답');
     }else await expect(page.getByLabel('격리된 제품 시험')).not.toContainText('실제 GPT 응답');
     expect(requests.some(url=>/\/data\/(payload.enc|market-radar.enc|radar-observation)/.test(url))).toBe(false);
