@@ -13,6 +13,7 @@ import { selectBriefingSession, currentRadarAvailable, reassessOpenBriefing, rec
 import { BriefingView } from './BriefingView.jsx';
 import { latestCompletedSession } from './market-calendar.js';
 import { probeStatusLabel } from './briefing-model.js';
+import { optionalDelivery } from './optional-delivery.js';
 
 // Optional entry only: reuse the existing unlock and dashboard components.
 // The passphrase lives only in the unlock call, never in persistent state/storage.
@@ -55,18 +56,25 @@ export function BriefingSessionApp() {
     const active=()=>generation.current===id&&!controller.signal.aborted;
     const update=patch=>{if(active())setSession(old=>old?{...old,...patch}:null);};
     const base=`${import.meta.env.BASE_URL}data/`;
-    if(!probe)loadSeasonalityDelivery(`${base}radar-seasonality.enc.json`,passphrase,controller.signal).then(seasonality=>update({seasonality})).catch(()=>{});
+    if(!probe)optionalDelivery(signal=>loadSeasonalityDelivery(`${base}radar-seasonality.enc.json`,passphrase,signal),{signal:controller.signal}).then(seasonality=>update({seasonality}));
     let radar=null,radarStatus=null;
-    if(!probe)try{radar=await loadOptionalRadarDelivery(`${base}radar-observation.json`,`${base}market-radar.enc.json`,passphrase,controller.signal,value=>{radarStatus=value;});}catch{/* Optional source holds briefing freshness. */}
+    if(!probe){
+      const source=await optionalDelivery(async signal=>{
+        let status=null;
+        const value=await loadOptionalRadarDelivery(`${base}radar-observation.json`,`${base}market-radar.enc.json`,passphrase,signal,item=>{status=item;});
+        return {radar:value,radarStatus:status};
+      },{signal:controller.signal});
+      if(source){radar=source.radar;radarStatus=source.radarStatus;}
+    }
     if(!active())return;
     update({radar,radarStatus});
     const expectedSession=selectBriefingSession(radar,radarStatus);
     const briefingBase=probe?sourceBase:base;
-    const briefing=await loadBriefingDelivery(`${briefingBase}briefing-status.json`,`${briefingBase}briefing.enc.json`,passphrase,{
-      expectedSession:probe?undefined:expectedSession||undefined,forcePrevious:!probe&&!expectedSession,signal:controller.signal,
+    const briefing=await optionalDelivery(signal=>loadBriefingDelivery(`${briefingBase}briefing-status.json`,`${briefingBase}briefing.enc.json`,passphrase,{
+      expectedSession:probe?undefined:expectedSession||undefined,forcePrevious:!probe&&!expectedSession,signal,
       requireMarketUnavailable:!probe&&!currentRadarAvailable(radar,radarStatus),
       expectedExecutionMode:probe?'provider_test':import.meta.env.DEV?'fake_transport':'provider'
-    });
+    }),{signal:controller.signal,fallback:{status:'unavailable',demo:false,reason:'optional_delivery_timeout_or_failure'}});
     update({briefing});
   }
   function lock(){generation.current++;request.current?.abort();setSession(null);}
