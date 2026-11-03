@@ -74,7 +74,8 @@ test("artifact guard rejects journal inclusion and damaged or missing browser as
     await rm(status);
     await assert.rejects(verify(), error => error.stderr.includes("ENOENT"));
     await symlink(join(source, "data/radar-observation.json"), status);
-    await assert.rejects(verify(), error => error.stderr.includes("Built public asset symlink"));
+    // The recursive output scan rejects this link before the public-copy parity scan.
+    await assert.rejects(verify(), error => error.stderr.includes("Built asset symlink"));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
