@@ -1,0 +1,71 @@
+{
+  "schema": "gpt_role_taxonomy_v2",
+  "version": "direct-document-supply-2026-11-03-v1",
+  "period_frame": "tense_at_document_date_only_current_supply_unverified",
+  "role_priority": [
+    "compute",
+    "semiconductor",
+    "interconnect",
+    "power_cooling",
+    "cloud",
+    "unknown"
+  ],
+  "compute": "Explicitly supplied processors, accelerators or servers. A purchaser, operator or training service is not a supplier of those products.",
+  "semiconductor": "Explicitly supplied semiconductor memory, semiconductor fabrication or semiconductor manufacturing equipment. Storage or generic components alone do not establish this role.",
+  "interconnect": "Explicitly supplied data-center network connections or switches. Household or unspecified networking alone is insufficient.",
+  "power_cooling": "Explicitly supplied digital-infrastructure power or cooling products. Household cooling or generic electrical products alone are insufficient.",
+  "cloud": "Explicitly supplied cloud computing or cloud storage services. A company using or buying cloud services is not thereby a cloud supplier.",
+  "unknown": "The excerpt does not directly establish an allowed role. This does not mean no business or no AI exposure.",
+  "periods": "present_in_document, planned_in_document, past_in_document or unclear describe the document statement only; never current supply verification.",
+  "labels_ko": {
+    "compute": "프로세서·가속기·서버를 공급한다는 명시적 근거",
+    "semiconductor": "반도체 메모리·반도체 제조·반도체 제조 장비를 공급한다는 명시적 근거. 일반 저장장치·부품만으로는 확정하지 않음",
+    "interconnect": "데이터센터 네트워크 연결 장치·스위치를 공급한다는 근거",
+    "power_cooling": "디지털 인프라의 전력·냉각 제품이라는 명시적 근거. 일반 전기 제품만으로는 부족",
+    "cloud": "클라우드 연산·저장 서비스를 공급한다는 명시적 근거. 해당 서비스를 사용하는 것만으로는 부족",
+    "unknown": "기업명·제품명·AI 키워드만 있거나 사업 공급 역할의 근거가 부족함"
+  },
+  "object_families": {
+    "compute": [
+      "processor",
+      "accelerator",
+      "server"
+    ],
+    "semiconductor": [
+      "semiconductor_memory",
+      "semiconductor_fabrication",
+      "semiconductor_equipment"
+    ],
+    "interconnect": [
+      "network_connection",
+      "network_switch"
+    ],
+    "power_cooling": [
+      "power_system",
+      "cooling_system"
+    ],
+    "cloud": [
+      "cloud_compute_service",
+      "cloud_storage_service"
+    ],
+    "unknown": []
+  },
+  "required_context": {
+    "compute": null,
+    "semiconductor": null,
+    "interconnect": "data_center",
+    "power_cooling": "digital_infrastructure",
+    "cloud": null,
+    "unknown": null
+  },
+  "review_requirements": [
+    "complete_proposition",
+    "issuer_as_supplier",
+    "supply_relation_explicit",
+    "object_role_explicit",
+    "context_explicit_when_required",
+    "document_time_only",
+    "no_unresolved_contradiction"
+  ],
+  "admission_policy": "Model output is a candidate. Only a code-owned independently reviewed source/span record may admit a document claim. Otherwise hold. No automatic points or current-business verification."
+}

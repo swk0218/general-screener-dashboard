@@ -2,7 +2,7 @@ import { useState } from "react";
 import { briefingClocks, insightView, roleLabel, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "./briefing-model.js";
 import "./briefing.css";
 import {roleDocumentView} from "./role-documents.js";
-import roleTaxonomy from './role-taxonomy.json';
+import {roleTaxonomyFor} from './role-taxonomy.js';
 function Evidence({
   data,
   insight
@@ -56,6 +56,7 @@ function SupplyRoles({
 }) {
   const [filter, setFilter] = useState("all");
   const review = roleReviewState(data);
+  const roleTaxonomy = roleTaxonomyFor(data);
   const activeFilter = review.baselineDisplayAvailable ? filter : "all";
   const roles = review.roles.filter(role => activeFilter === "all" || role.comparison === "review");
   return <section aria-labelledby="supply-title"><div className="brief-section-heading"><span>02 / BUSINESS EVIDENCE</span><h2 id="supply-title">공급망에서 맡은 역할</h2><p>AI라는 단어보다 실제 공급하는 제품과 사업 시점을 확인합니다.</p></div>

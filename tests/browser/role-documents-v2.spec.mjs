@@ -7,12 +7,13 @@ import {fixturePassword,cutoff} from '../fixtures/briefing-native.mjs';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../../scripts/seal-briefing-artifact.mjs';
 const available=Boolean(process.env.BRIEFING_TEST_PYTHON&&process.env.BRIEFING_TEST_BACKEND);
 if(process.env.BRIEFING_REQUIRE_BACKEND==='true'&&!available)throw Error('Required private v2 writer environment missing');
-for(const variant of ['reviewed','fragment','legacy']){
+for(const variant of ['reviewed','fragment','legacy','direct_profile']){
   test(`actual document writer -> encrypted reader -> existing card: ${variant}`,async({page})=>{
     test.skip(!available,'Private offline writer integration runs in its repository job');
     const directory=await mkdtemp(join(tmpdir(),'role-v2-browser-'));
     const {artifact,legacy}=await roleDocumentsFixture(directory,{fragment:variant==='fragment'});
     const used=variant==='legacy'?legacy:artifact;
+    if(variant==='direct_profile')used.briefing.identity.prompt_version='direct-reviewed-document-candidates-v1';
     const file=join(directory,'briefing.enc.json');
     await sealBriefingArtifact(used,fixturePassword,file,{executionMode:'fake_transport'});
     const encrypted=await readFile(file,'utf8');
@@ -28,9 +29,14 @@ for(const variant of ['reviewed','fragment','legacy']){
     await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
     await expect(page.locator('.brief-role')).toHaveCount(5);
     const card=page.locator('.brief-role').first();
+    if(variant==='direct_profile'){
+      const criteria=page.locator('details.brief-evidence');
+      await criteria.locator('summary').click();
+      await expect(criteria.locator('dd').nth(1)).toHaveText(''+(await import('../../src/features/briefing/role-taxonomy-v2.json',{with:{type:'json'}})).default.labels_ko.semiconductor);
+    }
     await expect(card).toContainText('현시점 확인: 미확인');await expect(card).toContainText('대조 보류');
     await expect(page.getByRole('button',{name:'기존 분류와 다른 기업',exact:true})).toBeDisabled();
-    if(variant==='reviewed'){
+    if(['reviewed','direct_profile'].includes(variant)){
       await expect(card.locator('h4')).toHaveText('전력·냉각');
       await expect(card).toContainText('문서상 제공 주장');
     }else{
