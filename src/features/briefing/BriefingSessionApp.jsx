@@ -12,6 +12,7 @@ import { loadBriefingDelivery } from './briefing-artifact.js';
 import { selectBriefingSession, currentRadarAvailable } from './briefing-session.js';
 import { BriefingView } from './BriefingView.jsx';
 import { latestCompletedSession } from './market-calendar.js';
+import { probeStatusLabel } from './briefing-model.js';
 
 // Optional entry only: reuse the existing unlock and dashboard components.
 // The passphrase lives only in the unlock call, never in persistent state/storage.
@@ -57,7 +58,7 @@ export function BriefingSessionApp() {
   }
   function lock(){generation.current++;request.current?.abort();setSession(null);}
   function open(next){setView(next);location.hash=next==='briefing'?'#/briefing':'#/overview';}
-  return <Theme theme={neutralTheme} mode="dark">{probe?<aside className="brief-notice" aria-label="격리된 제품 시험"><strong>과거 합성 엔진 자료 · 현재 투자 판단에 사용하지 마세요</strong><p>{session?.briefing?.probe_context?.response_origin==='openai_network'&&session?.briefing?.probe_context?.call_status==='complete'?'실제 GPT 응답의 격리 검증':'오프라인 계약 검증 자료 또는 응답 확인 전'}. 운영 자료와 연결하지 않습니다.</p><nav aria-label="시험 조건">{cases.map((name,i)=><a key={name} href={`?probe_case=${name}#/briefing`}>{['정상 합성 자료','엔진 시점 차이','Radar 격리','자료 부족','근거 상충'][i]} </a>)}</nav></aside>:null}{!session?<UnlockScreen envelope={envelope} envelopeError={error} onUnlock={unlock}/>:<AppErrorBoundary onLock={lock} onRetry={()=>open('dashboard')}>
+  return <Theme theme={neutralTheme} mode="dark">{probe?<aside className="brief-notice" aria-label="격리된 제품 시험"><strong>과거 합성 엔진 자료 · 현재 투자 판단에 사용하지 마세요</strong><p>{probeStatusLabel(session?.briefing?.probe_context)}. 운영 자료와 연결하지 않습니다.</p><nav aria-label="시험 조건">{cases.map((name,i)=><a key={name} href={`?probe_case=${name}#/briefing`}>{['정상 합성 자료','엔진 시점 차이','Radar 격리','자료 부족','근거 상충'][i]} </a>)}</nav></aside>:null}{!session?<UnlockScreen envelope={envelope} envelopeError={error} onUnlock={unlock}/>:<AppErrorBoundary onLock={lock} onRetry={()=>open('dashboard')}>
     <nav className="brief-session-nav" aria-label="화면 이동"><button onClick={()=>open('dashboard')}>스크리너</button><button onClick={()=>open('briefing')}>투자 판단 브리핑</button><button onClick={lock}>잠그기</button></nav>
     {view==='briefing'?(session.briefing?<><div className="brief-notice" role="status">{probe ? <p>합성 시험의 검토 거래일: {session.briefing.session || session.briefing.probe_context?.assessment_session || "확인 불가"} · 과거 합성 자료이며 현재 거래일의 실제 관측이 아닙니다.</p> : session.assessmentReference ? <p>검토 기준 거래일: {session.assessmentReference.session} · NYSE 정규장 마감 기준. 각 엔진의 실제 자료일은 아래에 별도로 표시합니다.</p> : <p>거래일 달력의 최신 확인이 필요해 당일 판단을 유보합니다.</p>}</div><BriefingView data={session.briefing}/></>:<main className="brief-demo brief-main" role="status">브리핑 자료를 확인하고 있습니다.</main>):<Dashboard payload={session.payload} radar={session.radar} radarStatus={session.radarStatus} seasonality={session.seasonality} onLock={lock}/>}
   </AppErrorBoundary>}</Theme>;

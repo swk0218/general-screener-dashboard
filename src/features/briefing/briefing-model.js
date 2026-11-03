@@ -22,6 +22,13 @@ export function isMockResponse(data) {
 export function probeResponseLabel(data) {
   return isMockResponse(data)?'격리 시험 · 주입 응답':'격리 시험 · 실제 GPT 응답';
 }
+export function probeStatusLabel(context) {
+  if(context?.call_status==='insufficient_zero_calls') return '자료가 부족해 GPT를 호출하지 않았습니다';
+  if(context?.call_status==='failed_reservation_retained') return '응답 또는 근거 확인을 마치지 못해 새 결과를 표시하지 않습니다';
+  if(context?.call_status==='not_sent') return '이번 조건의 새 응답을 생성하지 않았습니다';
+  if(context?.call_status==='complete') return context.response_origin==='openai_network'?'실제 GPT 응답의 격리 검증':'오프라인 주입 응답의 계약 검증';
+  return '응답 확인 전입니다';
+}
 export function engineState(snapshot, session) {
   if (!snapshot) return "자료 확인 불가";
   if (snapshot.status !== "valid") return "확인 보류";
