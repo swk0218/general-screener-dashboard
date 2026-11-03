@@ -9,9 +9,6 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
-    env:
-      BRIEFING_TEST_PYTHON: python
-      BRIEFING_TEST_BACKEND: ${{ github.workspace }}/.ci-backend
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -21,17 +18,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Checkout pinned offline briefing test backend
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: swk0218/Screening-agent-by-FMP-API
-          ref: 62570147c225942bf92d68aca00b53193d244cc0
-          path: .ci-backend
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Install locked offline test dependencies
-        run: >-
-          python -m pip install --require-hashes --only-binary=:all: -r tests/requirements-briefing-linux.lock
       - name: Test Pages artifact identity and bounded readiness
         run: python -m unittest discover -s tests -p test_pages_artifact.py
       - run: npm ci --ignore-scripts

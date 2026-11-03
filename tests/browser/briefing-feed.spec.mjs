@@ -5,9 +5,14 @@ import { join } from 'node:path';
 import { pipelineFixture } from '../fixtures/briefing-pipeline.mjs';
 import { fixturePassword, cutoff } from '../fixtures/briefing-native.mjs';
 import { sealBriefingArtifact, writeBriefingDeliveryStatus } from '../../scripts/seal-briefing-artifact.mjs';
+const backendAvailable = Boolean(process.env.BRIEFING_TEST_PYTHON && process.env.BRIEFING_TEST_BACKEND);
+if (process.env.BRIEFING_REQUIRE_BACKEND === 'true' && !backendAvailable) {
+  throw new Error('Required private backend integration environment missing');
+}
 test('actual adapter/transport/artifact reader supplies the shared UI', async ({
   page
 }) => {
+  test.skip(!backendAvailable, 'Private backend integration is verified in its isolated repository job');
   const directory = await mkdtemp(join(tmpdir(), 'briefing-feed-browser-'));
   const {
     artifact
