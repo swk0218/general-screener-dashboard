@@ -35,7 +35,7 @@ for(const scenario of ['explicit-stale','status-missing']) {
     const summary=page.locator('.overview-radar');await expect(summary).toBeVisible();
     await expect(summary.locator('.overview-radar-score strong')).toHaveText('—');
     await expect(summary.locator('.radar-headline')).toHaveText('—');
-    await expect(summary.locator('time')).toHaveText('— Updated');
+    await expect(summary.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
     await page.clock.setSystemTime(new Date('2026-03-13T14:40:01Z'));
     await page.clock.fastForward(60001);
     await expect(summary.locator('.radar-headline')).toHaveText('—');
@@ -50,7 +50,7 @@ for(const scenario of ['explicit-stale','status-missing']) {
     await expect(detail.locator('.radar-headline')).toHaveText('—');
     await expect(detail.locator('.radar-dial-needle,.radar-headline.is-normal,.lucide-bell-off')).toHaveCount(0);
     await expect(detail.locator('.radar-gauge [role=status]')).toHaveCount(0);
-    await expect(detail.locator('.radar-updated time')).toHaveText('— Updated');
+    await expect(detail.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
     await expect(detail.locator('.lucide-triangle-alert')).toHaveCount(0);
     await expect(detail.locator('.radar-card-value strong')).toHaveText(Array(8).fill('—'));
     await expect(detail).not.toContainText(/갱신 지연|미확보|미계산|일일 갱신|보류|S&P500/);
@@ -112,7 +112,7 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
     const issued=['bottom','top','both'].includes(scenario);
     await expect(summary.locator('.radar-event-label .lucide-triangle-alert')).toHaveCount(issued?1:0);
     if(scenario==='score-only'||scenario==='invalid')await expect(summary.locator('.radar-event-label')).toHaveCount(0);
-    if(scenario!=='invalid')await expect(summary.locator('time')).toHaveText('— Updated');
+    if(scenario!=='invalid')await expect(summary.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
     await summary.getByText('지수 자세히',{exact:true}).click();
     const detail=page.locator('.radar-view');await expect(detail).toBeVisible();
     await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
@@ -136,7 +136,7 @@ for(const scenario of ['bottom','top','both','mixed','score-only','invalid']) {
       if(scenario==='mixed')await expect(detail.locator('.radar-mixed')).toHaveText('양방향 조건 강함');
       await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));});
       await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
-      await expect(detail.locator('.radar-updated time')).toHaveText('— Updated');
+      await expect(detail.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
     }
     expect(errors).toEqual([]);
   });
@@ -176,7 +176,10 @@ for(const scenario of ['retained-failure','failed-receipt','awaiting-inputs','aw
     await expect(summary.locator('.overview-radar-score strong')).toHaveText(score);
     await expect.poll(()=>feedReads).toBe(['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)||downgrade?1:2);
     await expect.poll(()=>statusReads).toBe(downgrade?2:feedReads);
-    if(scenario!=='persistent-mismatch')await expect(summary.locator('time')).toHaveText(scenario.endsWith('-receipt')?'03.13 Updated':['retained-failure','awaiting-inputs'].includes(scenario)?'03.12 기준일':'— Updated');
+    if(scenario!=='persistent-mismatch'){
+      if(scenario.endsWith('-receipt'))await expect(summary.locator('.radar-refresh-date')).toHaveText('2026.03.13 Updated');
+      else await expect(summary.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
+    }
     await summary.getByText('지수 자세히',{exact:true}).click();
     const detail=page.locator('.radar-view');await expect(detail.locator('.radar-dial-number')).toHaveText(`${score}/100`);
     if(downgrade){
@@ -184,6 +187,9 @@ for(const scenario of ['retained-failure','failed-receipt','awaiting-inputs','aw
       await expect(detail.locator('[role=alert],.radar-event-label,.radar-threshold-track')).toHaveCount(0);
     }
     if(['retained-failure','failed-receipt','awaiting-inputs','awaiting-inputs-receipt'].includes(scenario)) {
+      if(scenario.endsWith('-receipt'))await expect(detail.locator('.radar-freshness-note')).toHaveText('이전 자료 유지');
+      else await expect(detail.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
+      if(scenario.endsWith('-receipt'))await expect(detail.locator('.radar-basis-date')).toHaveText('2026.03.12 기준일');
       await expect(detail.locator('.radar-headline')).toHaveText('저점 경보 발생');
       await expect(detail.locator('[role=alert]')).toHaveCount(0);
       await expect(detail.locator('.radar-threshold-track')).toHaveCount(2);
@@ -198,14 +204,16 @@ for(const scenario of ['retained-failure','failed-receipt','awaiting-inputs','aw
   });
 }
 
-for(const updateCase of ['refresh','legacy','invalid-binding']) test(`Radar KST update ${updateCase} in both entries survives UI rebuilds`,async({page})=>{
+for(const updateCase of ['refresh','legacy','unconfirmed','invalid-binding']) test(`Radar KST update ${updateCase} in both entries survives UI rebuilds`,async({page},testInfo)=>{
   const status={...unavailableEngineStatus(),status:'DATED',source_session:'2026-03-12',expected_session:'2026-03-12',
     input_admitted_at_utc:'2026-03-13T10:00:00Z',model_computed_at_utc:'2026-03-13T10:01:00Z',latest_attempt_at_utc:'2026-03-13T10:02:00Z',
-    next_scheduled_at_utc:'2026-03-13T12:40:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64),
+    next_scheduled_at_utc:'2026-10-12T20:00:00Z',feed_cipher_sha256:createHash('sha256').update(feed).digest('hex'),engine_result_id:'a'.repeat(64),
     built_at_utc:'2026-03-15T10:00:00Z',published_at_utc:'2026-10-10T15:57:02Z',publication_receipt_result_id:'a'.repeat(64),publication_deployment_id:123};
-  if(updateCase!=='legacy')status.last_successful_refresh={completed_at_utc:'2026-10-12T15:00:00Z',engine_result_id:updateCase==='invalid-binding'?'b'.repeat(64):status.engine_result_id,feed_cipher_sha256:status.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
+  if(['refresh','invalid-binding'].includes(updateCase))status.last_successful_refresh={completed_at_utc:'2026-10-12T15:00:00Z',engine_result_id:updateCase==='invalid-binding'?'b'.repeat(64):status.engine_result_id,feed_cipher_sha256:status.feed_cipher_sha256,outcome:'SKIPPED_COMPLETE_SESSION'};
+  if(updateCase==='unconfirmed')Object.assign(status,{published_at_utc:null,publication_receipt_result_id:null,publication_deployment_id:null});
   const expectedDate=updateCase==='refresh'?'2026-10-13':'2026-10-11';
-  const expectedText=updateCase==='invalid-binding'?'— Updated':`${expectedDate.slice(5).replace('-','.')} Updated`;
+  const claimed=['refresh','legacy'].includes(updateCase);
+  const expectedText=`${expectedDate.replaceAll('-','.')} Updated`;
   await page.clock.install({time:new Date('2026-10-13T10:00:00Z')});
   await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:payload}));
   await page.route('**/data/radar-observation.json*',route=>route.fulfill({json:status}));
@@ -214,12 +222,28 @@ for(const updateCase of ['refresh','legacy','invalid-binding']) test(`Radar KST 
   await page.goto('/#/overview');
   await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
   const summary=page.locator('.overview-radar');
-  await expect(summary.locator('time')).toHaveText(expectedText);
-  if(updateCase!=='invalid-binding')await expect(summary.locator('time')).toHaveAttribute('datetime',expectedDate);
+  if(claimed){
+    await expect(summary.locator('.radar-refresh-date')).toHaveText(expectedText);
+    await expect(summary.locator('.radar-refresh-date')).toHaveAttribute('datetime',expectedDate);
+  }else{
+    await expect(summary.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
+    await expect(summary.locator('.radar-refresh-date')).toHaveCount(0);
+  }
+  if(updateCase!=='invalid-binding'){
+    await expect(summary.locator('.radar-basis-date')).toHaveText('2026.03.12 기준일');
+    await expect(summary.locator('.radar-basis-date time')).toHaveAttribute('datetime','2026-03-12');
+    await expect(summary.locator('.radar-basis-date')).toHaveAccessibleName('관측 기준일');
+    if(claimed)await expect(summary.locator('.radar-freshness-note')).toHaveText('갱신 확인 대기');
+  }
   await summary.getByText('지수 자세히',{exact:true}).click();
-  await expect(page.locator('.radar-updated time')).toHaveText(expectedText);
+  if(claimed)await expect(page.locator('.radar-refresh-date')).toHaveText(expectedText);
+  else await expect(page.locator('.radar-refresh-unverified')).toHaveText('갱신 확인 불가');
   if(updateCase!=='invalid-binding'){
     await page.locator('.radar-view').getByText('신호 상세',{exact:true}).click();
     await expect(page.locator('details[open]')).toContainText('2026-03-12 · 50 /100');
   }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+  await expect(page.locator('.radar-score-meta')).toBeInViewport();
+  await page.screenshot({path:testInfo.outputPath(`recovery-provenance-${updateCase}.png`)});
 });

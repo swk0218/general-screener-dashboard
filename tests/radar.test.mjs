@@ -108,7 +108,7 @@ test('unavailable packets without native details render missing values without i
     for(const packet of [value,null,{...value,native_details:{bottom:null}},{...value,gauge:{...value.gauge,reason:{}}},dailyFixture(false,false,true),dailyFixture(true,true)]) {
       const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet}));
       assert.match(html,/시장 신호 \(Beta\)/);
-      if(packet===value){assert.match(html,/<strong>—<\/strong>/);assert.match(html,/— Updated/);assert.doesNotMatch(html,/radar-dial-needle|radar-headline is-normal|경보 없음/);}
+      if(packet===value){assert.match(html,/<strong>—<\/strong>/);assert.match(html,/갱신 확인 불가/);assert.doesNotMatch(html,/radar-dial-needle|radar-headline is-normal|경보 없음/);}
       if(packet?.gauge?.mixed_strength===1&&packet.events.bottom===false)assert.match(html,/양방향 조건 강함/);
       if(packet?.events?.bottom&&packet.events.top)assert.match(html,/양방향 경보 충돌/);
     }
@@ -379,11 +379,11 @@ test('redesigned information hierarchy preserves conflict, stale, missing and ra
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     stale.observation.expected_session='2026-03-13';stale.observation.latest_session_input_missing=['VIX'];
     const staleHtml=render(stale);assert.doesNotMatch(staleHtml,/role="alert"/);
-    assert.match(staleHtml,/— Updated/);assert.match(staleHtml,/기준일 결과/);assert.match(staleHtml,/2026-03-12 · 19 \/100 · 저점 경보/);assert.doesNotMatch(staleHtml,/radar-dial-needle|radar-headline is-normal|경보 없음/);
+    assert.match(staleHtml,/갱신 확인 불가/);assert.match(staleHtml,/기준일 결과/);assert.match(staleHtml,/2026-03-12 · 19 \/100 · 저점 경보/);assert.doesNotMatch(staleHtml,/radar-dial-needle|radar-headline is-normal|경보 없음/);
     Object.assign(stale.observation,{latest_session_input_missing:[],collection_status:'FAILED_RETAINED_DATED',
       failure_code:'SOURCE_FETCH_FAILED',last_attempt_at_utc:new Date().toISOString()});
     const failedHtml=render(stale);
-    assert.match(failedHtml,/— Updated/);
+    assert.match(failedHtml,/갱신 확인 불가/);
     assert.doesNotMatch(failedHtml,/일부 미확보/);
     for(const v of [null,unavailableDailyFixture(),dailyFixture(true,true)]) {
       const output=render(v);assert.doesNotMatch(output,/class="radar-dial-needle"/);
@@ -403,7 +403,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     for(const args of [[false,false],[true,false],[false,true],[false,false,true]]) {
       const v=dailyFixture(...args),before=structuredClone(v),html=render(v);
       assert.ok(html.includes(`<strong>${v.gauge.score}</strong>`));
-      assert.match(html,/— Updated/);
+      assert.match(html,/갱신 확인 불가/);
       assert.deepEqual(v,before);
       assert.match(html,args[0]||args[1]?/radar-headline is-alert/:/radar-headline is-normal/);
       if(!args[0]&&!args[1]&&!args[2])assert.match(html,/중립 구간<\/strong>/);
@@ -420,7 +420,7 @@ test('Overview score uses the Radar contract and preserves invalid, stale, mixed
     const stale=dailyFixture(true,false);stale.gauge.data_status='DATED_STALE_OBSERVATION';
     Object.assign(stale.observation,{expected_session:'2026-03-13',latest_session_input_missing:['VIX']});
     const html=render(stale);assert.doesNotMatch(html,/갱신 지연/);
-    assert.doesNotMatch(html,/저점 경보|경보 없음|radar-headline is-normal/);assert.match(html,/— Updated/);assert.match(html,/<strong>—<\/strong>/);
+    assert.doesNotMatch(html,/저점 경보|경보 없음|radar-headline is-normal/);assert.match(html,/갱신 확인 불가/);assert.match(html,/<strong>—<\/strong>/);
     assert.doesNotMatch(html,/미확보|갱신 지연|자료 상태 미확인/);
     assert.doesNotMatch(html,/03.12 Updated/);
     assert.doesNotMatch(html,/S&amp;P500은 현재|radar-headline is-alert/);
@@ -449,7 +449,7 @@ test('explicit stale engine status dates both entry points without rewriting the
     const {renderToStaticMarkup}=await import('react-dom/server');
     for(const Component of [RadarSummary,RadarView]){
       const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status}));
-      assert.match(html,/— Updated/);
+      assert.match(html,/갱신 확인 불가/);
       assert.doesNotMatch(html,/lucide-bell-off|radar-headline is-normal|radar-dial-needle|경보 없음/);
       assert.doesNotMatch(html,/lucide-triangle-alert/);
       assert.doesNotMatch(html,/갱신 지연|이전 점수 유지|일일 갱신·자료 상태|경보 제한|보류|미계산|S&amp;P500/);
@@ -521,7 +521,7 @@ test('authenticated retained failure keeps its complete dated result without new
     const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
     const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
     const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet,status}));
-    assert.match(html,/19/);assert.match(html,/03.12 기준일/);assert.match(html,/radar-threshold-track/);assert.match(html,/저점 경보 발생/);assert.doesNotMatch(html,/role="alert"|갱신 실패|갱신 지연/);
+    assert.match(html,/19/);assert.match(html,/2026.03.12 기준일/);assert.match(html,/radar-threshold-track/);assert.match(html,/저점 경보 발생/);assert.doesNotMatch(html,/role="alert"|갱신 실패|갱신 지연/);
     const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
     const mixed=dailyFixture(false,false,true);Object.assign(mixed.observation,packet.observation);mixed.gauge.data_status='DATED_STALE_OBSERVATION';
     const summary=renderToStaticMarkup(createElement(RadarSummary,{delivery:mixed,status}));
@@ -566,11 +566,11 @@ test('Radar update is the bound successful refresh KST date, including verified 
     const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
     for(const Component of [RadarSummary,RadarView]){
       const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status:midnight}));
-      assert.match(html,/dateTime="2026-03-14">03.14 Updated/);
+      assert.match(html,/dateTime="2026-03-14">2026.03.14 Updated/);
       const failed=renderToStaticMarkup(createElement(Component,{delivery:retained,status:{...midnight,status:'FAILED'}}));
-      assert.match(failed,/— Updated/);
+      assert.match(failed,/갱신 확인 불가/);
       const unverified=renderToStaticMarkup(createElement(Component,{delivery:packet,status:withReceipt({engine_result_id:'c'.repeat(64)})}));
-      assert.match(unverified,/— Updated/);assert.doesNotMatch(unverified,/03.12 Updated|03.13 Updated/);
+      assert.match(unverified,/갱신 확인 불가/);assert.doesNotMatch(unverified,/03.12 Updated|03.13 Updated/);
     }
   }finally{await server.close();}
   assert.deepEqual({packet,status},before);
@@ -595,7 +595,7 @@ test('verified prior-session computation remains visible while newer session inp
     const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx'),{RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
     for(const Component of [RadarSummary,RadarView]){
       const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status}));
-      assert.match(html,/>19<|>19<span/);assert.match(html,/03.12 기준일/);
+      assert.match(html,/>19<|>19<span/);assert.match(html,/2026.03.12 기준일/);
       assert.match(html,/저점 경보 발생/);assert.doesNotMatch(html,/role="alert"|갱신 실패|갱신 지연/);
     }
     const mixed=dailyFixture(false,false,true);
@@ -642,11 +642,57 @@ test('success, repeated failures and recovery preserve the complete dated produc
       const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
       const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
       const html=renderToStaticMarkup(createElement(RadarView,{delivery:packet,status:failed}));
-      assert.match(html,/03.13 Updated/);assert.match(html,/저점 경보 발생/);assert.match(html,/radar-threshold-track/);assert.match(html,/유지 중/);
+      assert.match(html,/2026.03.13 Updated/);assert.match(html,/저점 경보 발생/);assert.match(html,/radar-threshold-track/);assert.match(html,/유지 중/);
       assert.doesNotMatch(html,/role="alert"|갱신 실패|갱신 지연|미확보|SOURCE_FETCH_FAILED/);
     } finally {await server.close();}
   }
   assert.deepEqual(packet,before);
   const recovered={...success,latest_attempt_at_utc:'2026-03-17T11:00:00Z',last_successful_refresh:{...success.last_successful_refresh,completed_at_utc:'2026-03-17T10:04:00Z'}};
   assert.equal(radarPresentation(packet,recovered,now).updateDate,'2026-03-17');
+});
+
+test('provenance shows observation basis separately and describes a missed check without inventing failure',async()=>{
+  const packet=dailyFixture(true,false),status={...unavailableEngineStatus(),status:'DATED',source_session:packet.session,expected_session:packet.session,
+    input_admitted_at_utc:packet.observation.first_seen_at_utc,model_computed_at_utc:packet.observation.computed_at_utc,
+    latest_attempt_at_utc:'2026-03-13T10:05:00Z',next_scheduled_at_utc:'2026-03-14T10:17:00Z',
+    feed_cipher_sha256:'a'.repeat(64),engine_result_id:'b'.repeat(64),failure_code:null,
+    last_successful_refresh:{completed_at_utc:'2026-03-13T10:04:00Z',engine_result_id:'b'.repeat(64),feed_cipher_sha256:'a'.repeat(64),outcome:'PUBLISHED'}};
+  const before=structuredClone({packet,status});
+  assert.equal(radarPresentation(packet,status,Date.parse('2026-03-14T10:16:59Z')).freshnessNote,null);
+  const elapsed=radarPresentation(packet,status,Date.parse('2026-03-17T12:00:00Z'));
+  assert.equal(elapsed.freshnessNote,'갱신 확인 대기');
+  assert.equal(elapsed.basisDate,'2026-03-12');assert.equal(elapsed.updateDate,'2026-03-13');
+  assert.equal(elapsed.failed,false);assert.equal(elapsed.stale,false);
+  const failed={...status,status:'FAILED',expected_session:'2026-03-16',latest_attempt_at_utc:'2026-03-17T11:00:00Z',engine_result_id:'c'.repeat(64),failure_code:'SOURCE_FETCH_FAILED'};
+  const shown=radarPresentation(packet,failed,Date.parse('2026-03-17T12:00:00Z'));
+  assert.equal(shown.freshnessNote,'이전 자료 유지');assert.equal(shown.displayScore,elapsed.displayScore);
+  assert.equal(radarPresentation(packet,{...failed,last_successful_refresh:{...failed.last_successful_refresh,feed_cipher_sha256:'d'.repeat(64)}}).freshnessNote,null);
+  const server=await createRadarTestServer();
+  try {
+    const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+    const {RadarSummary}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
+    const {RadarView}=await server.ssrLoadModule('/src/features/radar/RadarView.jsx');
+    for(const Component of [RadarSummary,RadarView]){
+      const html=renderToStaticMarkup(createElement(Component,{delivery:packet,status:failed}));
+      assert.match(html,/2026.03.12 기준일/);assert.match(html,/2026.03.13 Updated/);assert.match(html,/이전 자료 유지/);
+      assert.match(html,/마지막 갱신 확인일/);assert.doesNotMatch(html,/SOURCE_FETCH_FAILED|갱신 실패|갱신 지연|과거 기준일 발생/);
+    }
+  }finally{await server.close();}
+  assert.deepEqual({packet,status},before);
+});
+
+test('basis includes its year even without a successful refresh receipt',async()=>{
+  const server=await createRadarTestServer();
+  try{
+    const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+    const {RadarUpdate}=await server.ssrLoadModule('/src/features/radar/RadarSummary.jsx');
+    for(const year of ['2025','2026']){
+      const html=renderToStaticMarkup(createElement(RadarUpdate,{basisDate:`${year}-03-12`}));
+      assert.match(html,new RegExp(`${year}\\.03\\.12 기준일`));
+      assert.match(html,new RegExp(`dateTime="${year}-03-12"`));
+      assert.match(html,/갱신 확인 불가/);assert.doesNotMatch(html,/radar-refresh-date|Updated/);
+    }
+    const html=renderToStaticMarkup(createElement(RadarUpdate,{basisDate:'2025-03-12',date:'2026-03-13'}));
+    assert.match(html,/2025.03.12 기준일/);assert.match(html,/2026.03.13 Updated/);
+  }finally{await server.close();}
 });
