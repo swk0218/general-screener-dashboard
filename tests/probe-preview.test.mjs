@@ -30,10 +30,16 @@ test('offline executor -> actual encryption -> private reader and OFF copy isola
     const base=join(preview,'data/briefing-probe',id);
     assertDashboardPayload(await decryptEnvelope(JSON.parse(await readFile(join(base,'payload.enc.json'),'utf8')),PROBE_PASSPHRASE));
     const cipher=JSON.parse(await readFile(join(base,'briefing.enc.json'),'utf8'));
+    const artifact=await decryptEnvelope(cipher,PROBE_PASSPHRASE);
+    const now=Date.parse(artifact.created_at)+60000;
     await assert.rejects(readBriefingArtifact(cipher,PROBE_PASSPHRASE,{expectedExecutionMode:'provider'}),/INVALID/);
-    const result=await loadBriefingDelivery('status','cipher',PROBE_PASSPHRASE,{expectedExecutionMode:'provider_test',now:Date.parse('2026-11-03T05:01:00Z')},async path=>({ok:true,text:async()=>readFile(join(base,'briefing-status.json'),'utf8'),arrayBuffer:async()=>{const b=await readFile(join(base,'briefing.enc.json'));return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);}}));
+    const result=await loadBriefingDelivery('status','cipher',PROBE_PASSPHRASE,{expectedExecutionMode:'provider_test',now},async path=>({ok:true,text:async()=>readFile(join(base,'briefing-status.json'),'utf8'),arrayBuffer:async()=>{const b=await readFile(join(base,'briefing.enc.json'));return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);}}));
     assert.equal(result.status,id.endsWith('insufficient')?'unavailable':'ready');
     assert.equal(result.probe_context.response_origin,'offline_contract_fixture');
+    assert.equal(result.probe_context.call_status,id.endsWith('insufficient')?'insufficient_zero_calls':'complete');
+    const future=await readBriefingArtifact(cipher,PROBE_PASSPHRASE,{expectedExecutionMode:'provider_test',now:Date.parse(artifact.created_at)-600000});
+    assert.equal(future.reason,'future_artifact_clock');
+    assert.equal(future.probe_context,undefined,'future artifacts have not passed time admission');
   }
   const publicSource=join(root,'source');await mkdir(join(publicSource,'data'),{recursive:true});
   const {cp}=await import('node:fs/promises');

@@ -154,6 +154,7 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   });
   assert.equal(read.insights.length, 2);
   assert.equal(read.execution_mode, 'fake_transport');
+  assert.equal(read.probe_context,undefined,'ordinary native results have no synthetic probe context');
   assert.equal(read.engines.TENX.current.candidates[0].score, 82);
   const heldMarket=await readBriefingArtifact(sealed,fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff),requireMarketUnavailable:true});
   assert.equal(heldMarket.status,'unavailable','current delivery cannot endorse a no-longer-valid Radar interpretation');
@@ -246,4 +247,5 @@ test('failed artifact has no new generation time or invented current sources', a
   });
   assert.equal(read.generated_at, undefined);
   assert.equal(read.engines, undefined);
+  assert.equal(read.probe_context,undefined,'ordinary unavailable results do not invent probe provenance');
 });
