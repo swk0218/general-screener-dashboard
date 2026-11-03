@@ -63,7 +63,13 @@ export function radarPresentation(delivery,status=undefined,now=Date.now()) {
     &&Date.parse(refreshedAt)>=Date.parse(currentStatus.model_computed_at_utc)
     &&Date.parse(refreshedAt)<=now+5*60000?refreshedAt:null;
   const updateDate=completed?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(completed)):null;
+  // A missed expected check is not proof of scheduler failure or invalid math.
+  const freshnessNote=provenanceStatus&&!statusUnavailable&&!unavailable
+    ?['FAILED','STALE'].includes(provenanceStatus.status)?'이전 자료 유지'
+      :Date.parse(provenanceStatus.next_scheduled_at_utc)<now
+        &&(!completed||Date.parse(completed)<Date.parse(provenanceStatus.next_scheduled_at_utc))?'갱신 확인 대기':null
+    :null;
   return {data,unavailable,observation,conflict,stale,failed,level,headline,eventKind,displayScore,clocks,updateDate,
-    eventLabel,notice,retainedScore,displayUnavailable,
+    eventLabel,notice,retainedScore,displayUnavailable,freshnessNote,basisDate:data?.session||null,
     sourceDate:retainedScore&&!updateDate?data.session:null};
 }

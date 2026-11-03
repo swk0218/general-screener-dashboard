@@ -8,6 +8,8 @@
 .radar-score-meta { display:flex; justify-content:space-between; gap:12px; font:11px/1.5 var(--gs-mono); color:var(--gs-muted); }
 .radar-score-meta time { color:var(--gs-text); }
 .radar-score-meta h2 { margin:0; color:var(--gs-text); font:600 16px/1.5 var(--gs-sans); }
+.radar-updated { display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex-shrink:0; margin-left:auto; }
+.radar-score-meta .radar-basis-date,.radar-basis-date,.radar-freshness-note,.radar-refresh-unverified { color:var(--gs-muted); font:11px/1.5 var(--gs-sans); }
 .radar-view .radar-data-notice { display:flex; flex-wrap:wrap; gap:4px 12px; margin:16px 0 0; padding-left:12px; border-left:2px solid var(--gs-amber); font-size:12px; }
 .radar-data-notice strong { color:var(--gs-amber); font-weight:500; }
 .radar-hero-content { display:grid; grid-template-columns:minmax(260px,1fr) minmax(0,1fr); align-items:center; gap:40px; padding:24px 0 28px; }
@@ -136,7 +138,7 @@
 .radar-checks dt { color:var(--gs-muted); font:400 11px/1.5 var(--gs-sans); }
 .radar-checks dd { margin:4px 0 0; font:500 13px/1.5 var(--gs-sans); }
 .overview-radar { padding:18px 0; margin-bottom:24px; border-block:1px solid var(--gs-divider-strong); }
-.overview-radar>header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.overview-radar>header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
 .overview-radar h2 { margin:0; font:600 16px/1.5 var(--gs-sans); }
 .overview-radar button { display:inline-flex; align-items:center; gap:4px; min-height:44px; padding:0; border:0; background:transparent; color:var(--gs-muted); font:500 12px var(--gs-sans); cursor:pointer; }
 .overview-radar button:hover { color:var(--gs-text); }

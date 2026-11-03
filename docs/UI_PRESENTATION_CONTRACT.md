@@ -33,3 +33,15 @@ Malformed packets, invalid model seals, status/feed hash mismatch, mismatched
 sessions, invalid receipt clocks and unavailable results remain fail-closed. This
 policy is not permission to promote unverified data or modify model decisions.
 Operational diagnostics stay in producer status/journals and separate monitoring.
+
+Radar also shows the actual observation basis beside the bound last-successful
+Updated date. A small muted `이전 자료 유지` or `갱신 확인 대기` note may explain a
+retained result or elapsed expected check; it is not a failure/retry banner and
+does not declare the scheduler failed, promote data to current, or reannounce
+past events. Both entry points use the same presentation function and existing
+focus/visibility timer. No browser calendar or provider collection is added.
+
+Both Radar dates include their year. The authenticated packet's basis remains
+visible when no successful-refresh/publication receipt can be verified; show
+`갱신 확인 불가` in place of a refresh date. The absence of a refresh receipt
+does not erase a known observation date or manufacture a successful update.

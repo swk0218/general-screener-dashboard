@@ -3,8 +3,13 @@ import { SectionFooter } from '../../components/SectionElements.jsx';
 import { useRadarPresentation } from './use-radar-presentation.js';
 import './radar.css';
 
-export function RadarUpdate({date,sourceDate=null}) {
-  return <span className="radar-updated"><time className="update-badge" dateTime={date||sourceDate||undefined}>{date?`${date.slice(5).replace('-','.')} Updated`:sourceDate?`${sourceDate.slice(5).replace('-','.')} 기준일`:'— Updated'}</time></span>;
+export function RadarUpdate({date,sourceDate=null,basisDate=null,note=null}) {
+  const basis=basisDate||sourceDate;
+  return <span className="radar-updated">
+    {basis?<span className="radar-basis-date" role="group" aria-label="관측 기준일"><time dateTime={basis}>{basis.replaceAll('-','.')} 기준일</time></span>:<span className="radar-basis-date">기준일 확인 불가</span>}
+    {date?<span role="group" aria-label="마지막 갱신 확인일"><time className="update-badge radar-refresh-date" title="검증된 마지막 성공 갱신일" dateTime={date}>{date.replaceAll('-','.')} Updated</time></span>:<span className="radar-refresh-unverified">갱신 확인 불가</span>}
+    {date&&note&&<span className="radar-freshness-note">{note}</span>}
+  </span>;
 }
 export function RadarHeadline({headline,alert=false}) {
   const normal=['냉각 구간','중립 구간','과열 구간'].includes(headline);
@@ -18,10 +23,10 @@ export function RadarEventLabel({label,kind}) {
   return <span className="radar-event-label">{Icon&&<Icon size={14} aria-hidden="true"/>}{label}</span>;
 }
 export function RadarSummary({delivery=null,status=undefined,onOpen}) {
-  const {data,headline,eventLabel,eventKind,displayScore,updateDate,sourceDate,displayUnavailable}=useRadarPresentation(delivery,status);
+  const {data,headline,eventLabel,eventKind,displayScore,updateDate,sourceDate,displayUnavailable,basisDate,freshnessNote}=useRadarPresentation(delivery,status);
   const score=displayScore;
   return <section className="overview-radar" aria-labelledby="overview-radar-title">
-    <header><h2 id="overview-radar-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate} sourceDate={sourceDate}/></header>
+    <header><h2 id="overview-radar-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate} sourceDate={sourceDate} basisDate={basisDate} note={freshnessNote}/></header>
     <div className="overview-radar-body">
       <div className="overview-radar-reading">
         <div className="overview-radar-score"><strong>{Number.isInteger(score)?score:'—'}</strong><span>/100</span></div>

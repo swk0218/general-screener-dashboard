@@ -42,12 +42,12 @@ function DirectionSignal({side,data,unavailable:displayUnavailable,retained}) {
 }
 
 export function RadarView({delivery=null,seasonality=null,status=undefined}) {
-  const {data,observation,conflict,stale,level,headline,eventLabel,eventKind,displayScore,clocks,updateDate,sourceDate,displayUnavailable}=useRadarPresentation(delivery,status);
+  const {data,observation,conflict,stale,level,headline,eventLabel,eventKind,displayScore,clocks,updateDate,sourceDate,displayUnavailable,basisDate,freshnessNote}=useRadarPresentation(delivery,status);
   const cards=inputGaugeCards(displayUnavailable?null:data),retainedCards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   return <section className="secondary-view radar-view">
     <h1 className="sr-only">시장 신호 (Beta)</h1>
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
-      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate} sourceDate={sourceDate}/></div>
+      <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate} sourceDate={sourceDate} basisDate={basisDate} note={freshnessNote}/></div>
       <div className="radar-hero-content"><MarketGauge score={displayScore} level={displayUnavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
         <div className="radar-reading"><h3 className="market-insight"><RadarHeadline headline={headline} alert={!displayUnavailable&&Boolean(data?.events.bottom||data?.events.top)}/></h3>
           <dl className="radar-event-summary"><dd><RadarEventLabel label={eventLabel} kind={eventKind}/></dd></dl>
