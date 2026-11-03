@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { briefingClocks, insightView, periodLabel, roleLabel, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "./briefing-model.js";
+import { briefingClocks, insightView, roleLabel, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "./briefing-model.js";
 import "./briefing.css";
+import {roleDocumentView} from "./role-documents.js";
 import roleTaxonomy from './role-taxonomy.json';
 function Evidence({
   data,
@@ -44,8 +45,11 @@ function Briefing({
 }
 function CitationSource({ source, demo }) {
   if (!source) return null;
-  if (source.kind === "TEST") return <small>합성 검증 자료 · 실제 제공자 원문 아님 · 자료 시점 {source.published_on} · 이용 확인일 {source.available_on}</small>;
-  return <small><a href={source.url} target="_blank" rel="noreferrer">{demo ? `${source.kind} 제공 링크` : `${source.kind} 원문`}</a> · 공개일 {source.published_on || "미확인"} · 이용 가능일 {source.available_on}</small>;
+  const synthetic = source.kind === "TEST" || source.source_unit === "synthetic_contract_fixture";
+  return <small>{synthetic ? "합성 검증 자료 · 실제 제공자 원문 아님" : <a href={source.url} target="_blank" rel="noreferrer">{demo ? `${source.kind} 제공 링크` : `${source.kind} 원문`}</a>}
+    <br/>공시일 {source.published_on || "확인 불가"} · 보고기간 {source.report_period || "확인 불가"}
+    <br/>실제 이용가능시각 {source.available_at || "확인 불가"} · 이용 확인일 {source.available_on}
+  </small>;
 }
 function SupplyRoles({
   data
@@ -60,13 +64,13 @@ function SupplyRoles({
     {review.roles.length ? <div className="brief-filter" role="group" aria-label="분류 필터"><button aria-pressed={activeFilter === "all"} onClick={() => setFilter("all")}>전체 기업</button><button aria-pressed={activeFilter === "review"} disabled={!review.baselineDisplayAvailable} onClick={() => setFilter("review")}>기존 분류와 다른 기업</button><span>{roles.length}개 기업</span></div> : null}
     <details className="brief-evidence"><summary>공급망 역할의 판단 기준</summary><p>제품명이나 기업 상식으로 빈 근거를 채우지 않습니다. 역할과 시제는 서로 독립적으로 판단합니다.</p><dl>{roleTaxonomy.role_priority.map(role=><div key={role}><dt>{roleLabel(role)}</dt><dd>{roleTaxonomy.labels_ko[role]}</dd></div>)}</dl></details>
     {roles.length === 0 ? <p className="brief-empty">{review.roles.length ? "현재 보기 조건에 해당하는 기업이 없습니다." : "검토할 자료와 결과를 확인한 뒤 표시하겠습니다. 해당 사업이 없다는 뜻은 아닙니다."}</p> : <div className="brief-role-grid">{roles.map(role => {
-        const company = data.companies.find(item => item.symbol === role.symbol);
-        return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" || !review.baselineDisplayAvailable ? "brief-tag review" : "brief-tag"}>{roleReviewBadge(role, review)}</span></header><h4>{roleLabel(role.role)}</h4><p>{periodLabel[role.period]} · {role.decision === "supported" ? "공급 역할 근거 있음" : "현재 공급 미확인"}</p><dl className="brief-comparison"><div><dt>기존 규칙 표시</dt><dd>{!review.baselineDisplayAvailable ? "대조 보류" : role.baseline_supported ? "기존 가점 적용" : "기존 가점 미적용"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{role.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
-        {role.evidence.length === 0 ? <p>허용된 자료에서 근거를 확인하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.</p> : role.evidence.map((evidence, index) => {
-              const source = company.sources.find(item => item.id === evidence.source_id);
+        const document = roleDocumentView(data, role);
+        return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" || !review.baselineDisplayAvailable ? "brief-tag review" : "brief-tag"}>{roleReviewBadge(role, review)}</span></header><h4>{roleLabel(document.role)}</h4><p>{document.statement}</p><p>{document.current}</p><dl className="brief-comparison"><div><dt>기존 규칙 표시</dt><dd>{!review.baselineDisplayAvailable ? "대조 보류" : role.baseline_supported ? "기존 가점 적용" : "기존 가점 미적용"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{document.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
+        {document.evidence.length === 0 ? <p>허용된 자료에서 근거를 확인하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.</p> : document.evidence.map((evidence, index) => {
+              const source = document.sources.find(item => item.id === evidence.source_id);
               return <div className="brief-quote" key={index}><p>{data.demo ? "검증자료의 인용 구간" : "출처 · 원문"}</p><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={source} demo={data.demo} /></div>;
             })}
-        {role.counter_evidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>반대 근거</strong><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={company.sources.find(source => source.id === evidence.source_id)} demo={data.demo} /></div>)}<p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
+        {document.counterEvidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>{document.counterLabel}</strong><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={document.sources.find(source => source.id === evidence.source_id)} demo={data.demo} /></div>)}<p className="brief-muted">{document.detail}</p><p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
       </details></article>;
       })}</div>}
   </section>;

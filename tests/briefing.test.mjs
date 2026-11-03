@@ -31,8 +31,8 @@ test('missing, quarantined or mismatched MLG data permits only document review',
   }
 });
 test('unconfirmed roles never receive a matching-classification badge',()=>{
-  const state=roleReviewState(fixture);assert.equal(state.baselineDisplayAvailable,true);
-  assert.equal(roleReviewBadge({role:'unknown',decision:'unconfirmed',comparison:'agree'},state),'공급 미확인');
+  const state=roleReviewState(fixture);assert.equal(state.baselineDisplayAvailable,false);
+  assert.equal(roleReviewBadge({role:'unknown',decision:'unconfirmed',comparison:'agree'},state),'대조 보류');
   assert.equal(roleReviewState({...fixture,roles:[]}).state,'no_evidence');
 });
 

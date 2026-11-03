@@ -7,9 +7,9 @@ const roles = Object.freeze({
   unknown: "확인되지 않음"
 });
 export const periodLabel = Object.freeze({
-  current: "현재 사업",
+  current: "문서상 현재형",
   planned: "계획 단계",
-  past: "과거 사업",
+  past: "문서상 과거형",
   unknown: "시점 미확인"
 });
 export function roleLabel(role) {
@@ -18,11 +18,11 @@ export function roleLabel(role) {
 export function roleReviewState(data) {
   const complete = ["ready", "cached"].includes(data.status);
   const shownRoles = complete && Array.isArray(data.roles) ? data.roles : [];
+  // A legacy boolean/period cannot prove time- and definition-matched comparison.
+  // v2 document review also deliberately leaves current verification/comparison held.
+  const baselineDisplayAvailable = false;
   const mlg = data.engines?.MLG?.current;
-  // This only admits a display comparison. It never certifies a full MLG replay.
-  const baselineDisplayAvailable = complete && typeof data.session === "string" && mlg?.status === "valid"
-    && mlg.session === data.session && typeof mlg.contract === "string"
-    && mlg.contract.length > 0 && mlg.contract !== "unavailable";
+  const mlgDisplayInputAvailable = mlg?.status === "valid" && mlg.session === data.session && mlg.contract && mlg.contract !== "unavailable";
   return { roles: shownRoles, baselineDisplayAvailable,
     state: !complete ? "held" : !shownRoles.length ? "no_evidence"
       : baselineDisplayAvailable ? "document_review" : "comparison_held",

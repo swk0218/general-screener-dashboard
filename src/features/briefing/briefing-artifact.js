@@ -1,4 +1,5 @@
 import { encryptEnvelope, decryptEnvelope } from '../../crypto/envelope.js';
+import { assertRoleDocumentContract } from './role-documents.js';
 export const ARTIFACT_KIND = 'general_screener_briefing_v1';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const stamp = value => typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
@@ -6,7 +7,8 @@ function fail() {
   throw new Error('BRIEFING_ARTIFACT_INVALID');
 }
 export function assertBriefingArtifact(artifact) {
-  if (artifact?.artifact_kind !== ARTIFACT_KIND || artifact.version !== 1 || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
+  if (artifact?.artifact_kind !== ARTIFACT_KIND || ![1,2].includes(artifact.version) || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
+  if(artifact.version===1&&artifact.role_document_contract!==undefined)fail();
   const data = artifact.briefing,
     binding = artifact.source_binding;
   if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
@@ -64,6 +66,7 @@ export function assertBriefingArtifact(artifact) {
 export async function encryptBriefingArtifact(artifact, passphrase) {
   assertBriefingArtifact(artifact);
   await assertInputBinding(artifact);
+  if(artifact.version===2)await assertRoleDocumentContract(artifact);
   return encryptEnvelope(artifact, passphrase);
 }
 async function assertInputBinding(artifact) {
@@ -94,6 +97,9 @@ export async function readBriefingArtifact(envelope, passphrase, {
   if (artifact.execution_mode === 'provider_test' && expectedExecutionMode !== 'provider_test') fail();
   if (expectedExecutionMode && artifact.execution_mode !== expectedExecutionMode) fail();
   const data = structuredClone(artifact.briefing);
+  // Model/legacy payload fields never establish reader-owned v2 admission.
+  delete data._validated_role_documents;
+  if(artifact.version===2)data._validated_role_documents=await assertRoleDocumentContract(artifact);
   if (Date.parse(artifact.created_at) > now + 300000) return {
     status: 'unavailable',
     demo: data.demo,

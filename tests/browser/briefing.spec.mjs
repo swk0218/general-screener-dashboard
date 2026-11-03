@@ -47,12 +47,12 @@ test("development preview: grounded briefing, evidence and supply review", async
   await expect(page.getByText('demo:Radar:current',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
   await expect(page.locator('.brief-role')).toHaveCount(5);
-  await page.getByRole('button',{name:'기존 분류와 다른 기업',exact:true}).click();
-  await expect(page.locator('.brief-role')).toHaveCount(1);
-  await expect(page.locator('.brief-role')).toContainText('DEMO-B');
-  await page.getByText('원문 근거와 한계 보기',{exact:true}).click();
-  await expect(page.getByText('AI-related revenue is not disclosed separately.',{exact:true})).toBeVisible();
-  await expect(page.getByText('AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다.',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'기존 분류와 다른 기업',exact:true})).toBeDisabled();
+  await expect(page.locator('.brief-role')).toHaveCount(5);
+  await expect(page.locator('.brief-role').first()).toContainText('현시점 확인: 미확인');
+  await page.locator('.brief-role').first().getByText('원문 근거와 한계 보기',{exact:true}).click();
+  await expect(page.locator('.brief-role').first().getByText('AI-related revenue is not disclosed separately.',{exact:true})).toBeVisible();
+  await expect(page.locator('.brief-role').first().getByText('AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다.',{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect(errors).toEqual([]);
 });
