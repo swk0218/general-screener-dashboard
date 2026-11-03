@@ -36,10 +36,14 @@ function Briefing({
       {!data.computed.market_available ? <div className="brief-notice" role="status"><strong>시장 판단은 잠시 보류합니다</strong><p>Radar 자료가 기준일과 맞지 않거나 확인되지 않았습니다. 아래에서는 스크리너에서 확인된 변화만 살펴봅니다.</p></div> : null}
       {data.insights.length === 0 ? <div className="brief-empty"><h3>{comparable ? "추가로 짚을 주요 변화가 없습니다" : "변화를 비교할 자료가 부족합니다"}</h3><p>같은 내용을 새 변화처럼 만들지 않았습니다. 데이터 기준일과 기존 후보를 확인해 주세요.</p></div> : data.insights.map((insight, index) => {
         const view = insightView(insight, data.computed.facts);
-        return <article className="brief-card" key={insight.kind}><div className="brief-card-number">{String(index + 1).padStart(2, "0")}</div><div className="brief-card-body"><h3>{view.title}</h3><p className="brief-fact"><span>확인된 사실</span>{view.fact}</p><p className="brief-interpretation"><span>함께 생각할 점 · {data.demo || data.execution_mode === "fake_transport" ? "모의 해석" : "보조 해석"}</span>{view.interpretation}</p><details className="brief-reason"><summary>반대 근거와 다음 확인할 것</summary><h4>반대 근거 · 아직 모르는 것</h4><p>{view.counter}</p><h4>지금 확인 · 기다릴 조건</h4><p>{view.check}</p></details><Evidence data={data} insight={insight} /></div></article>;
+        return <article className="brief-card" key={`${insight.kind}:${insight.fact_ids.join(",")}`}><div className="brief-card-number">{String(index + 1).padStart(2, "0")}</div><div className="brief-card-body"><h3>{view.title}</h3><p className="brief-fact"><span>확인된 사실</span>{view.fact}</p><p className="brief-interpretation"><span>함께 생각할 점 · {data.demo || data.execution_mode === "fake_transport" ? "모의 해석" : "보조 해석"}</span>{view.interpretation}</p><details className="brief-reason"><summary>반대 근거와 다음 확인할 것</summary><h4>반대 근거 · 아직 모르는 것</h4><p>{view.counter}</p><h4>지금 확인 · 기다릴 조건</h4><p>{view.check}</p></details><Evidence data={data} insight={insight} /></div></article>;
       })}
     </>}
   </section>;
+}
+function CitationSource({ source, demo }) {
+  if (!source) return null;
+  return <small><a href={source.url} target="_blank" rel="noreferrer">{demo ? `${source.kind} 제공 링크` : `${source.kind} 원문`}</a> · 공개일 {source.published_on || "미확인"} · 이용 가능일 {source.available_on}</small>;
 }
 function SupplyRoles({
   data
@@ -47,16 +51,16 @@ function SupplyRoles({
   const [filter, setFilter] = useState("all");
   const roles = (data.roles || []).filter(role => filter === "all" || role.comparison === "review");
   return <section aria-labelledby="supply-title"><div className="brief-section-heading"><span>02 / BUSINESS EVIDENCE</span><h2 id="supply-title">공급망에서 맡은 역할</h2><p>AI라는 단어보다 실제 공급하는 제품과 사업 시점을 확인합니다.</p></div>
-    <div className="brief-notice"><strong>검토용 분류입니다 · 기존 점수·순위 유지</strong><p>원문을 구조화한 {data.demo || data.execution_mode === "fake_transport" ? "모의 결과" : "보조 분류"}입니다. 실제 공급 여부의 최종 검증이나 AI 매출 비중 확인을 뜻하지 않습니다. 자료가 없으면 ‘미확인’으로 남깁니다.</p></div>
+    <div className="brief-notice"><strong>검토용 분류입니다 · 기존 점수·순위 유지</strong><p>원문을 구조화한 {data.demo || data.execution_mode === "fake_transport" ? "모의 결과" : "보조 분류"}입니다. 실제 공급 여부의 최종 검증이나 AI 매출 비중 확인을 뜻하지 않습니다. 자료가 없으면 ‘미확인’으로 남깁니다.</p><p className="brief-muted">현재·계획·과거는 인용 자료의 시점을 뜻하며, 그 이후 사업 변화는 확인하지 않았습니다.</p></div>
     <div className="brief-filter" role="group" aria-label="분류 필터"><button aria-pressed={filter === "all"} onClick={() => setFilter("all")}>전체 기업</button><button aria-pressed={filter === "review"} onClick={() => setFilter("review")}>기존 분류와 다른 기업</button><span>{roles.length}개 기업</span></div>
     {roles.length === 0 ? <p className="brief-empty">지금 표시할 분류 결과가 없습니다.</p> : <div className="brief-role-grid">{roles.map(role => {
         const company = data.companies.find(item => item.symbol === role.symbol);
         return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" ? "brief-tag review" : "brief-tag"}>{role.comparison === "review" ? "추가 검토" : "기존 분류와 일치"}</span></header><h4>{roleLabel(role.role)}</h4><p>{periodLabel[role.period]} · {role.decision === "supported" ? "공급 역할 근거 있음" : "현재 공급 미확인"}</p><dl className="brief-comparison"><div><dt>기존 규칙</dt><dd>{role.baseline_supported ? "공급 역할 감지" : "공급 역할 미감지"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{role.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
         {role.evidence.length === 0 ? <p>허용된 자료에서 근거를 확인하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.</p> : role.evidence.map((evidence, index) => {
               const source = company.sources.find(item => item.id === evidence.source_id);
-              return <div className="brief-quote" key={index}><p>출처 내 발췌{data.demo ? " · 가상 기업 예시" : ""}</p><blockquote lang="en">{evidence.quote}</blockquote><small>{data.demo ? `${source.kind} 형식의 모의 자료` : <a href={source.url} target="_blank" rel="noreferrer">{source.kind} 원문</a>} · 공개일 {source.published_on || "미확인"} · 이용 가능일 {source.available_on}</small></div>;
+              return <div className="brief-quote" key={index}><p>{data.demo ? "검증자료의 인용 구간" : "출처 · 원문"}</p><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={source} demo={data.demo} /></div>;
             })}
-        {role.counter_evidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>반대 근거</strong><blockquote lang="en">{evidence.quote}</blockquote></div>)}<p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
+        {role.counter_evidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>반대 근거</strong><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={company.sources.find(source => source.id === evidence.source_id)} demo={data.demo} /></div>)}<p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
       </details></article>;
       })}</div>}
   </section>;

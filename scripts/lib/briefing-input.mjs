@@ -34,6 +34,17 @@ export function readScreeningArchive(raw, expectedSha256) {
   if (packet.schema !== 'briefing_screening_archive_v1' || packet.producer_repository !== 'swk0218/Screening-agent-by-FMP-API' || !/^[a-f0-9]{40}$/.test(packet.revision) || !packet.archive_hashes || !Object.keys(packet.archive_hashes).length || Object.values(packet.archive_hashes).some(hash => !/^[a-f0-9]{64}$/.test(hash)) || typeof packet.payload_json !== 'string' || packet.payload_sha256 !== sha256(Buffer.from(packet.payload_json))) throw new Error('INVALID_SCREENING_ARCHIVE');
   packet.payload = JSON.parse(packet.payload_json);
   assertDashboardPayload(packet.payload);
+  if (packet.engine_contracts !== undefined) {
+    if (!packet.engine_contracts || typeof packet.engine_contracts !== 'object' || Array.isArray(packet.engine_contracts)) throw new Error('INVALID_ENGINE_CONTRACTS');
+    for (const [key, value] of Object.entries(packet.engine_contracts)) {
+      if (!value || typeof value !== 'object' || Object.keys(value).sort().join(',') !== 'contract_id,implementation_hash,rule_hash,run_id,strategy,strategy_version'
+        || !['TENX','MLG'].includes(value.strategy) || typeof value.run_id !== 'string' || key !== `${value.strategy}:${value.run_id}`
+        || typeof value.strategy_version !== 'string' || !value.strategy_version.length || value.strategy_version.length > 128
+        || typeof value.implementation_hash !== 'string' || typeof value.rule_hash !== 'string'
+        || !/^[a-f0-9]{64}$/.test(value.implementation_hash) || !/^[a-f0-9]{8,64}$/.test(value.rule_hash) || value.contract_id !== objectHash({strategy:value.strategy,strategy_version:value.strategy_version,rule_hash:value.rule_hash,implementation_hash:value.implementation_hash})
+        || !packet.payload.runs.some(run=>run.strategy===value.strategy&&String(run.run_id)===value.run_id)) throw new Error('INVALID_ENGINE_CONTRACTS');
+    }
+  }
   return freeze({
     [sourceToken]: true,
     packet,
@@ -82,7 +93,7 @@ function screeningSnapshot(source, strategy, runId, cutoff) {
     as_of: sessions[0],
     session: sessions[0],
     status: 'valid',
-    contract: `${payload.contract_version}:${run.sha}`,
+    contract: `${payload.contract_version}:${source.packet.engine_contracts?.[`${strategy}:${runId}`]?.contract_id || run.sha}`,
     source_id: `screening:${run.sha}:${strategy}:${runId}`,
     market_state: 'unavailable',
     candidates: rows.map(row => ({

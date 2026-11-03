@@ -7,10 +7,35 @@ import { pipelineFixture } from './fixtures/briefing-pipeline.mjs';
 import { encryptEnvelope } from '../src/crypto/envelope.js';
 import { nativeInput, nativeArchive, nativeRadar, fixturePassword, cutoff } from './fixtures/briefing-native.mjs';
 import { sha256, readScreeningArchive, readRadarSource, normalizeSources } from '../scripts/lib/briefing-input.mjs';
+import { objectHash } from '../scripts/lib/briefing-input.mjs';
 import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact, loadBriefingArtifact, loadBriefingDelivery } from '../src/features/briefing/briefing-artifact.js';
 import { sealBriefingArtifact, rollbackBriefingArtifact, writeBriefingDeliveryStatus } from '../scripts/seal-briefing-artifact.mjs';
 const python = process.env.BRIEFING_TEST_PYTHON;
 const backend = process.env.BRIEFING_TEST_BACKEND;
+
+test('validated rule identity permits changes across run commits; changed rules remain incomparable', () => {
+  const native=nativeArchive();
+  const packet=JSON.parse(native.raw.toString('utf8'));
+  const payload=JSON.parse(packet.payload_json);
+  payload.runs.forEach((run,index)=>{run.sha=String(index+1).repeat(40);});
+  packet.payload_json=JSON.stringify(payload);packet.payload_sha256=sha256(packet.payload_json);
+  packet.engine_contracts={};
+  for (const run of payload.runs) {
+    const rule={strategy:run.strategy,strategy_version:'fixed-contract-v1',rule_hash:'a'.repeat(16),implementation_hash:'c'.repeat(64)};
+    packet.engine_contracts[`${run.strategy}:${run.run_id}`]={...rule,run_id:String(run.run_id),contract_id:objectHash(rule)};
+  }
+  function normalize(value){const raw=JSON.stringify(value);return normalizeSources({screening:readScreeningArchive(raw,sha256(raw)),companies:[],session:'2026-10-30',cutoff});}
+  const data=normalize(packet);
+  assert.equal(data.engines.TENX.current.contract,data.engines.TENX.previous.contract);
+  assert.notEqual(data.engines.TENX.current.source_id,data.engines.TENX.previous.source_id);
+  assert.deepEqual(data.engines.TENX.current.candidates.map(r=>r.score),[82,79,77]);
+  const changed=structuredClone(packet), value=changed.engine_contracts['TENX:TENX-current'];
+  value.rule_hash='b'.repeat(16);value.contract_id=objectHash({strategy:value.strategy,strategy_version:value.strategy_version,rule_hash:value.rule_hash,implementation_hash:value.implementation_hash});
+  const held=normalize(changed);
+  assert.notEqual(held.engines.TENX.current.contract,held.engines.TENX.previous.contract);
+  const corrupted=structuredClone(packet);corrupted.engine_contracts['TENX:TENX-current'].contract_id='0'.repeat(64);
+  assert.throws(()=>normalize(corrupted),/ENGINE_CONTRACTS/);
+});
 
 test('fake provenance cannot be promoted by artifact, reader or publication', {skip:!python||!backend}, async()=>{
   const directory=await mkdtemp(join(tmpdir(),'briefing-provenance-'));

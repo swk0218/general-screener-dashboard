@@ -30,7 +30,15 @@ for(const scenario of ['current','delayed','missing'])test(`one unlock and autom
   await page.locator('input[type=password]').fill(fixturePassword);
   await page.locator('button[type=submit]').click();
   await expect(page.locator('.brief-clocks')).toBeVisible();
-  if(scenario==='current')await expect(page.locator('.brief-card')).toHaveCount(2);
+  if(scenario==='current'){
+    await expect(page.locator('.brief-card')).toHaveCount(2);
+    await page.locator('.brief-tabs button').nth(1).click();
+    await expect(page.locator('.brief-role')).toHaveCount(5);
+    await page.locator('.brief-role details').first().locator('summary').click();
+    await expect(page.locator('.brief-role a[href="https://www.sec.gov/Archives/"]').first()).toBeVisible();
+    await expect(page.locator('.brief-role a[href="https://www.sec.gov/Archives/"]').first()).not.toContainText('원문');
+    await page.locator('.brief-tabs button').first().click();
+  }
   else{await expect(page.locator('.brief-card')).toHaveCount(0);await expect(page.locator('.brief-clocks')).toContainText('생성되지 않음');}
   await page.getByRole('button',{name:'스크리너',exact:true}).click();
   await expect(page.locator('.app-shell')).toBeVisible();
