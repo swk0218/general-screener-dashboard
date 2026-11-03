@@ -52,13 +52,30 @@ export function readScreeningArchive(raw, expectedSha256) {
     sourceHash: expectedSha256
   });
 }
+// Metadata clock only: it never authenticates a cipher or mints a verified source token.
+export function radarPublicationClock(status, cutoff) {
+  validateEngineStatus(status);
+  const receipt=status.last_successful_refresh;
+  const verifiedRefresh=receipt?.engine_result_id===status.engine_result_id
+    &&receipt?.feed_cipher_sha256===status.feed_cipher_sha256
+    &&['PUBLISHED','SKIPPED_COMPLETE_SESSION'].includes(receipt?.outcome)
+    ?receipt.completed_at_utc:null;
+  const clock=status.published_at_utc ?? verifiedRefresh;
+  if(!timestamp(cutoff)||!timestamp(clock)||!timestamp(status.model_computed_at_utc)
+    ||Date.parse(clock)<Date.parse(status.model_computed_at_utc)
+    ||Date.parse(clock)>Date.parse(cutoff))throw new Error('RADAR_NOT_AVAILABLE_AT_CUTOFF');
+  return clock;
+}
 export async function readRadarSource(raw, status, passphrase, expectedSession, cutoff) {
   // This receipt is minted only after exact cipher binding, authentication and native validation.
   validateEngineStatus(status);
   if (!timestamp(cutoff) || status.feed_cipher_sha256 !== sha256(raw)) throw new Error('RADAR_BINDING_MISMATCH');
   const packet = validateRadarDelivery(await decryptRadarEnvelope(JSON.parse(Buffer.from(raw).toString('utf8')), passphrase));
   if (status.source_session !== packet.session || status.expected_session !== expectedSession || packet.session > expectedSession) throw new Error('RADAR_SESSION_MISMATCH');
-  for (const clock of [status.input_admitted_at_utc, status.model_computed_at_utc, status.latest_attempt_at_utc, status.published_at_utc, packet.observation?.computed_at_utc]) {
+  // Publication is either the original clock or an existing same-result/same-cipher
+  // completion receipt. A build/latest-attempt clock is never a substitute.
+  const published=radarPublicationClock(status,cutoff);
+  for (const clock of [status.input_admitted_at_utc, status.model_computed_at_utc, status.latest_attempt_at_utc, published, packet.observation?.computed_at_utc]) {
     if (!timestamp(clock) || Date.parse(clock) > Date.parse(cutoff)) throw new Error('RADAR_NOT_AVAILABLE_AT_CUTOFF');
   }
   const held = status.status !== 'DATED' || status.failure_code !== null || packet.session !== expectedSession || packet.operating_status !== 'DAILY_MODEL_COMPUTED' || packet.gauge.level === 'UNAVAILABLE' || packet.events.bottom && packet.events.top;

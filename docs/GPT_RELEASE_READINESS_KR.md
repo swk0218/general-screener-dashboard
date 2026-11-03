@@ -14,12 +14,12 @@
 | 정상/지연/격리/상충의 다중 엔진 근거 보존 | 미완료 | 새 대표4요청 및0호출 유보 대조군 후보. 기존 불명 요청은 재전송하지 않음 |
 | 실제 Screening 입력 기준일 | 외부 입력 결측 | b7a769598442ffb5874763573a62c71562032e90의 최신TENX41589289419/MLG39538430726은 screening_price_as_of가 없음. 비교 contract는 확인되더라도 날짜를 지어내지 않아 adapter/HOLD/0호출 확인 |
 | 실제 FMP 입력으로 엔진 전체 재생 | 미검증 | 현재 고정 fixture는 synthetic FMP-shape. 실제 보관 엔진 산출물의 불변성은 확인했지만 실제 원 응답 재생과 같지 않음. provider_snapshot은 synthetic-only이고 live 원 응답 보관 경로 없음. 키 추출/새 FMP 조회/추가 과금 안 함 |
-| 실제 Radar 복구 통합 | 외부 복구 대기 | dashboard78f881cb57652cff13da1a3cf8d0c3d4f3763bfb: FAILED/REVISION_QUARANTINED, source2026-10-19/expected2026-11-02. 구조 검증·시장유보 확인. 운영cipher는 복호화하지 않았으며 복구 전 정상 최신 판정 불가 |
+| 실제 Radar 복구 통합 | 일부 PASS, 실제 AEAD 미검증 | 이후 dashboard25dc04ab20593a3c48c45081faba88440284692c에서 source/expected2026-11-02 DATED복구 확인. 실제cipher/status/hash·목적·성공refresh receipt 시각 검증. published_at=null/last_successful_refresh 형식을 nativeadapter에 연결하고 합성 AEAD와 실패·미래시점·틀린binding 회귀. 운영키를 읽지 않아 실제 평문 해독/모델 내용의 완전 통합은 아직 미검증. 이전78f881c FAILED관측도 별도 보존 |
 | 전체 배포급 완료 | 미완료 | 위 실제 문서 품질·유효 실입력·복구 통합이 남음. 운영 배포는 별도 승인 대상 |
 
 ## 달력 유지와 열린 화면
 
-이번 검사: 시점/문구 단위17PASS, 전체 frontend146PASS+기존Windows symlink EPERM2건, native session 브라우저12PASS(320/390/1440×정상/지연/자료없음/데이터기준일결측), 실제 시험 암호문이 있는 OFF build10asset SHA동일/private scanPASS. 최초 테스트 harness의 payload_json 접근/innerText 비교 차이와 sandbox TEMP의 원자적rename 제한은 수정·허용된TEMP 설정으로 재검증했으며 제품 검증 정책/OS권한은 완화하지 않았다. 이 개수는 투자·분류 성능 지표가 아니다.
+이번 검사: 시점/문구 단위17PASS, native adapter/pipeline9PASS, native session 브라우저15PASS(320/390/1440×정상/지연/자료없음/데이터기준일결측/복구refresh), 기존 실응답을 추가API없이 새UX에서 재생한 probe브라우저15PASS. 실제 시험 암호문이 있는 OFF build10asset SHA동일/private scanPASS. 전체 frontend의 기존Windows symlink EPERM2건은 남긴다. 최초 테스트 harness의 payload_json 접근/innerText 비교 차이, retained-failure 영수증의 검증시각, sandbox TEMP의 원자적rename 제한은 수정·허용된TEMP 설정으로 재검증했으며 제품 검증 정책/OS권한은 완화하지 않았다. 이 개수는 투자·분류 성능 지표가 아니다.
 
 기준 테이블은 NYSE 공식 https://www.nyse.com/trade/hours-calendars 이며 2026휴장/단축장·IANA America/New_York로 장마감을 계산한다. 확인일/만료일/적용연도가 코드에 명시되어 있다. 현재 테이블 유효기한은2026-11-10T03:20:00Z이며 그 순간부터 유보한다.
 

@@ -7,7 +7,7 @@ import { pipelineFixture } from './fixtures/briefing-pipeline.mjs';
 import { encryptEnvelope } from '../src/crypto/envelope.js';
 import { nativeInput, nativeArchive, nativeRadar, fixturePassword, cutoff } from './fixtures/briefing-native.mjs';
 import { sha256, readScreeningArchive, readRadarSource, normalizeSources } from '../scripts/lib/briefing-input.mjs';
-import { objectHash } from '../scripts/lib/briefing-input.mjs';
+import { objectHash,radarPublicationClock } from '../scripts/lib/briefing-input.mjs';
 import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact, loadBriefingArtifact, loadBriefingDelivery } from '../src/features/briefing/briefing-artifact.js';
 import { sealBriefingArtifact, rollbackBriefingArtifact, writeBriefingDeliveryStatus } from '../scripts/seal-briefing-artifact.mjs';
 const python = process.env.BRIEFING_TEST_PYTHON;
@@ -136,6 +136,25 @@ test('quarantined Radar remains unavailable in actual adapter path', async () =>
   });
   assert.equal(native.data.engines.Radar.current.status, 'quarantined');
   assert.equal(native.data.engines.Radar.current.market_state, 'unavailable');
+});
+
+test('native Radar admits a bound successful refresh when publication fields stay null',async()=>{
+  const native=nativeRadar(),status={...native.status,published_at_utc:null,built_at_utc:null,
+    publication_receipt_result_id:null,publication_deployment_id:null,
+    last_successful_refresh:{engine_result_id:native.status.engine_result_id,
+      feed_cipher_sha256:native.status.feed_cipher_sha256,completed_at_utc:'2026-11-02T10:30:00Z',outcome:'PUBLISHED'}};
+  assert.equal(radarPublicationClock(status,cutoff),'2026-11-02T10:30:00Z');
+  const source=await readRadarSource(native.raw,status,fixturePassword,'2026-10-30',cutoff);
+  assert.equal(source.snapshot.status,'valid');
+  await assert.rejects(readRadarSource(native.raw,status,fixturePassword,'2026-10-30','2026-11-02T10:29:59Z'),/NOT_AVAILABLE/);
+  for(const mutation of [
+    {last_successful_refresh:undefined},
+    {last_successful_refresh:{...status.last_successful_refresh,engine_result_id:'e'.repeat(64)}},
+    {last_successful_refresh:{...status.last_successful_refresh,feed_cipher_sha256:'f'.repeat(64)}},
+    {last_successful_refresh:{...status.last_successful_refresh,completed_at_utc:'2026-11-02T09:59:59Z'}},
+  ])await assert.rejects(readRadarSource(native.raw,{...status,...mutation},fixturePassword,'2026-10-30',cutoff));
+  const held=await readRadarSource(native.raw,{...status,status:'FAILED',latest_attempt_at_utc:'2026-11-02T10:45:00Z',failure_code:'REVISION_QUARANTINED'},fixturePassword,'2026-10-30',cutoff);
+  assert.equal(held.snapshot.status,'quarantined');assert.equal(held.snapshot.market_state,'unavailable');
 });
 test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   skip: !python || !backend

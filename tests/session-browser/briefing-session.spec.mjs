@@ -7,7 +7,7 @@ import {pipelineFixture} from '../fixtures/briefing-pipeline.mjs';
 import {fixturePassword,cutoff} from '../fixtures/briefing-native.mjs';
 import {sealBriefingArtifact,writeBriefingDeliveryStatus} from '../../scripts/seal-briefing-artifact.mjs';
 
-for(const scenario of ['current','delayed','missing','unknown-data-date'])test(`one unlock and automatic session: ${scenario}`,async({page})=>{
+for(const scenario of ['current','delayed','missing','unknown-data-date','restored-refresh'])test(`one unlock and automatic session: ${scenario}`,async({page})=>{
   const temp=await mkdtemp(join(tmpdir(),'briefing-session-'));
   const {artifact,native}=await pipelineFixture(temp);
   const file=join(temp,'cipher.json');
@@ -20,6 +20,10 @@ for(const scenario of ['current','delayed','missing','unknown-data-date'])test(`
   }
   const encrypted=await encryptEnvelope(dashboardPayload,fixturePassword);
   const radarStatus={...native.radar.status,source_market_close_utc:'2026-10-30T20:00:00Z'};
+  if(scenario==='restored-refresh')Object.assign(radarStatus,{
+    published_at_utc:null,built_at_utc:null,publication_receipt_result_id:null,publication_deployment_id:null,
+    last_successful_refresh:{engine_result_id:radarStatus.engine_result_id,feed_cipher_sha256:radarStatus.feed_cipher_sha256,
+      completed_at_utc:'2026-11-02T10:30:00Z',outcome:'PUBLISHED'}});
   if(scenario==='delayed'){radarStatus.status='STALE';radarStatus.expected_session='2026-11-02';}
   await page.clock.install({time:new Date(cutoff)});
   await page.route('**/data/payload.enc.json*',r=>r.fulfill({json:encrypted}));
@@ -34,7 +38,7 @@ for(const scenario of ['current','delayed','missing','unknown-data-date'])test(`
   await page.locator('input[type=password]').fill(fixturePassword);
   await page.locator('button[type=submit]').click();
   await expect(page.locator('.brief-clocks')).toBeVisible();
-  if(scenario==='current'){
+  if(['current','restored-refresh'].includes(scenario)){
     await expect(page.locator('.brief-card')).toHaveCount(2);
     await page.locator('.brief-tabs button').nth(1).click();
     await expect(page.locator('.brief-role')).toHaveCount(5);
