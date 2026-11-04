@@ -7,6 +7,23 @@ const stamp = value => typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(
 function fail() {
   throw new Error('BRIEFING_ARTIFACT_INVALID');
 }
+function assertSourceProvenance(source) {
+  const hosts = {SEC:'www.sec.gov', FMP:'financialmodelingprep.com', FRED:'fred.stlouisfed.org', TEST:'example.invalid'};
+  if (typeof source.url !== 'string') fail();
+  const authority = /^https:\/\/([^/?#]*)/i.exec(source.url.trim())?.[1];
+  // WHATWG URL repairs encoded hosts and backslashes that Python's server
+  // provenance parser rejects. Do not silently turn those into trusted hosts.
+  if (!authority || /[%\\]/.test(authority)) fail();
+  // Compare the unnormalized hostname too: WHATWG applies Unicode/IDNA
+  // mappings that the backend does not. Keep case-insensitivity and ports.
+  const rawHostname = authority.split('@').at(-1).split(':')[0];
+  if (!/^[\x00-\x7f]*$/.test(rawHostname) || rawHostname.toLowerCase() !== hosts[source.kind]) fail();
+  let url;
+  try { url = new URL(source.url); } catch { fail(); }
+  // Match the server boundary before any source can become a clickable citation.
+  // Authentication parameters must never survive inside an otherwise valid envelope.
+  if (url.protocol !== 'https:' || url.hostname !== hosts[source.kind] || url.username || url.password || url.search || url.hash) fail();
+}
 export function assertBriefingArtifact(artifact) {
   if (artifact?.artifact_kind !== ARTIFACT_KIND || ![1,2].includes(artifact.version) || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
   if(artifact.version===1&&artifact.role_document_contract!==undefined)fail();
@@ -26,6 +43,7 @@ export function assertBriefingArtifact(artifact) {
     if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
     for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
     for (const company of data.companies) for (const source of company.sources || []) {
+      assertSourceProvenance(source);
       if (source.kind === 'TEST' && (artifact.execution_mode !== 'provider_test' || !data.demo || binding.source_kind !== 'synthetic_probe')) fail();
     }
     if (data.computed.market_available && (data.engines.Radar.current.status !== 'valid' || data.engines.Radar.current.session !== data.session)) fail();
@@ -46,19 +64,6 @@ export function assertBriefingArtifact(artifact) {
       for (const evidence of [...(role.evidence || []), ...(role.counter_evidence || [])]) {
         const source = company.sources.find(item => item.id === evidence.source_id);
         if (!source || typeof evidence.quote !== 'string' || !evidence.quote || !source.text.includes(evidence.quote)) fail();
-        const hosts = {
-          SEC: 'www.sec.gov',
-          FMP: 'financialmodelingprep.com',
-          FRED: 'fred.stlouisfed.org',
-          TEST: 'example.invalid'
-        };
-        let url;
-        try {
-          url = new URL(source.url);
-        } catch {
-          fail();
-        }
-        if (url.protocol !== 'https:' || url.hostname !== hosts[source.kind] || url.username || url.password) fail();
       }
     }
   } else if (data.generated_at !== undefined || data.insights?.length) fail();

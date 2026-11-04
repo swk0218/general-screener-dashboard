@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import { createHash } from 'node:crypto';
+import { encryptEnvelope } from '../src/crypto/envelope.js';
+import { ARTIFACT_KIND, encryptBriefingArtifact, readBriefingArtifact } from '../src/features/briefing/briefing-artifact.js';
 import { demoRequested } from "../src/features/briefing/demo-gate.js";
 import { briefingClocks, formatBriefingTime, engineState, insightView, isMockResponse, probeResponseLabel, roleReviewState, roleReviewBadge } from "../src/features/briefing/briefing-model.js";
 
@@ -13,6 +16,59 @@ test('synthetic input and real provider response are labelled independently',()=
 });
 
 const fixture = JSON.parse(await readFile(new URL("../src/features/briefing/fixtures/ready.json", import.meta.url), "utf8"));
+
+function citationArtifact(url, withoutRoles = false) {
+  const data = structuredClone(fixture);
+  data.companies[0].sources[0].url = url;
+  if (withoutRoles) data.roles = [];
+  data.execution_mode = 'fake_transport';
+  data.identity.execution_mode = 'fake_transport';
+  data.provider_receipt = {transport:'fake'};
+  data.input_canonical_json = JSON.stringify(Object.fromEntries(
+    ['schema_version','demo','session','engines','companies'].map(key=>[key,data[key]])
+  ));
+  const inputHash = createHash('sha256').update(data.input_canonical_json).digest('hex');
+  data.identity.input_hash = inputHash;
+  return {artifact_kind:ARTIFACT_KIND,version:1,created_at:data.generated_at,execution_mode:'fake_transport',
+    source_binding:{input_hash:inputHash,assessment_session:data.session,screening_archive_sha256:'a'.repeat(64),normalizer_version:'briefing-native-input-v1'},briefing:data};
+}
+
+test('encrypted writer and reader reject credential-bearing or untrusted source links', async()=>{
+  const password = 'synthetic-citation-test-only';
+  for (const url of ['https://www.sec.gov/Archives/?apikey=SYNTHETIC_CANARY',
+    'https://www.sec.gov/Archives/#SYNTHETIC_CANARY',
+    'https://www.sec.gov/Archives/?%61pi%6bey=SYNTHETIC_CANARY',
+    'https://www.sec.gov/Archives/?redirect=https%3A%2F%2Fexample.invalid%2Fcollect',
+    'https://www.sec.gov/Archives/#token%3DSYNTHETIC_CANARY',
+    'https://%75ser:%73ynthetic@www.sec.gov/Archives/',
+    'https://ｗｗｗ.sec.gov/Archives/', 'https://www。sec.gov/Archives/',
+    'https://%77ww.sec.gov/Archives/', 'https://www.sec.gov\\Archives/',
+    'https://user:synthetic@www.sec.gov/Archives/', 'https://example.invalid/untrusted']) {
+    for (const withoutRoles of [false,true]) {
+      const artifact = citationArtifact(url,withoutRoles);
+      await assert.rejects(encryptBriefingArtifact(artifact,password),/BRIEFING_ARTIFACT_INVALID/);
+      // Even valid encryption and a matching input hash cannot bypass reader checks.
+      const envelope = await encryptEnvelope(artifact,password);
+      await assert.rejects(readBriefingArtifact(envelope,password,{
+        expectedSession:artifact.briefing.session,now:Date.parse(artifact.created_at)
+      }),/BRIEFING_ARTIFACT_INVALID/);
+    }
+  }
+});
+
+test('ordinary source links retain the encrypted offline reader path', async()=>{
+  for (const url of ['https://www.sec.gov/Archives/', 'https://WWW.SEC.GOV/Archives/',
+    'https://www.sec.gov/Archives/?', 'https://www.sec.gov/Archives/#',
+    'https://www.sec.gov:443/Archives/', 'https://www.sec.gov:8443/Archives/']) {
+    const artifact = citationArtifact(url);
+    const envelope = await encryptBriefingArtifact(artifact,'synthetic-citation-test-only');
+    const data = await readBriefingArtifact(envelope,'synthetic-citation-test-only',{
+      expectedSession:artifact.briefing.session,now:Date.parse(artifact.created_at)
+    });
+    assert.equal(data.status,'ready');
+    assert.equal(data.companies[0].sources[0].url,url);
+  }
+});
 
 test('failed or unavailable generation never exposes leftover role classifications',()=>{
   for(const status of ['unavailable','failed','pending']){
