@@ -10,7 +10,7 @@ export const SOURCE_REVIEW_SCHEMA='role_document_reviews_source_v2';
 export const SOURCE_REVIEW_PINS=Object.freeze({
   provenance_hash:'d4663d477c44a3d3347608b79a9a090df36e36fe3ef9879f5f60c2e267b078f9',
   receipts_hash:'9272e8b907d9c44d8f8a569af8aba4894391e74d10b540495d1411b3b612f4fb',
-  semantics_hash:'cf2468c81aa07cab4a8d7e302eee4ec4dad921c36e74da6ca590e173285febc9',
+  semantics_hash:'257872be6a226f71cbc4be91893dc940b5b9a2148c689e7cca544268d70d59ce',
   taxonomy_hash:'d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838',
 });
 const sorted=value=>Array.isArray(value)?value.map(sorted):value&&typeof value==='object'
@@ -84,6 +84,13 @@ async function sourceRecord(record,assessedAt){
 
 async function reviewSource(record,extraction,assessedAt){
   const {source,version}=await sourceRecord(record,assessedAt);
+  const semantic=semantics.entries.find(entry=>entry.case_id===source.case_id),dispute=semantic.disagreement_review_receipt;
+  let reviewDisagreement=false;
+  if(semantic.mapping_status==='disputed_independent_review'){
+    if(!exact(dispute,['review_kind','library_file_id','sha256','sealed_at'])||dispute.review_kind!=='independent_mapping_disagreement'
+      ||!/^libfile_[a-zA-Z0-9_]+$/.test(dispute.library_file_id)||!/^[a-f0-9]{64}$/.test(dispute.sha256)||receiptStamp(dispute.sealed_at)===null)fail();
+    reviewDisagreement=stamp(assessedAt)>=receiptStamp(dispute.sealed_at);
+  }
   let claim=null,reason='no_document_extraction',state='held';
   if(extraction!==null){
     if(!exact(extraction,['symbol','source_id','role','document_tense','spans'])||extraction.symbol!==source.symbol
@@ -123,7 +130,7 @@ async function reviewSource(record,extraction,assessedAt){
     }
   }
   if(source.published_on===null){reason='publication_date_unconfirmed';state='held';}
-  return {symbol:source.symbol,documents:[source],claim,review_status:state,reason,assessed_at:assessedAt,
+  return {symbol:source.symbol,documents:[source],claim,review_status:state,review_disagreement:reviewDisagreement,reason,assessed_at:assessedAt,
     current_verification:{state:'unverified',as_of:null,evidence_ids:[]},engine_comparison:{state:'held'},score_effect:0,
     source_admission:{profile:SOURCE_ROLE_PROFILE,pins:{...SOURCE_REVIEW_PINS},source_version_hash:version,
       candidate:structuredClone(claim),state,reason,review_kind:'independent_AI_source_only'}};

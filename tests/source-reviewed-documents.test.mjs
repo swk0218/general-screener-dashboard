@@ -50,7 +50,7 @@ test('source writer -> encrypted product reader preserves all metadata and six h
   assert.equal(roleTaxonomyFor(read).schema,'gpt_role_taxonomy_v2');
   assert.equal(read.score_effect,0);assert.deepEqual(read.engines,base_artifact.briefing.engines);
   const rows=read._validated_role_documents;
-  assert.deepEqual(rows.map(row=>row.reason),['semantic_mapping_review_pending','semantic_mapping_review_pending',
+  assert.deepEqual(rows.map(row=>row.reason),['mapping_receipt_not_yet_available','mapping_receipt_not_yet_available',
     'role_or_document_claim_not_established','role_or_document_claim_not_established','publication_date_unconfirmed','role_or_document_claim_not_established']);
   for(let index=0;index<rows.length;index++){
     const row=rows[index],record=artifact.role_document_contract.source_records[index],view=roleDocumentView(read,read.roles[index]);
@@ -99,6 +99,7 @@ test('encrypted reader rejects pin mixing, forged admission, source/span mismatc
     a=>{a.role_document_contract.reviews[0].current_verification.state='verified';},
     a=>{a.role_document_contract.reviews[0].engine_comparison.state='matched';},
     a=>{a.role_document_contract.reviews[0].score_effect=1;},
+    a=>{a.role_document_contract.reviews[4].review_disagreement=true;},
     a=>{a.role_document_contract.reviews[2].claim.document_tense='present_in_document';},
     a=>{a.role_document_contract.reviews[0].claim.evidence[0].start=1;},
     a=>{a.role_document_contract.reviews[0].claim.evidence[0].quote='invented';},
@@ -229,5 +230,26 @@ test('isolated synthetic mapping approval binds receipt, object family and every
     assert.equal(rows[0].current_verification.state,'unverified');assert.equal(rows[0].score_effect,0);
   }
   await assertSourceReviewRegistries();
-  assert.equal(production.entries.every(entry=>entry.mapping_status!=='approved'),true);
+  assert.deepEqual(production.entries.filter(entry=>entry.mapping_status==='approved').map(entry=>entry.case_id),['R01','R02']);
+});
+
+test('after receipt seal two document claims roundtrip without upgrading current supply or original clocks',{skip},async()=>{
+  const before=await sourceReviewedFixture(await folder(),{fresh:true});
+  const {artifact}=await sourceReviewedFixture(await folder(),{fresh:true,afterReview:true});
+  assert.deepEqual(artifact.briefing,before.artifact.briefing);
+  assert.deepEqual(artifact.role_document_contract.source_records,before.artifact.role_document_contract.source_records);
+  const read=await readBriefingArtifact(await encryptBriefingArtifact(artifact,fixturePassword),fixturePassword,options(artifact));
+  const views=read.roles.map(role=>roleDocumentView(read,role));
+  assert.deepEqual(views.map(view=>view.role),['compute','semiconductor','unknown','unknown','unknown','unknown']);
+  assert.deepEqual(views.map(view=>view.admitted),[true,true,false,false,false,false]);
+  for(const view of views){assert.equal(view.current,'현시점 확인: 미확인');assert.equal(view.comparison,'대조 보류');}
+  assert.equal(read._validated_role_documents[4].reason,'publication_date_unconfirmed');
+  assert.equal(read._validated_role_documents[4].review_disagreement,true);
+  assert.match(views[4].reviewNote,/독립 검토 사이에 문서 역할 해석이 일치하지 않아 보류/);
+  for(const row of read._validated_role_documents)assert.equal(row.score_effect,0);
+  const earlier=structuredClone(artifact);earlier.role_document_contract.assessed_at='2026-11-04T01:38:13.999Z';
+  for(const row of earlier.role_document_contract.reviews)row.assessed_at=earlier.role_document_contract.assessed_at;
+  await readerRejects(earlier);
+  const hidden=structuredClone(artifact);hidden.role_document_contract.reviews[4].review_disagreement=false;
+  await readerRejects(hidden);
 });

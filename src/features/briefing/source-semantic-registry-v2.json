@@ -1,6 +1,6 @@
 {
   "schema": "source_semantic_registry_v2",
-  "version": "2026-11-04.mapping-pending-1",
+  "version": "2026-11-04.document-mapping-reviewed-1",
   "provenance_hash": "d4663d477c44a3d3347608b79a9a090df36e36fe3ef9879f5f60c2e267b078f9",
   "receipts_hash": "9272e8b907d9c44d8f8a569af8aba4894391e74d10b540495d1411b3b612f4fb",
   "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
@@ -18,7 +18,7 @@
       "review_kind": "independent_AI_source_only",
       "human_gold": false,
       "current_verified": false,
-      "verdict": "proposed_direct_support",
+      "verdict": "direct_support",
       "object_family": "processor",
       "context": null,
       "checks": {
@@ -31,8 +31,17 @@
         "no_unresolved_contradiction": true
       },
       "checks_scope": "supplied_excerpt_only",
-      "mapping_status": "pending_independent_review",
-      "mapping_review_receipt": null
+      "mapping_status": "approved",
+      "mapping_review_receipt": {
+        "review_kind": "independent_mapping_review",
+        "mapping_hash": "c88844baad7d36e7503ffee28f9ce3b6ca7d8357b54fcf4deaea92520a88c0eb",
+        "provenance_hash": "d4663d477c44a3d3347608b79a9a090df36e36fe3ef9879f5f60c2e267b078f9",
+        "receipts_hash": "9272e8b907d9c44d8f8a569af8aba4894391e74d10b540495d1411b3b612f4fb",
+        "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+        "library_file_id": "libfile_0b231a21b0b48191acd03a426119d028",
+        "sha256": "f4596b4a9c9e7c2f8841933aa434cae2bce3794c500479f3ecaa72cdfde3ddf3",
+        "sealed_at": "2026-11-04T01:38:14Z"
+      }
     },
     {
       "case_id": "R02",
@@ -47,7 +56,7 @@
       "review_kind": "independent_AI_source_only",
       "human_gold": false,
       "current_verified": false,
-      "verdict": "proposed_direct_support",
+      "verdict": "direct_support",
       "object_family": "semiconductor_memory",
       "context": null,
       "checks": {
@@ -60,8 +69,17 @@
         "no_unresolved_contradiction": true
       },
       "checks_scope": "supplied_excerpt_only",
-      "mapping_status": "pending_independent_review",
-      "mapping_review_receipt": null
+      "mapping_status": "approved",
+      "mapping_review_receipt": {
+        "review_kind": "independent_mapping_review",
+        "mapping_hash": "28b09d6f4fc5f2a6a44fc52c88f16607ab2e30b95d1c2da9a6887be014fbad81",
+        "provenance_hash": "d4663d477c44a3d3347608b79a9a090df36e36fe3ef9879f5f60c2e267b078f9",
+        "receipts_hash": "9272e8b907d9c44d8f8a569af8aba4894391e74d10b540495d1411b3b612f4fb",
+        "taxonomy_hash": "d17846017269735550921380bc280b4822f73fc521b1aa1b463525a980b77838",
+        "library_file_id": "libfile_0b231a21b0b48191acd03a426119d028",
+        "sha256": "f4596b4a9c9e7c2f8841933aa434cae2bce3794c500479f3ecaa72cdfde3ddf3",
+        "sealed_at": "2026-11-04T01:38:14Z"
+      }
     },
     {
       "case_id": "R03",
@@ -147,8 +165,14 @@
         "no_unresolved_contradiction": false
       },
       "checks_scope": "supplied_excerpt_only",
-      "mapping_status": "held",
-      "mapping_review_receipt": null
+      "mapping_status": "disputed_independent_review",
+      "mapping_review_receipt": null,
+      "disagreement_review_receipt": {
+        "review_kind": "independent_mapping_disagreement",
+        "library_file_id": "libfile_0b231a21b0b48191acd03a426119d028",
+        "sha256": "f4596b4a9c9e7c2f8841933aa434cae2bce3794c500479f3ecaa72cdfde3ddf3",
+        "sealed_at": "2026-11-04T01:38:14Z"
+      }
     },
     {
       "case_id": "R06",

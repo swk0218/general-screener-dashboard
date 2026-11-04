@@ -94,7 +94,7 @@ export function roleDocumentView(data,role){
     current:'현시점 확인: 미확인',comparison:'대조 보류',admitted,
     evidence:sourceReviewed?(review.claim?.evidence||review.documents.map(source=>({source_id:source.id,quote:source.text}))):review?(review.claim?.evidence||[]):(role.evidence||[]),counterEvidence:review?[]:(role.counter_evidence||[]),
     evidenceLabel:sourceReviewed?'검토한 발췌문 · 역할 확정 아님':null,
-    reviewNote:sourceReviewed?'독립 AI 원문 검토 기록이며 사람 정답이나 분류 정확도 검증을 뜻하지 않습니다.':null,
+    reviewNote:sourceReviewed?`${review.review_disagreement?'독립 검토 사이에 문서 역할 해석이 일치하지 않아 보류합니다. ':''}독립 AI 원문 검토 기록이며 사람 정답이나 분류 정확도 검증을 뜻하지 않습니다.`:null,
     assessedAt:sourceReviewed?review.assessed_at:null,
     counterLabel:'이전 추출의 추가 인용 · 의미 확인 보류',
     sources:review?.documents||(company?.sources||[]).map(source=>({...source,report_period:null})),
