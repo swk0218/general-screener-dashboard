@@ -25,6 +25,12 @@ function stamp(value){
   if(typeof value!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(value)||!Number.isFinite(Date.parse(value)))fail();
   return Date.parse(value);
 }
+function receiptStamp(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)||value.startsWith('0000-'))return null;
+  const parsed=Date.parse(value);
+  const canonical=value.includes('.')?value:value.replace('Z','.000Z');
+  return Number.isFinite(parsed)&&new Date(parsed).toISOString()===canonical?parsed:null;
+}
 function day(value){
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)fail();
   return value;
@@ -103,14 +109,15 @@ async function reviewSource(record,extraction,assessedAt){
     else{
       const mapping=Object.fromEntries(Object.entries(entry).filter(([key])=>!['mapping_status','mapping_review_receipt'].includes(key)));
       const proof=entry.mapping_review_receipt;
-      const validProof=exact(proof,['review_kind','mapping_hash','provenance_hash','receipts_hash','taxonomy_hash','library_file_id','sha256'])
+      const validProof=exact(proof,['review_kind','mapping_hash','provenance_hash','receipts_hash','taxonomy_hash','library_file_id','sha256','sealed_at'])
         &&proof.review_kind==='independent_mapping_review'&&proof.mapping_hash===await hash(mapping)
         &&['provenance_hash','receipts_hash','taxonomy_hash'].every(key=>proof[key]===SOURCE_REVIEW_PINS[key])
-        &&/^libfile_[a-zA-Z0-9_]+$/.test(proof.library_file_id)&&/^[a-f0-9]{64}$/.test(proof.sha256);
+        &&/^libfile_[a-zA-Z0-9_]+$/.test(proof.library_file_id)&&/^[a-f0-9]{64}$/.test(proof.sha256)&&receiptStamp(proof.sealed_at)!==null;
       const validMapping=entry.verdict==='direct_support'&&entry.checks_scope==='supplied_excerpt_only'
         &&exact(entry.checks,taxonomy.review_requirements)&&Object.values(entry.checks).every(value=>value===true)
         &&taxonomy.object_families[extraction.role].includes(entry.object_family)&&entry.context===taxonomy.required_context[extraction.role];
       if(!validProof)reason='mapping_receipt_required';
+      else if(stamp(assessedAt)<receiptStamp(proof.sealed_at))reason='mapping_receipt_not_yet_available';
       else if(!validMapping)reason='supply_relation_or_scope_unresolved';
       else{reason='independently_reviewed_document_claim';state='document_reviewed';}
     }

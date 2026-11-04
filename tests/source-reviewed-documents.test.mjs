@@ -198,13 +198,17 @@ test('isolated synthetic mapping approval binds receipt, object family and every
     ['missing_receipt',entry=>{entry.mapping_review_receipt=null;},'held','mapping_receipt_required'],
     ['wrong_mapping_hash',entry=>{entry.mapping_review_receipt.mapping_hash='0'.repeat(64);},'held','mapping_receipt_required'],
     ['wrong_receipt_pin',entry=>{entry.mapping_review_receipt.receipts_hash='0'.repeat(64);},'held','mapping_receipt_required'],
+    ['missing_seal',entry=>{delete entry.mapping_review_receipt.sealed_at;},'held','mapping_receipt_required'],
+    ...[null,'2026-11-04T00:31:46','2026-02-30T00:00:00Z','2026-11-04T24:00:00Z','0000-01-01T00:00:00Z','2026-11-04T00:31:46+00:00'].map((seal,index)=>['invalid_seal_'+index,entry=>{entry.mapping_review_receipt.sealed_at=seal;},'held','mapping_receipt_required']),
+    ['seal_after_assessment',entry=>{entry.mapping_review_receipt.sealed_at='2026-11-04T00:31:46.001Z';},'held','mapping_receipt_not_yet_available'],
+    ['seal_before_assessment',entry=>{entry.mapping_review_receipt.sealed_at='2026-11-04T00:31:45.999Z';},'document_reviewed','independently_reviewed_document_claim'],
   ];
   for(const [name,change,state,reason] of cases){
     const directory=await folder(),registry=structuredClone(production),entry=registry.entries[0];
     entry.verdict='direct_support';entry.mapping_status='approved';
     entry.mapping_review_receipt={review_kind:'independent_mapping_review',mapping_hash:'',
       provenance_hash:SOURCE_REVIEW_PINS.provenance_hash,receipts_hash:SOURCE_REVIEW_PINS.receipts_hash,taxonomy_hash:SOURCE_REVIEW_PINS.taxonomy_hash,
-      library_file_id:'libfile_synthetic_contract_only',sha256:'a'.repeat(64)};
+      library_file_id:'libfile_synthetic_contract_only',sha256:'a'.repeat(64),sealed_at:artifact.role_document_contract.assessed_at};
     change(entry);
     if(entry.mapping_review_receipt&&name!=='wrong_mapping_hash')entry.mapping_review_receipt.mapping_hash=hash(Object.fromEntries(Object.entries(entry).filter(([key])=>!['mapping_status','mapping_review_receipt'].includes(key))));
     const pins={...SOURCE_REVIEW_PINS,semantics_hash:hash(registry)};
