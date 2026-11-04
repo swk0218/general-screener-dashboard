@@ -43,7 +43,7 @@ for(const fresh of [true,false])test(`source-reviewed product, distinct clocks, 
       await expect(csco).toContainText('공시일 확인 불가');
       await expect(csco).toContainText('보고기간 2024-07-27');
       await expect(csco).toContainText('보고기간이나 수집일을 공시일로 대신하지 않습니다');
-      await expect(page.locator('.brief-clocks > div').last()).toContainText('2026-11-04 00:00:00');
+      await expect(page.locator('.brief-clocks > div').last().locator('span')).toHaveText('2026-11-04 00:00 UTC');
     }else{
       await expect(page.locator('.brief-role')).toHaveCount(0);
       await expect(page.locator('.brief-clocks > div').last()).toContainText('생성되지 않음');
