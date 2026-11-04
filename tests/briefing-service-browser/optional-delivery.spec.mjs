@@ -79,3 +79,45 @@ for(const scenario of ['radar_hangs','briefing_status_hangs','briefing_body_hang
     if(pending)await pending.abort().catch(()=>{});
   });
 }
+
+// Inject a render failure into the served dev module, never into product data or code.
+// React may retry rendering itself, so keep the fault active until the user retries.
+test('render failure can retry to the screener, fail again, and lock safely',async({page})=>{
+  await page.clock.install({time:new Date(cutoff)});
+  await page.addInitScript(()=>{window.__syntheticBriefingCrash=true;});
+  await page.route('**/src/features/briefing/BriefingView.jsx*',async route=>{
+    const response=await route.fetch();
+    const body=await response.text();
+    const marker='const clocks = briefingClocks';
+    expect(body).toContain(marker);
+    await route.fulfill({response,body:body.replace(marker,
+      'if (window.__syntheticBriefingCrash) throw new Error("TEST_ONLY_RENDER_FAILURE"); '+marker)});
+  });
+  await page.route('**/data/payload.enc.json*',r=>r.fulfill({json:bundle.payload}));
+  await page.route('**/data/radar-seasonality.enc.json',r=>r.fulfill({status:404}));
+  await page.route('**/data/radar-observation.json',r=>r.fulfill({status:404}));
+  await page.route('**/data/briefing-status.json',r=>r.fulfill({json:bundle.status}));
+  await page.route('**/data/briefing.enc.json',r=>r.fulfill({body:bundle.raw,contentType:'application/json'}));
+  await page.goto('/#/briefing');
+  await page.locator('input[type=password]').fill(fixturePassword);
+  await page.locator('button[type=submit]').click();
+  await expect(page.locator('.runtime-error-panel')).toBeVisible();
+  await page.getByRole('button',{name:'다시 시도',exact:true}).click();
+  await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(page.locator('.runtime-error-panel')).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/overview$/);
+  await page.getByRole('button',{name:'투자 판단 브리핑',exact:true}).click();
+  await expect(page.locator('.runtime-error-panel')).toBeVisible();
+  await page.evaluate(()=>{window.__syntheticBriefingCrash=false;});
+  await page.getByRole('button',{name:'다시 시도',exact:true}).click();
+  await expect(page.locator('.app-shell')).toBeVisible();
+  await page.getByRole('button',{name:'투자 판단 브리핑',exact:true}).click();
+  await expect(page.locator('.brief-clocks')).toBeVisible();
+  await page.evaluate(()=>{window.__syntheticBriefingCrash=true;});
+  await page.getByRole('button',{name:'공급망 역할 검토',exact:true}).click();
+  await expect(page.locator('.runtime-error-panel')).toBeVisible();
+  await page.getByRole('button',{name:'잠금 화면으로',exact:true}).click();
+  await expect(page.locator('input[type=password]')).toHaveValue('');
+  await expect(page.locator('.brief-clocks')).toHaveCount(0);
+  await expect(page.locator('.runtime-error-panel')).toHaveCount(0);
+});

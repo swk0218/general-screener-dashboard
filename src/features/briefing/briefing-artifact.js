@@ -1,3 +1,4 @@
+import { assertSourceFacts } from './briefing-facts.js';
 import { encryptEnvelope, decryptEnvelope } from '../../crypto/envelope.js';
 import { assertRoleDocumentContract } from './role-documents.js';
 import {DIRECT_ROLE_PROFILE,SOURCE_ROLE_PROFILE} from './role-taxonomy.js';
@@ -63,6 +64,7 @@ export function assertBriefingArtifact(artifact) {
       assertSourceProvenance(source);
       if (source.kind === 'TEST' && (artifact.execution_mode !== 'provider_test' || !data.demo || binding.source_kind !== 'synthetic_probe')) fail();
     }
+    assertSourceFacts(data);
     if (data.computed.market_available && (data.engines.Radar.current.status !== 'valid' || data.engines.Radar.current.session !== data.session)) fail();
     const ids = new Set();
     for (const insight of data.insights) {

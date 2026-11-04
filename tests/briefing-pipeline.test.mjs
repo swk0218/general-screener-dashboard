@@ -178,6 +178,14 @@ test('adapter -> Python provider/ledger -> encrypted artifact -> reader', {
   const heldMarket=await readBriefingArtifact(sealed,fixturePassword,{expectedSession:'2026-10-30',now:Date.parse(cutoff),requireMarketUnavailable:true});
   assert.equal(heldMarket.status,'unavailable','current delivery cannot endorse a no-longer-valid Radar interpretation');
   const screenerOnly=structuredClone(artifact);
+  // A screener-only fixture must genuinely carry unavailable Radar input;
+  // dropping a computed fact alone contradicts the source-bound snapshot.
+  screenerOnly.briefing.engines.Radar.current.status='missing';
+  screenerOnly.briefing.engines.Radar.current.market_state='unavailable';
+  screenerOnly.briefing.input_canonical_json=JSON.stringify(Object.fromEntries(
+    ['schema_version','demo','session','engines','companies'].map(key=>[key,screenerOnly.briefing[key]])
+  ));
+  screenerOnly.source_binding.input_hash=screenerOnly.briefing.identity.input_hash=sha256(screenerOnly.briefing.input_canonical_json);
   screenerOnly.briefing.computed.market_available=false;
   delete screenerOnly.briefing.computed.facts.market;
   screenerOnly.briefing.insights=screenerOnly.briefing.insights.filter(i=>!i.fact_ids.includes('market'));
