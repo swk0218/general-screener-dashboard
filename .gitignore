@@ -25,3 +25,4 @@ tests/fixtures/*
 !tests/fixtures/briefing-pipeline.mjs
 !tests/fixtures/briefing-off-assets.json
 !tests/fixtures/role-documents-v2.mjs
+!tests/fixtures/source-reviewed-documents.mjs

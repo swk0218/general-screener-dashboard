@@ -10,14 +10,14 @@ function assertDestination(mode,destination) {
 }
 export async function sealBriefingArtifact(artifact, passphrase, destination, { executionMode = 'provider' } = {}) {
   assertBriefingArtifact(artifact);
-  if(artifact.version===2)await assertRoleDocumentContract(artifact);
+  if(artifact.version>=2)await assertRoleDocumentContract(artifact);
   if (artifact.execution_mode !== executionMode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
   assertDestination(executionMode,destination);
   return withLock(destination, async () => {
     try {
       const existing = await readFile(destination, 'utf8');
       const prior = assertBriefingArtifact(await decryptEnvelope(existing, passphrase));
-      if(prior.version===2)await assertRoleDocumentContract(prior);
+      if(prior.version>=2)await assertRoleDocumentContract(prior);
       if (prior.execution_mode !== artifact.execution_mode) throw new Error('PUBLICATION_EXECUTION_MODE_MISMATCH');
       const comparable = value => JSON.stringify({
         ...value,
@@ -74,7 +74,7 @@ async function withLock(destination, operation) {
 }
 export async function writeBriefingDeliveryStatus(attempt, cipherRaw, destination, {stale=false, attemptedAt=attempt.created_at}={}) {
   assertBriefingArtifact(attempt);
-  if(attempt.version===2)await assertRoleDocumentContract(attempt);
+  if(attempt.version>=2)await assertRoleDocumentContract(attempt);
   assertDestination(attempt.execution_mode,destination);
   const status = assertBriefingDeliveryStatus({
     schema: 'briefing_delivery_status_v1',

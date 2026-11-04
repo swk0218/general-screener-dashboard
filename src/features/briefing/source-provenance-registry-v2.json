@@ -1,0 +1,54 @@
+{
+  "schema": "source_provenance_registry_v2",
+  "version": "2026-11-04.source-only-1",
+  "original_pins": {
+    "input_packet.json": "f18823ce4c32c657203c13ae8217cccbf37f6f066f1253ab87105d33c844c81e",
+    "role_taxonomy.json": "1250c9aab03faee843778aa9e1e6a5a29bb6e9ad534e8ad8193665d03d92c7bd",
+    "review_protocol.json": "0db4e12cdb6ea0e90c63646fa0ce064d51078c0cdcbdef6e1ff1d72ade986bff",
+    "independent_reviewer_source_roles.json": "f4f47b02c03719d79db2743dff713732145c3fa27f21406dff811d74ae85ec58"
+  },
+  "records": [
+    {
+      "symbol": "AMD",
+      "case_id": "R01",
+      "id": "source-review-R01",
+      "source_version_hash": "f06f83df694d959c9e12376284475a8d63f97102b5307b6f6becb817b385b2df",
+      "text_sha256": "acaadbd65a2cc90e1702f4942e148caebf0b244f25f5da2672b7ac999e99b49d"
+    },
+    {
+      "symbol": "MU",
+      "case_id": "R02",
+      "id": "source-review-R02",
+      "source_version_hash": "62a3d98ab780ae439f940cec7d39867ba2186ee4dbcdaf305ebbb3d6ad2f1bce",
+      "text_sha256": "a9cb914387a916881eb1ee482578dda7843bfa6bf90f9fbf3fce9a317a6e75b0"
+    },
+    {
+      "symbol": "VRT",
+      "case_id": "R03",
+      "id": "source-review-R03",
+      "source_version_hash": "bd8eef6f6c26cb3cff78a2d9f07e7c4ebd9a3d57731390ff0f2a12e606926849",
+      "text_sha256": "bf71943708781f14329b02580e493e64fa8519467639dc05678ba1af2591a5c9"
+    },
+    {
+      "symbol": "EQIX",
+      "case_id": "R04",
+      "id": "source-review-R04",
+      "source_version_hash": "e1e69619c0e13b22988f78351639e2ab5e25fd2a9b97bb83298b61ac5e11d1a7",
+      "text_sha256": "983eeeceed75b4048d852debfc86de73ebef7dc9356cc3cbc3cbb16f07783ea6"
+    },
+    {
+      "symbol": "CSCO",
+      "case_id": "R05",
+      "id": "source-review-R05",
+      "source_version_hash": "fa9e964a80b37ca966cfff65ba33f8d933dec299287af1dfb91c80b68c2bb438",
+      "text_sha256": "8ba0ea57da7cbc011f59f85239327e6a11715577db434deee91f17c308b2833f"
+    },
+    {
+      "symbol": "AMZN",
+      "case_id": "R06",
+      "id": "source-review-R06",
+      "source_version_hash": "8e452223066b10eee9dad251b42d0b727a3c40b3a44825969b2f9491410fddf0",
+      "text_sha256": "bb7250ec5e8e1e88236d7642776b575cc36c13a7d1aab6e4fc880f011ca9f7c7"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 // Versioned document semantics. Registry is code-owned; no model field can extend it.
 import registry from './document-review-registry.json' with {type:'json'};
 import {assertDirectRegistry,directAdmission,DIRECT_REVIEWS_HASH} from './direct-evidence.js';
-import {DIRECT_ROLE_PROFILE,DIRECT_TAXONOMY_HASH} from './role-taxonomy.js';
+import {DIRECT_ROLE_PROFILE,DIRECT_TAXONOMY_HASH,SOURCE_ROLE_PROFILE} from './role-taxonomy.js';
+import {assertSourceRoleDocumentContract,SOURCE_REVIEW_SCHEMA} from './source-reviewed-documents.js';
 export const ROLE_REGISTRY_HASH='c5b8c9d058c1a31f40725a7179aeb1e8c2d65138677bcff6ab5e80abfa8a16d8';
 const roles=['compute','semiconductor','interconnect','power_cooling','cloud','unknown'];
 const tenses=['present_in_document','planned_in_document','past_in_document','unclear'];
@@ -48,6 +49,10 @@ async function reviewCompany(company,extraction,assessedAt,demo){
   return result;
 }
 export async function assertRoleDocumentContract(artifact){
+  // Dispatch before legacy registry metadata is built. New provenance must never
+  // inherit report periods/source units or admission from an older profile.
+  if(artifact.version===3||artifact.role_document_contract?.profile===SOURCE_ROLE_PROFILE
+    ||artifact.role_document_contract?.schema===SOURCE_REVIEW_SCHEMA)return assertSourceRoleDocumentContract(artifact);
   if(bytes(JSON.stringify(artifact)).length>160000||artifact.briefing.companies.length>64)fail();
   if(await sha(registry)!==ROLE_REGISTRY_HASH)fail();
   const contract=artifact.role_document_contract,data=artifact.briefing;
@@ -74,14 +79,24 @@ export async function assertRoleDocumentContract(artifact){
   return structuredClone(contract.reviews);
 }
 const tenseLabels={present_in_document:'문서상 제공 주장',planned_in_document:'문서상 계획',past_in_document:'문서상 과거 내용',unclear:'문서상 시점 불명확'};
+const sourceHoldLabels={
+  publication_date_unconfirmed:'공시일이 확인되지 않아 역할 주장을 보류합니다. 보고기간이나 수집일을 공시일로 대신하지 않습니다.',
+  role_or_document_claim_not_established:'제공된 발췌문만으로 허용된 공급 역할과 문서 시제를 확정하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.',
+  semantic_mapping_review_pending:'원문에 대한 독립 AI 검토 기록이 있습니다. 제품 분류와 검토 항목의 연결은 아직 독립 검토 중이므로 역할 주장을 보류합니다.',
+  source_provenance_unconfirmed:'출처 기록이 승인된 원문 기록과 일치하는지 확인하지 못해 역할 주장을 보류합니다.',
+};
 export function roleDocumentView(data,role){
   const review=data._validated_role_documents?.find(r=>r.symbol===role.symbol);
   const company=data.companies?.find(c=>c.symbol===role.symbol);
+  const sourceReviewed=data._validated_role_profile===SOURCE_ROLE_PROFILE&&review?.source_admission?.profile===SOURCE_ROLE_PROFILE;
   const admitted=review?.review_status==='document_reviewed';
   return {role:admitted?review.claim.role:'unknown',statement:admitted?tenseLabels[review.claim.document_tense]:review?'문서 해석 보류':'이전 분류 · 시간축 분리 전 기록',
     current:'현시점 확인: 미확인',comparison:'대조 보류',admitted,
-    evidence:review?(review.claim?.evidence||[]):(role.evidence||[]),counterEvidence:review?[]:(role.counter_evidence||[]),
+    evidence:sourceReviewed?(review.claim?.evidence||review.documents.map(source=>({source_id:source.id,quote:source.text}))):review?(review.claim?.evidence||[]):(role.evidence||[]),counterEvidence:review?[]:(role.counter_evidence||[]),
+    evidenceLabel:sourceReviewed?'검토한 발췌문 · 역할 확정 아님':null,
+    reviewNote:sourceReviewed?'독립 AI 원문 검토 기록이며 사람 정답이나 분류 정확도 검증을 뜻하지 않습니다.':null,
+    assessedAt:sourceReviewed?review.assessed_at:null,
     counterLabel:'이전 추출의 추가 인용 · 의미 확인 보류',
     sources:review?.documents||(company?.sources||[]).map(source=>({...source,report_period:null})),
-    detail:review?.reason==='multi_document_held'?'문서가 여러 개라 역할과 시제를 합치지 않았습니다. 문서별 근거 검토가 필요합니다.':admitted?'문서의 역할 주장만 검토했습니다. 현재 사업의 지속 여부를 확인한 결과가 아닙니다.':'완전한 명제와 의미 검증을 마치기 전에는 역할 주장을 확정하지 않습니다.'};
+    detail:sourceReviewed&&!admitted?(sourceHoldLabels[review.reason]||'출처와 문서 의미의 검증이 완료되지 않아 역할 주장을 보류합니다.'):review?.reason==='multi_document_held'?'문서가 여러 개라 역할과 시제를 합치지 않았습니다. 문서별 근거 검토가 필요합니다.':admitted?'문서의 역할 주장만 검토했습니다. 현재 사업의 지속 여부를 확인한 결과가 아닙니다.':'완전한 명제와 의미 검증을 마치기 전에는 역할 주장을 확정하지 않습니다.'};
 }

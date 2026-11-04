@@ -49,6 +49,8 @@ function CitationSource({ source, demo }) {
   return <small>{synthetic ? "합성 검증 자료 · 실제 제공자 원문 아님" : <a href={source.url} target="_blank" rel="noreferrer">{demo ? `${source.kind} 제공 링크` : `${source.kind} 원문`}</a>}
     <br/>공시일 {source.published_on || "확인 불가"} · 보고기간 {source.report_period || "확인 불가"}
     <br/>실제 이용가능시각 {source.available_at || "확인 불가"} · 이용 확인일 {source.available_on}
+    {source.availability_scope ? <><br/>수집 확인 범위의 시각이며 최초 공개 시각은 아닙니다.</> : null}
+    {source.source_unit === "supplied_excerpt_only" ? <><br/>제공된 발췌문만 검토 · 전체 문서 검증 아님</> : null}
   </small>;
 }
 function SupplyRoles({
@@ -69,9 +71,9 @@ function SupplyRoles({
         return <article className="brief-role" key={role.symbol}><header><h3>{role.symbol}</h3><span className={role.comparison === "review" || !review.baselineDisplayAvailable ? "brief-tag review" : "brief-tag"}>{roleReviewBadge(role, review)}</span></header><h4>{roleLabel(document.role)}</h4><p>{document.statement}</p><p>{document.current}</p><dl className="brief-comparison"><div><dt>기존 규칙 표시</dt><dd>{!review.baselineDisplayAvailable ? "대조 보류" : role.baseline_supported ? "기존 가점 적용" : "기존 가점 미적용"}</dd></div><div><dt>점수 반영</dt><dd>없음</dd></div></dl><details><summary>{document.evidence.length ? "원문 근거와 한계 보기" : "미확인인 이유 보기"}</summary>
         {document.evidence.length === 0 ? <p>허용된 자료에서 근거를 확인하지 못했습니다. 해당 사업이 없다는 뜻은 아닙니다.</p> : document.evidence.map((evidence, index) => {
               const source = document.sources.find(item => item.id === evidence.source_id);
-              return <div className="brief-quote" key={index}><p>{data.demo ? "검증자료의 인용 구간" : "출처 · 원문"}</p><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={source} demo={data.demo} /></div>;
+              return <div className="brief-quote" key={index}><p>{document.evidenceLabel || (data.demo ? "검증자료의 인용 구간" : "출처 · 원문")}</p><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={source} demo={data.demo} /></div>;
             })}
-        {document.counterEvidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>{document.counterLabel}</strong><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={document.sources.find(source => source.id === evidence.source_id)} demo={data.demo} /></div>)}<p className="brief-muted">{document.detail}</p><p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
+        {document.counterEvidence.map((evidence, index) => <div className="brief-counter" key={index}><strong>{document.counterLabel}</strong><blockquote lang="en">{evidence.quote}</blockquote><CitationSource source={document.sources.find(source => source.id === evidence.source_id)} demo={data.demo} /></div>)}<p className="brief-muted">{document.detail}</p>{document.reviewNote ? <p className="brief-muted">{document.reviewNote}<br/>문서 검토 시각 {document.assessedAt} · 브리핑 생성 시각과 별도</p> : null}<p className="brief-muted">{role.uncertainty === "revenue_not_verified" ? "AI 관련 매출 비중과 실적 기여는 확인하지 않았습니다." : "현재 사업 여부나 공급 범위를 확정할 자료가 부족합니다."}</p>
       </details></article>;
       })}</div>}
   </section>;

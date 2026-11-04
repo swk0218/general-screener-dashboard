@@ -1,6 +1,6 @@
 import { encryptEnvelope, decryptEnvelope } from '../../crypto/envelope.js';
 import { assertRoleDocumentContract } from './role-documents.js';
-import {DIRECT_ROLE_PROFILE} from './role-taxonomy.js';
+import {DIRECT_ROLE_PROFILE,SOURCE_ROLE_PROFILE} from './role-taxonomy.js';
 export const ARTIFACT_KIND = 'general_screener_briefing_v1';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const stamp = value => typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
@@ -25,8 +25,19 @@ function assertSourceProvenance(source) {
   if (url.protocol !== 'https:' || url.hostname !== hosts[source.kind] || url.username || url.password || url.search || url.hash) fail();
 }
 export function assertBriefingArtifact(artifact) {
-  if (artifact?.artifact_kind !== ARTIFACT_KIND || ![1,2].includes(artifact.version) || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
+  if (artifact?.artifact_kind !== ARTIFACT_KIND || ![1,2,3].includes(artifact.version) || !stamp(artifact.created_at) || !['fake_transport', 'provider', 'provider_test'].includes(artifact.execution_mode) || !artifact.source_binding) fail();
   if(artifact.version===1&&artifact.role_document_contract!==undefined)fail();
+  const sourceContract=artifact.role_document_contract;
+  if(artifact.version===3){
+    if(sourceContract?.schema!=='role_document_reviews_source_v2'||sourceContract.profile!==SOURCE_ROLE_PROFILE
+      ||artifact.source_binding.source_review_profile!==SOURCE_ROLE_PROFILE)fail();
+    for(const name of ['provenance','semantics','receipts','taxonomy']){
+      if(!hash(sourceContract[`${name}_hash`])||artifact.source_binding[`source_review_${name}_hash`]!==sourceContract[`${name}_hash`])fail();
+    }
+  }else if(Object.keys(artifact.source_binding).some(key=>key.startsWith('source_review_'))
+    ||sourceContract?.profile===SOURCE_ROLE_PROFILE||sourceContract?.schema==='role_document_reviews_source_v2'
+    ||sourceContract&&['source_records','provenance_hash','semantics_hash','receipts_hash'].some(key=>Object.hasOwn(sourceContract,key))
+    ||sourceContract?.reviews?.some(row=>row?.source_admission!==undefined))fail();
   const data = artifact.briefing,
     binding = artifact.source_binding;
   if (!data || typeof data.demo !== 'boolean' || !['ready', 'cached', 'unavailable', 'disabled'].includes(data.status) || !hash(binding.input_hash) || !/^\d{4}-\d{2}-\d{2}$/.test(binding.assessment_session || '')) fail();
@@ -41,6 +52,12 @@ export function assertBriefingArtifact(artifact) {
     if (artifact.execution_mode === 'provider_test' && !data.demo) fail();
     if (data.execution_mode !== artifact.execution_mode || data.identity?.execution_mode !== artifact.execution_mode || data.provider_receipt?.transport !== transport || artifact.execution_mode === 'provider' && data.demo) fail();
     if (data.schema_version !== 'gpt_shadow_v1' || data.identity?.input_hash !== binding.input_hash || data.session !== binding.assessment_session || !stamp(data.generated_at) || Date.parse(data.generated_at) > Date.parse(artifact.created_at) || data.score_effect !== 0 || !data.engine_results_preserved || !data.engines || !data.computed?.facts || !Array.isArray(data.insights) || data.insights.length > 3 || !Array.isArray(data.roles) || !Array.isArray(data.companies)) fail();
+    // A source-reviewed contract is the sole authority for its document claims.
+    // A legacy briefing projection never carries its sources or positive labels.
+    if(artifact.version===3&&(data.companies.some(company=>!Array.isArray(company.sources)||company.sources.length)
+      ||data.roles.length!==data.companies.length||new Set(data.roles.map(role=>role.symbol)).size!==data.roles.length
+      ||data.roles.some(role=>role.role!=='unknown'||role.decision!=='unconfirmed'||role.period!=='unknown'
+        ||!Array.isArray(role.evidence)||role.evidence.length||!Array.isArray(role.counter_evidence)||role.counter_evidence.length)))fail();
     for (const name of ['Radar', 'TENX', 'MLG']) if (!data.engines[name]?.current || !data.engines[name]?.previous) fail();
     for (const company of data.companies) for (const source of company.sources || []) {
       assertSourceProvenance(source);
@@ -72,7 +89,7 @@ export function assertBriefingArtifact(artifact) {
 export async function encryptBriefingArtifact(artifact, passphrase) {
   assertBriefingArtifact(artifact);
   await assertInputBinding(artifact);
-  if(artifact.version===2)await assertRoleDocumentContract(artifact);
+  if(artifact.version>=2)await assertRoleDocumentContract(artifact);
   return encryptEnvelope(artifact, passphrase);
 }
 async function assertInputBinding(artifact) {
@@ -106,8 +123,9 @@ export async function readBriefingArtifact(envelope, passphrase, {
   // Model/legacy payload fields never establish reader-owned v2 admission.
   delete data._validated_role_documents;
   delete data._validated_role_profile;
-  if(artifact.version===2)data._validated_role_documents=await assertRoleDocumentContract(artifact);
+  if(artifact.version>=2)data._validated_role_documents=await assertRoleDocumentContract(artifact);
   if(artifact.version===2&&artifact.role_document_contract.schema==='role_document_reviews_direct_v1')data._validated_role_profile=DIRECT_ROLE_PROFILE;
+  if(artifact.version===3)data._validated_role_profile=SOURCE_ROLE_PROFILE;
   if (Date.parse(artifact.created_at) > now + 300000) return {
     status: 'unavailable',
     demo: data.demo,
