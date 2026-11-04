@@ -3,12 +3,15 @@ import { SectionFooter } from '../../components/SectionElements.jsx';
 import { useRadarPresentation } from './use-radar-presentation.js';
 import './radar.css';
 
-export function RadarUpdate({date,sourceDate=null,basisDate=null,note=null}) {
+// One visible source-session date. Refresh/admission/build clocks remain in
+// radarPresentation and provenance; none may substitute for the data basis.
+export function RadarUpdate({sourceDate=null,basisDate=null}) {
   const basis=basisDate||sourceDate;
+  const valid=typeof basis==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(basis)
+    &&Number.isFinite(Date.parse(`${basis}T00:00:00Z`))
+    &&new Date(`${basis}T00:00:00Z`).toISOString().slice(0,10)===basis;
   return <span className="radar-updated">
-    {basis?<span className="radar-basis-date" role="group" aria-label="관측 기준일"><time dateTime={basis}>{basis.replaceAll('-','.')} 기준일</time></span>:<span className="radar-basis-date">기준일 확인 불가</span>}
-    {date?<span role="group" aria-label="마지막 갱신 확인일"><time className="update-badge radar-refresh-date" title="검증된 마지막 성공 갱신일" dateTime={date}>{date.replaceAll('-','.')} Updated</time></span>:<span className="radar-refresh-unverified">갱신 확인 불가</span>}
-    {date&&note&&<span className="radar-freshness-note">{note}</span>}
+    {valid?<span className="radar-basis-date" role="group" aria-label="관측 기준일"><time className="update-badge radar-data-date" title={`자료 기준일 ${basis}`} dateTime={basis}>{basis.slice(5).replace('-','.')} Data</time></span>:<span className="radar-basis-date">기준일 확인 불가</span>}
   </span>;
 }
 export function RadarHeadline({headline,alert=false}) {
