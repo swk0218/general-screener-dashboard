@@ -11,6 +11,10 @@ export const STATUS_COPY = Object.freeze({
   fallback:'기존 판정 사용', unevaluated:'미평가', unavailable:'분석 불가', uncertain:'판정 보류',
   stale:'이전 자료', invalid:'분석 자료 확인 필요',
 });
+const COLLECTION_SCOPE_COPY = Object.freeze({
+  fmp_stock_news_first_page:'수집한 FMP 뉴스 첫 페이지 후보 범위',
+  unverified_candidate_set:'선택 근거 범위 · 전체 사건 수집 미확인',
+});
 const unavailable = () => ({status:'invalid',label:STATUS_COPY.invalid,events:[],scores:[]});
 function stockEvent(event, cutoff, symbol) {
   if(!event || !text(event.id) || event.symbol !== symbol || !timestamp(event.published_at)
@@ -23,6 +27,7 @@ export function stockBriefing(recommendation) {
   if(q == null) return null;
   if(!q || typeof q !== 'object' || !Object.hasOwn(STATUS_COPY,q.status)) return unavailable();
   const base={status:q.status,label:STATUS_COPY[q.status],reason:text(q.reason),events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
+  if(['evaluated','cached','unevaluated'].includes(q.status)&&Object.hasOwn(COLLECTION_SCOPE_COPY,q.collection_scope))base.scopeCopy=COLLECTION_SCOPE_COPY[q.collection_scope];
   if(['disabled','fallback','unevaluated','unavailable','uncertain','stale'].includes(q.status))return base;
   if(!base.dataAsOf || !base.analyzedAt || Date.parse(base.analyzedAt)<Date.parse(base.dataAsOf)) return unavailable();
   if(recommendation.strategy === 'TENX') {

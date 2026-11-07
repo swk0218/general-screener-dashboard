@@ -14,6 +14,7 @@ export function StockBriefing({recommendation,compact=false}) {
   return <section className="qualitative-briefing" aria-label={`${recommendation.symbol} 정성 분석`}>
     <header><h3>사건·사업 판단</h3><small>{value.label}</small></header>
     {value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null}
+    {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}
     {!compact&&<>
       {value.scores.length>0&&<dl className="briefing-scores">{value.scores.map(([label,score])=><div key={label}><dt>{label}</dt><dd>{number(score)}</dd></div>)}</dl>}
       {value.rankingCopy?<p className="briefing-note">{value.rankingCopy}</p>:null}

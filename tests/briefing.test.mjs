@@ -56,3 +56,15 @@ test('verified empty FMP candidates retain limited coverage and no-model claim',
   const invalid=structuredClone(row);mutate(invalid);assert.equal(stockBriefing(invalid).status,'invalid');
  }
 });
+
+test('collection scope uses only fixed enum copy for evaluated cached and unevaluated',()=>{
+ const labels={fmp_stock_news_first_page:'수집한 FMP 뉴스 첫 페이지 후보 범위',unverified_candidate_set:'선택 근거 범위 · 전체 사건 수집 미확인'};
+ for(const status of ['evaluated','cached','unevaluated'])for(const [scope,label] of Object.entries(labels)){
+  const row=tenx();Object.assign(row.qualitative,{status,collection_scope:scope,scope_label:'UNTRUSTED RAW RECEIPT'});
+  const before=structuredClone(row),model=stockBriefing(row);assert.equal(model.scopeCopy,label);assert.deepEqual(row,before);assert.doesNotMatch(JSON.stringify(model),/UNTRUSTED RAW RECEIPT/);
+ }
+ for(const scope of [undefined,null,'all_company_events','__proto__','toString']){
+  const row=tenx();Object.assign(row.qualitative,{collection_scope:scope,scope_label:'UNTRUSTED'});assert.equal(stockBriefing(row).scopeCopy,undefined);assert.equal(stockBriefing(row).status,'evaluated');
+ }
+ const row=tenx();row.qualitative.status='disabled';row.qualitative.collection_scope='fmp_stock_news_first_page';assert.equal(stockBriefing(row).scopeCopy,undefined);
+});
