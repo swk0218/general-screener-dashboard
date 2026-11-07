@@ -1,3 +1,4 @@
+import { RadarNews } from "../qualitative/Briefing.jsx";
 import { ChevronRight, TriangleAlert, BellOff } from 'lucide-react';
 import { useRadarPresentation } from './use-radar-presentation.js';
 import { inputGaugeCards, thresholdPosition } from './gauge-model.js';
@@ -41,11 +42,12 @@ function DirectionSignal({side,data,unavailable:displayUnavailable,retained}) {
   </section>;
 }
 
-export function RadarView({delivery=null,seasonality=null,status=undefined}) {
+export function RadarView({radarNews=null,delivery=null,seasonality=null,status=undefined}) {
   const {data,observation,conflict,stale,level,headline,eventLabel,eventKind,displayScore,clocks,updateDate,sourceDate,displayUnavailable,basisDate,freshnessNote}=useRadarPresentation(delivery,status);
   const cards=inputGaugeCards(displayUnavailable?null:data),retainedCards=inputGaugeCards(data),daily=data?.operating_status==='DAILY_MODEL_COMPUTED';
   return <section className="secondary-view radar-view">
     <h1 className="sr-only">시장 신호 (Beta)</h1>
+    <RadarNews value={radarNews} />
     <section className="radar-gauge" aria-labelledby="radar-composite-title">
       <div className="radar-score-meta"><h2 id="radar-composite-title">시장 전환 지수 (Beta)</h2><RadarUpdate date={updateDate} sourceDate={sourceDate} basisDate={basisDate} note={freshnessNote}/></div>
       <div className="radar-hero-content"><MarketGauge score={displayScore} level={displayUnavailable?'계산 불가':level==='CONFLICT'?'단일 점수 없음':level}/>
@@ -86,3 +88,4 @@ export function RadarView({delivery=null,seasonality=null,status=undefined}) {
     </section>
   </section>;
 }
+
