@@ -83,3 +83,11 @@ contract, encryption, or push validation fails, the last known-good encrypted pa
 
 This is authenticated encryption for a static site, not server-side account authentication. Anyone can download the ciphertext, so a weak passphrase can be attacked offline. Use a long random passphrase, rotate the local preview passphrase before public deployment, and never place FMP/API credentials in this repository or browser code.
 
+
+### Optional qualitative briefing
+
+GS-GPT-02 adds compact, optional MLG/TENX evidence and separate Radar news without
+changing the numeric engines or client ranking. Missing enrichment preserves the
+current UI. Radar's separately encrypted news reader is default OFF; see
+[operations and rollback](docs/GPT_BRIEFING_OPERATIONS.md) and
+[UI contract](docs/UI_PRESENTATION_CONTRACT.md) before enabling it.
