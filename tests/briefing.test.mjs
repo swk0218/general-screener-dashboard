@@ -68,3 +68,19 @@ test('collection scope uses only fixed enum copy for evaluated cached and uneval
  }
  const row=tenx();row.qualitative.status='disabled';row.qualitative.collection_scope='fmp_stock_news_first_page';assert.equal(stockBriefing(row).scopeCopy,undefined);
 });
+
+
+test('MLG business evidence is independent of event news and never changes scores',()=>{
+ const row={symbol:'TEST',strategy:'MLG',qualitative:{status:'evaluated',legacy_a:0,adopted_a:3,legacy_e:.65,adopted_e:.65,score_delta:3,data_as_of:cutoff,analyzed_at:analyzed,events:[],ai_supply:'eligible',ai_evidence:{symbol:'TEST',source_url:event.source_url,published_at:event.published_at,role:'model_cloud',quote:'MUST NOT DISPLAY'}}};
+ const before=structuredClone(row),view=stockBriefing(row);
+ assert.equal(view.aiEvidence.summary,'AI 사업 판단 · 모델·클라우드 공급');
+ assert.equal(view.aiEvidence.sources[0].url,event.source_url);
+ assert.equal(view.summary,view.aiEvidence.summary);assert.deepEqual(view.events,[]);
+ assert.deepEqual(row,before);assert.doesNotMatch(JSON.stringify(view),/MUST NOT DISPLAY/);
+ for(const mutate of [v=>v.qualitative.ai_evidence.symbol='OTHER',v=>v.qualitative.ai_evidence.published_at='2026-11-08T00:00:00Z',v=>v.qualitative.ai_evidence.source_url='javascript:bad',v=>v.qualitative.ai_evidence.role='__proto__',v=>v.qualitative.ai_supply='unknown']){
+  const bad=structuredClone(row);mutate(bad);assert.equal(stockBriefing(bad).status,'invalid');
+ }
+ const removed=structuredClone(row);Object.assign(removed.qualitative,{legacy_a:3,adopted_a:0,score_delta:-3,ai_supply:'ineligible'});removed.qualitative.ai_evidence.role=null;
+ assert.match(stockBriefing(removed).aiEvidence.summary,/공급 가점 제외/);
+ delete row.qualitative.ai_evidence;assert.equal(stockBriefing(row).status,'evaluated');
+});

@@ -32,3 +32,19 @@ test('optional news failure is quiet and lock drops late sidecar responses',asyn
  await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
  await expect(page.locator('.radar-news')).toContainText('분석 불가');await expect(page.locator('.overview-briefing')).toContainText('TEST');
 });
+
+
+test('MLG AI-only evidence is visible without inventing a news event',async({page},testInfo)=>{
+ const data={contract_version:'general_screener_v2',generated_at:'2026-11-07T10:01:00Z',benchmark:'QQQ',evidence_status:'HOLD: PRICE_OBSERVATION_ARCHIVE_PENDING',runs:[{strategy:'MLG',run_id:'qa-ai',report_created_at:'2026-11-07T10:01:00Z'}],recommendations:[{strategy:'MLG',run_id:'qa-ai',symbol:'TESTAI',recommendation_rank:1,score:63,screening_price:100,current_price:101,current_price_as_of:'2026-11-06',qualitative:{status:'evaluated',legacy_a:0,adopted_a:3,legacy_e:.65,adopted_e:.65,score_delta:3,data_as_of:'2026-11-07T10:00:00Z',analyzed_at:'2026-11-07T10:01:00Z',events:[],ai_supply:'eligible',ai_evidence:{symbol:'TESTAI',source_url:'https://example.com/filing',published_at:'2026-11-06T10:00:00Z',role:'model_cloud'}}}],performance:{aggregates:[],signals:[]}};
+ const encrypted=await encryptEnvelope(data,password);
+ await page.route('**/data/payload.enc.json*',r=>r.fulfill({json:encrypted}));
+ for(const file of ['radar-observation.json','market-radar.enc.json','radar-seasonality.enc.json','radar-news.enc.json'])await page.route(`**/data/${file}*`,r=>r.fulfill({status:404}));
+ await page.goto('/#/detail/MLG/qa-ai/TESTAI');await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
+ const panel=page.getByRole('region',{name:'TESTAI 정성 분석'});
+ await expect(panel).toContainText('모델·클라우드 공급');await expect(panel).toContainText('0 → 3');
+ await panel.getByText('근거·출처',{exact:true}).click();
+ await expect(panel.getByRole('link',{name:'사업 근거 원문'})).toHaveAttribute('href','https://example.com/filing');
+ await expect(panel).not.toContainText('반영할 사건 없음');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await panel.screenshot({path:testInfo.outputPath('mlg-ai-evidence.png')});
+});

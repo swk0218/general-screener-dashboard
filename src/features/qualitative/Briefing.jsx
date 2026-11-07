@@ -20,6 +20,7 @@ export function StockBriefing({recommendation,compact=false}) {
       {value.rankingCopy?<p className="briefing-note">{value.rankingCopy}</p>:null}
       <div className="briefing-clocks"><Clock label="자료 기준" value={value.dataAsOf}/><Clock label="분석" value={value.analyzedAt}/></div>
       {value.events.map((item,index)=><div key={item.id}>{index>0?<p>{item.summary}</p>:null}<Evidence item={item}/></div>)}
+      {value.aiEvidence?<div><p>{value.aiEvidence.summary}</p><Evidence item={value.aiEvidence}/></div>:null}
     </>}
   </section>;
 }
@@ -39,3 +40,4 @@ export function OverviewBriefing({runs}) {
   if(!entries.length)return null;
   return <div className="overview-briefing">{entries.map(item=><div key={`${item.strategy}-${item.symbol}`}><span className="briefing-note">{item.strategy} · {item.symbol}</span><StockBriefing recommendation={item} compact/></div>)}</div>;
 }
+

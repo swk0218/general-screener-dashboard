@@ -58,7 +58,18 @@ export function stockBriefing(recommendation) {
     if(!finite(q.score_delta)||Math.abs(q.score_delta-(6*(q.adopted_e-q.legacy_e)+(q.adopted_a-q.legacy_a)))>1e-8)return unavailable();
     base.scores=[['AI 공급',`${q.legacy_a} → ${q.adopted_a}`],['사건 E',`${q.legacy_e} → ${q.adopted_e}`],['총점 변화',q.score_delta]];
     base.events=events.slice(0,3);
-    base.summary=events[0]?.summary||base.reason||'기존 산식으로 정성 판단 반영';
+    if(q.ai_evidence != null) {
+      const evidence=q.ai_evidence;
+      const roles={semiconductor:'반도체 공급',compute_memory:'컴퓨팅·메모리 공급',connectivity:'연결 인프라 공급',datacenter_hardware:'데이터센터 장비 공급',model_cloud:'모델·클라우드 공급'};
+      if(!['eligible','ineligible'].includes(q.ai_supply)||!evidence||evidence.symbol!==recommendation.symbol
+        ||!safeSourceUrl(evidence.source_url)||!timestamp(evidence.published_at)
+        ||Date.parse(evidence.published_at)>Date.parse(base.dataAsOf)
+        ||(q.ai_supply==='eligible'&&(!Object.hasOwn(roles,evidence.role)||q.adopted_a!==3))
+        ||(q.ai_supply==='ineligible'&&q.adopted_a!==0))return unavailable();
+      const summary=q.ai_supply==='eligible'?`AI 사업 판단 · ${roles[evidence.role]}`:'AI 사업 판단 · 공급 가점 제외 근거 확인';
+      base.aiEvidence={id:'ai-supply',summary,publishedAt:evidence.published_at,sources:[{url:safeSourceUrl(evidence.source_url),label:'사업 근거 원문'}]};
+    }
+    base.summary=events[0]?.summary||base.aiEvidence?.summary||base.reason||'기존 산식으로 정성 판단 반영';
   } else return unavailable();
   return base;
 }
@@ -87,3 +98,4 @@ export function radarBriefing(value, now=Date.now()) {
   }
   return base;
 }
+
