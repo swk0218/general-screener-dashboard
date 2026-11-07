@@ -19,7 +19,7 @@ test('TENX displays S Q T independently without reordering, clamps validated',()
 });
 test('missing event, issuer mismatch, future evidence and bad math never appear evaluated',()=>{
  for(const mutate of [r=>r.qualitative.event=null,r=>r.qualitative.event={...event,symbol:'OTHER'},r=>r.qualitative.event={...event,published_at:'2026-11-08T00:00:00Z'},r=>r.adjusted_score=62,r=>r.qualitative.event={...event,source_url:'javascript:alert(1)'}]){const row=tenx();mutate(row);assert.equal(stockBriefing(row).status,'invalid');}
- const zero=tenx();zero.qualitative.q=0;zero.qualitative.event=null;zero.qualitative_adjustment=0;zero.adjusted_score=59;assert.equal(stockBriefing(zero).summary,'확인된 유효 사건 없음');
+ const zero=tenx();zero.qualitative.q=0;zero.qualitative.event=null;zero.qualitative_adjustment=0;zero.adjusted_score=59;assert.equal(stockBriefing(zero).summary,'평가된 후보에서 반영할 사건 없음');
 });
 test('MLG validates existing E/A and declared delta, never adds legacy judgment twice',()=>{
  const row={symbol:'TEST',strategy:'MLG',qualitative:{status:'evaluated',legacy_a:3,adopted_a:3,legacy_e:.82,adopted_e:.15,score_delta:-4.02,data_as_of:cutoff,analyzed_at:analyzed,events:[event]}};
@@ -44,4 +44,15 @@ test('external links reject credentials, whitespace and non-HTTPS schemes',()=>{
 });
 test('malformed news entries and future publication clocks isolate failure',()=>{
  for(const mutate of [v=>v.events=[null],v=>v.events[0].sources=[null],v=>v.cutoff_at='2030-01-01T00:00:00Z',v=>v.analyzed_at='2030-01-01T00:00:00Z']){const value=radar();mutate(value);assert.equal(radarBriefing(value,Date.parse(analyzed)).status,'invalid');}
+});
+test('verified empty FMP candidates retain limited coverage and no-model claim',()=>{
+ const row=tenx();row.qualitative_adjustment=0;row.adjusted_score=59;
+ Object.assign(row.qualitative,{q:0,event:null,assessment_method:'verified_empty_candidate_set',reason:'확인한 FMP 뉴스 후보 없음',model:'not_used',coverage:{scope:'fmp_stock_news_first_page',claim:'retrieved_candidate_set_only'}});
+ const result=stockBriefing(row);
+ assert.equal(result.label,'후보 확인 · 모델 미사용');
+ assert.equal(result.summary,'확인한 FMP 뉴스 후보 없음 · FMP 뉴스 첫 페이지에서 수집된 후보 범위에 한정합니다.');
+ assert.doesNotMatch(result.summary,/악재 없음|유효 사건 없음/);
+ for(const mutate of [v=>v.qualitative.coverage.claim='all_news',v=>v.qualitative.model='gpt',v=>v.qualitative.event=event]){
+  const invalid=structuredClone(row);mutate(invalid);assert.equal(stockBriefing(invalid).status,'invalid');
+ }
 });

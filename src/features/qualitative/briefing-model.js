@@ -35,7 +35,16 @@ export function stockBriefing(recommendation) {
     base.scores=[['원점수 S',s],['사건 보정 Q',adjustment],['보정 점수 T',t]];
     base.rankingCopy=recommendation.ranking_basis==='adjusted_score'?'이번 순위는 보정 점수 기준':'이번 순위는 원점수 기준 · 보정은 참고값';
     base.events=event?[event]:[];
-    base.summary=event?.summary||'확인된 유효 사건 없음';
+    base.summary=event?.summary||base.reason||'평가된 후보에서 반영할 사건 없음';
+    if(q.assessment_method==='verified_empty_candidate_set') {
+      if(adjustment!==0||event||q.model!=='not_used'
+        ||q.coverage?.scope!=='fmp_stock_news_first_page'
+        ||q.coverage?.claim!=='retrieved_candidate_set_only')return unavailable();
+      base.label='후보 확인 · 모델 미사용';
+      base.summary='확인한 FMP 뉴스 후보 없음';
+      base.coverageCopy='FMP 뉴스 첫 페이지에서 수집된 후보 범위에 한정합니다.';
+      base.summary+=` · ${base.coverageCopy}`;
+    }
   } else if(recommendation.strategy === 'MLG') {
     const validE=[0,.15,.35,.45,.55,.65,.82,.9];
     if(![q.legacy_a,q.adopted_a].every(v=>[0,3].includes(v))||![q.legacy_e,q.adopted_e].every(v=>validE.includes(v))||!Array.isArray(q.events)||q.events.length>3)return unavailable();
