@@ -58,6 +58,31 @@ if(radarPath){
    cutoff:r.cutoff,analyzed_at:r.analyzed_at};
  reviewBundle(bundle);
 }
+const observedPath=arg('--observed-review');
+if(observedPath){
+ const report=JSON.parse(await readFile(join(observedPath,'report.json'),'utf8'));
+ const rows=JSON.parse(await readFile(join(observedPath,'all-company-review.json'),'utf8'));
+ const tenx=JSON.parse(await readFile(join(observedPath,'tenx-reviewed-cohort.json'),'utf8'));
+ const cases=await Promise.all(rows.map(async row=>{
+  const a=JSON.parse(await readFile(join(observedPath,'assessments',row.strategy+'-'+row.symbol+'.json'),'utf8'));
+  const e=a.envelope,d=a.decision,v=row.strategy==='mlg'?d.semantic_rule_validation:d;
+  const valid=['evaluated','cached'].includes(row.semantic_rule_status);
+  const events=(valid?(row.strategy==='mlg'?v.events:(d.event?[d.event]:[])):e.events)||[];
+  const urls=new Set(events.map(x=>x.source_url));if(e.ai_evidence?.source_url)urls.add(e.ai_evidence.source_url);
+  const n=tenx.find(x=>x.symbol===row.symbol);
+  return {...row,ai_reason:e.ai_reason||'',events:events.map(x=>({quote:x.quote,reason:x.reason,
+    published_at:x.published_at,occurred_at:x.occurred_at,mlg_state:x.mlg_state})),
+    sources:(e.evidence||[]).filter(x=>urls.has(x.url)).map(x=>({url:x.url,quote:x.quote,
+     published_at:x.published_at,timezone_unknown:!!x.publication_time,observed_at:x.source_observation?.observed_at})),
+    ...(row.strategy==='mlg'?{baseline_e:d.baseline_e,baseline_a:d.baseline_a,
+      proposed_e:d.proposed_e,proposed_a:d.proposed_a}: {quantitative_score:n.quantitative_score,
+      q:valid?n.qualitative_adjustment:null,adjusted_score:valid?n.adjusted_score:null})};
+ }));
+ bundle.observed_review={schema:'observed_company_preview_v1',data_as_of:report.source_cutoff,
+  numeric_run_id:bundle.numeric.run_id,monthly_allocation_microusd:4000000,
+  production_adopted:false,cases};
+ reviewBundle(bundle);
+}
 const password=randomBytes(15).toString('base64url');
 const encrypted=await encryptEnvelope(bundle,password);
 reviewBundle(await decryptEnvelope(encrypted,password));

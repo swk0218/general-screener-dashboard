@@ -43,3 +43,30 @@ test('private import explores stored sample and independent numeric run then cle
  await expect(page.getByLabel('체험 암호',{exact:true})).toBeVisible();await expect(page.getByText('TEST_ONLY confirmed contract.')).toHaveCount(0);
  expect(errors).toEqual([]);
 });
+
+
+test('observed company panel explores stored Q and original evidence while keeping S unchanged',async({page})=>{
+ const fixture=reviewFixture();
+ fixture.observed_review={schema:'observed_company_preview_v1',data_as_of:'2026-11-09T10:00:00Z',
+  production_adopted:false,numeric_run_id:'123',monthly_allocation_microusd:4000000,cases:[{
+   strategy:'tenx',symbol:'TEST',company_name:'Test Company',production_adopted:false,
+   semantic_rule_status:'cached',semantic_reason:null,quantitative_score:70,q:1,adjusted_score:71,
+   events:[{quote:'TEST_ONLY confirmed contract.',reason:'TEST_ONLY 회사 사건을 확인했습니다.',
+    published_at:'2026-11-08 10:00:00',occurred_at:'2026-11-08',mlg_state:'positive'}],
+   sources:[{url:'https://example.com/ir',quote:'TEST_ONLY confirmed contract.',published_at:'2026-11-08 10:00:00',timezone_unknown:true}]}]};
+ const encrypted=await encryptEnvelope(fixture,password);
+ await page.goto('/review.html');
+ await page.locator('input[type=file]').setInputFiles({name:'observed.enc.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(encrypted))});
+ await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
+ await page.getByRole('button',{name:'TENX',exact:true}).click();
+ const panel=page.getByRole('region',{name:'TENX 실제 회사 후보 검토'});
+ await panel.getByLabel('회사 검토 찾기').fill('TEST');
+ await panel.getByRole('button',{name:'TEST 검토 상세'}).click();
+ await expect(panel).toContainText('TEST_ONLY 회사 사건을 확인했습니다.');
+ await expect(panel).toContainText('원점수 S');await expect(panel).toContainText('71');
+ await panel.getByText('실제 전달 원문 발췌 1',{exact:true}).click();
+ await expect(panel).toContainText('시간대 미확인');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
+ await expect(page.getByText('TEST_ONLY 회사 사건을 확인했습니다.')).toHaveCount(0);
+});

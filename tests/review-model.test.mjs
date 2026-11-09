@@ -54,3 +54,23 @@ test('completed actual query cannot be relabelled as completed evidence analysis
   assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
  }
 });
+
+test('observed company review preserves numeric source and keeps missing Q distinct from zero',()=>{
+ const source=reviewFixture();
+ source.observed_review={schema:'observed_company_preview_v1',data_as_of:'2026-11-09T10:00:00Z',
+  production_adopted:false,numeric_run_id:'123',monthly_allocation_microusd:4000000,cases:[{
+   strategy:'tenx',symbol:'TEST',company_name:'Test Company',production_adopted:false,
+   semantic_rule_status:'unevaluated',quantitative_score:70,q:null,adjusted_score:null,
+   events:[],sources:[]}]};
+ const before=structuredClone(source);
+ assert.equal(reviewBundle(source).observed_review.cases[0].q,null);
+ assert.deepEqual(source,before);
+ for(const mutate of [x=>x.observed_review.cases[0].q=0,
+  x=>x.observed_review.cases[0].quantitative_score=71,
+  x=>x.observed_review.production_adopted=true,
+  x=>x.observed_review.cases.push(structuredClone(x.observed_review.cases[0]))]){
+  const bad=structuredClone(source);mutate(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
+ }
+ source.observed_review.cases[0]={...source.observed_review.cases[0],semantic_rule_status:'cached',q:0,adjusted_score:70};
+ assert.equal(reviewBundle(source).observed_review.cases[0].q,0);
+});

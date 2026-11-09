@@ -29,3 +29,10 @@ npm run build:review -- --inputs /private/PRIVATE-review-inputs \
 오프라인 완성본은 file://로 열어 외부 요청 0, 잘못된 암호, 실제 종목 탐색, 모바일 overflow,
 잠금 후 자료 제거까지 별도로 검증한다. 리뷰 UI가 통과해도 실제 provider/원장/위험 이력/
 Radar 검색·게시 검증을 완료했다고 표현하지 않는다.
+
+후속 실제 후보 검토는 `--observed-review /private/final-observed-replay`로 연결한다.
+MLG·TENX 121개씩의 회사별 판정·보류 사유, MLG의 이전/제안 E·A, TENX의
+원점수 S·검토 Q·참고 T와 전달 원문 발췌를 탐색한다. 미평가 Q는 null로 남기며
+원본 숫자 표와 제한 SEC 표본을 보존한다. API 응답 확보·근거 규칙 통과·독립
+회사 의미 검토·운영 설치는 서로 다른 완료 상태다. 생성 파일을 사이트에 자동
+게시하거나 운영 비밀번호를 사용하지 않는다.

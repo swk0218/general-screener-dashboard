@@ -78,6 +78,33 @@ export function reviewBundle(value) {
       ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256)||!stamp(r.cutoff)||!stamp(r.analyzed_at)
       ||Date.parse(r.analyzed_at)<Date.parse(r.cutoff)))fail();
   }
+  if(value.observed_review!=null){
+    const r=value.observed_review;
+    if(r.schema!=='observed_company_preview_v1'||!stamp(r.data_as_of)
+      ||r.production_adopted!==false||r.numeric_run_id!==value.numeric.run_id
+      ||!Number.isSafeInteger(r.monthly_allocation_microusd)||r.monthly_allocation_microusd>50000000
+      ||!Array.isArray(r.cases)||r.cases.length>300)fail();
+    const ids=new Set();
+    for(const c of r.cases){
+      const key=c.strategy+':'+c.symbol;
+      if(!['mlg','tenx'].includes(c.strategy)||!/^[A-Z0-9.^-]{1,20}$/.test(c.symbol)
+        ||ids.has(key)||typeof c.company_name!=='string'||c.production_adopted!==false
+        ||!['evaluated','cached','unevaluated'].includes(c.semantic_rule_status)
+        ||!Array.isArray(c.events)||c.events.length>100||!Array.isArray(c.sources)||c.sources.length>50
+        ||c.sources.some(x=>!safeSourceUrl(x.url)||typeof x.quote!=='string'||x.quote.length>6000
+          ||typeof x.published_at!=='string')
+        ||c.events.some(e=>typeof e.quote!=='string'||typeof e.reason!=='string'))fail();
+      if(c.strategy==='tenx'){
+        const original=value.numeric.result.ranked_all.find(x=>x.symbol===c.symbol);
+        if(!original||c.quantitative_score!==original.tenx_score)fail();
+        if(['evaluated','cached'].includes(c.semantic_rule_status)
+          &&(!Number.isInteger(c.q)||Math.abs(c.q)>3||!finite(c.adjusted_score)
+            ||Math.abs(c.adjusted_score-Math.max(0,Math.min(100,c.quantitative_score+c.q)))>1e-9))fail();
+        if(c.semantic_rule_status==='unevaluated'&&(c.q!==null||c.adjusted_score!==null))fail();
+      }
+      ids.add(key);
+    }
+  }
   return value;
 }
 export function findSample(bundle, strategy) {
