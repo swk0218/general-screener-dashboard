@@ -5,7 +5,7 @@ const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'
 const number = value => typeof value==='number'?value.toLocaleString('ko-KR',{maximumFractionDigits:2}):value;
 function Clock({label,value}) { return <span>{label} <time dateTime={value||undefined}>{time(value)}</time></span>; }
 function Evidence({item}) {
-  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>}</div>
+  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>} {item.observedAt?<Clock label="수집 확인" value={item.observedAt}/>:null}</div>
     <ul>{item.sources.map((source,index)=><li key={`${source.url}-${index}`}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>{source.quote?<p>{source.quote}</p>:null}</li>)}</ul></details>;
 }
 export function StockBriefing({recommendation,compact=false}) {

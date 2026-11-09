@@ -122,3 +122,24 @@ test('retained legacy risks disclose observation count without granting evaluati
  assert.doesNotMatch(JSON.stringify(view),/PRIVATE_RAW_MUST_NOT_DISPLAY/);
  for(const count of [0,-1,2001,1.5,'3']){row.qualitative.legacy_observation_count=count;assert.equal(stockBriefing(row).legacyCopy,undefined);}
 });
+
+
+test('observed availability keeps source timezone unknown and exposes its separate collection clock',()=>{
+ const row=tenx(),raw='2026-11-07 09:00:00';
+ const metadata={basis:'fmp_publishedDate_timezone_unspecified',precision:'local_datetime_timezone_unknown',timezone:null,offset_enclosure_hours:24,earliest_utc:'2026-11-06T09:00:00Z',latest_utc:'2026-11-08T09:00:00Z'};
+ Object.assign(row.qualitative.event,{published_at:raw,publication_time:metadata,source_observation:{basis:'successful_fmp_response',observed_at:cutoff,payload_sha256:'a'.repeat(64)}});
+ const before=structuredClone(row),view=stockBriefing(row);
+ assert.equal(view.status,'evaluated');assert.equal(view.events[0].publishedAt,raw);
+ assert.equal(view.events[0].publicationTimeUnknown,true);assert.equal(view.events[0].observedAt,cutoff);
+ assert.deepEqual(row,before);
+ for(const change of [{observed_at:'2026-11-09T00:00:00Z'},{payload_sha256:'forged'},{basis:'model_claim'}]){
+  const bad=structuredClone(row);Object.assign(bad.qualitative.event.source_observation,change);
+  assert.equal(stockBriefing(bad).status,'invalid');
+ }
+});
+
+test('retained boundary context is described separately from excluded sources',()=>{
+ const row=tenx();Object.assign(row.qualitative,{collection_scope:'fmp_stock_news_first_page',collection_summary:{raw_count:4,admitted_count:4,excluded_count:0,boundary_context_count:1,pagination_may_continue:false}});
+ assert.match(stockBriefing(row).collectionCopy,/검토 후보 4건.*90일 경계 문맥 1건/);
+ row.qualitative.collection_summary.boundary_context_count=5;assert.equal(stockBriefing(row).collectionCopy,null);
+});

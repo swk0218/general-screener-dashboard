@@ -27,16 +27,28 @@ export function publicationDisplay(source, cutoff) {
   // UTC-shaped anchor is arithmetic only, never an inferred publication timezone.
   const normalized=raw.replace(' ','T'),anchor=Date.parse(normalized+'Z');
   if(!Number.isFinite(anchor)||new Date(anchor).toISOString().slice(0,19)!==normalized.slice(0,19)
-    ||Date.parse(meta.earliest_utc)!==anchor-86400000||Date.parse(meta.latest_utc)!==anchor+86400000
-    ||Date.parse(meta.latest_utc)>Date.parse(cutoff))return null;
-  return {publishedAt:raw,publicationTimeUnknown:true};
+    ||Date.parse(meta.earliest_utc)!==anchor-86400000||Date.parse(meta.latest_utc)!==anchor+86400000)return null;
+  let upper=Date.parse(meta.latest_utc),observedAt=null;
+  const observation=source.source_observation;
+  if(observation!==undefined){
+    if(!observation||observation.basis!=='successful_fmp_response'
+      ||!timestamp(observation.observed_at)||!/^[a-f0-9]{64}$/.test(observation.payload_sha256)
+      ||Date.parse(observation.observed_at)<Date.parse(meta.earliest_utc)
+      ||Date.parse(observation.observed_at)>Date.parse(cutoff))return null;
+    observedAt=observation.observed_at;
+    upper=Math.min(upper,Date.parse(observedAt));
+  }
+  if(upper>Date.parse(cutoff))return null;
+  return {publishedAt:raw,publicationTimeUnknown:true,...(observedAt?{observedAt}: {})};
 }
 function collectionCopy(summary) {
   if(!summary||!['raw_count','admitted_count','excluded_count'].every(k=>Number.isSafeInteger(summary[k])&&summary[k]>=0)
     ||summary.admitted_count+summary.excluded_count>summary.raw_count||typeof summary.pagination_may_continue!=='boolean')return null;
   const uncertain=summary.uncertain_time_count;
   if(uncertain!==undefined&&(!Number.isSafeInteger(uncertain)||uncertain<0||uncertain>summary.excluded_count))return null;
-  return `수집 ${summary.raw_count}건 · 시점 조건 채택 ${summary.admitted_count}건 · 제외 ${summary.excluded_count}건${uncertain>0?` · 발행 시각 경계 미확정 ${uncertain}건`:''}${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
+  const context=summary.boundary_context_count;
+  if(context!==undefined&&(!Number.isSafeInteger(context)||context<0||context>summary.admitted_count))return null;
+  return `수집 ${summary.raw_count}건 · ${context>0?'검토 후보':'시점 조건 채택'} ${summary.admitted_count}건${context>0?` · 90일 경계 문맥 ${context}건`:''} · 제외 ${summary.excluded_count}건${uncertain>0?` · 발행 시각 경계 미확정 ${uncertain}건`:''}${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
 }
 function stockEvent(event, cutoff, symbol) {
   const publication=publicationDisplay(event,cutoff);
