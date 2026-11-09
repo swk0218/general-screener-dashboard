@@ -74,3 +74,12 @@ test('observed company review preserves numeric source and keeps missing Q disti
  source.observed_review.cases[0]={...source.observed_review.cases[0],semantic_rule_status:'cached',q:0,adjusted_score:70};
  assert.equal(reviewBundle(source).observed_review.cases[0].q,0);
 });
+
+
+test('actual Radar snapshot stays independent from Beta and historical source clocks',()=>{
+ const b=reviewFixture();b.actual_radar_news={schema_version:'radar_news_v1',affects_beta:false,
+ status:'ready',events:[],run_id:'123',policy_version:'fixture',
+ cutoff_at:'2026-11-09T09:59:00Z',analyzed_at:'2026-11-09T10:00:00Z'};
+ assert.equal(reviewBundle(b).actual_radar_news.events.length,0);
+ b.actual_radar_news.affects_beta=true;assert.throws(()=>reviewBundle(b),/REVIEW_BUNDLE_INVALID/);
+});

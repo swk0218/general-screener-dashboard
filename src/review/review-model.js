@@ -1,4 +1,4 @@
-import { safeSourceUrl } from '../features/qualitative/briefing-model.js';
+import { safeSourceUrl, radarBriefing } from '../features/qualitative/briefing-model.js';
 
 const finite = x => typeof x === 'number' && Number.isFinite(x);
 const stamp = x => typeof x === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(x) && Number.isFinite(Date.parse(x));
@@ -104,6 +104,12 @@ export function reviewBundle(value) {
       }
       ids.add(key);
     }
+  }
+  if(value.actual_radar_news!=null){
+    const n=value.actual_radar_news;
+    if(n.schema_version!=='radar_news_v1'||n.affects_beta!==false
+      ||!['ready','cached','unavailable'].includes(n.status)||!Array.isArray(n.events)
+      ||n.events.length>3||radarBriefing(n,Date.parse(value.created_at))?.status!==n.status)fail();
   }
   return value;
 }

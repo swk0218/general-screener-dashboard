@@ -83,6 +83,8 @@ if(observedPath){
   production_adopted:false,cases};
  reviewBundle(bundle);
 }
+const radarResult=arg('--radar-result');
+if(radarResult){bundle.actual_radar_news=JSON.parse(await readFile(radarResult,'utf8')).news;reviewBundle(bundle);}
 const password=randomBytes(15).toString('base64url');
 const encrypted=await encryptEnvelope(bundle,password);
 reviewBundle(await decryptEnvelope(encrypted,password));
