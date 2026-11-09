@@ -41,3 +41,15 @@ test('reviewed legacy eligibility retains all risks and actual Radar failure is 
   const bad=structuredClone(source);mutate(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
  }
 });
+
+test('completed actual query cannot be relabelled as completed evidence analysis',()=>{
+ const source=reviewFixture();
+ source.radar_validation={status:'incomplete',run_id:42669057252,provider_requests:1,
+  search_completed:false,search_queries_completed:1,reason:'search_evidence_incomplete',
+  retries:0,actual_billing_confirmed:false,artifact_sha256:'a'.repeat(64)};
+ assert.equal(reviewBundle(source).radar_validation.search_queries_completed,1);
+ for(const change of [{search_completed:true},{search_queries_completed:0},{artifact_sha256:null},{status:'ready'}]){
+  const bad=structuredClone(source);Object.assign(bad.radar_validation,change);
+  assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
+ }
+});

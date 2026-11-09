@@ -47,10 +47,14 @@ const radarPath=arg('--radar-receipt');
 if(radarPath){
  const r=JSON.parse(await readFile(radarPath,'utf8'));
  if(!Number.isSafeInteger(r.run_id)||r.run_id<=0||r.provider_calls!==1
-   ||r.provider_request_http_error!==true||r.search_execution_verified!==false
-   ||r.adopted_events!==0||r.retried!==false)throw Error('Invalid actual Radar receipt');
+   ||r.search_execution_verified!==true||r.search_queries_completed!==1
+   ||r.analysis_complete!==false||r.reason!=='search_evidence_incomplete'
+   ||r.adopted_events!==0||r.retried!==false||r.actual_billing_confirmed!==false
+   ||r.news?.status!=='unavailable'||r.news?.events?.length!==0
+   ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256))throw Error('Invalid actual Radar receipt');
  bundle.radar_validation={status:'incomplete',run_id:r.run_id,provider_requests:1,
-   search_completed:false,reason:'provider_http_error',retries:0,actual_billing_confirmed:false};
+   search_completed:false,search_queries_completed:1,reason:'search_evidence_incomplete',
+   retries:0,actual_billing_confirmed:false,artifact_sha256:r.artifact_sha256};
  reviewBundle(bundle);
 }
 const password=randomBytes(15).toString('base64url');

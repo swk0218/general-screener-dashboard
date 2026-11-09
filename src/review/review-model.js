@@ -71,8 +71,11 @@ export function reviewBundle(value) {
   if(value.radar_validation!=null){
     const r=value.radar_validation;
     if(r.status!=='incomplete'||!Number.isSafeInteger(r.run_id)||r.run_id<=0
-      ||r.provider_requests!==1||r.search_completed!==false||r.reason!=='provider_http_error'
+      ||r.provider_requests!==1||r.search_completed!==false
+      ||!['provider_http_error','search_evidence_incomplete'].includes(r.reason)
       ||r.retries!==0||r.actual_billing_confirmed!==false)fail();
+    if(r.reason==='search_evidence_incomplete'&&(r.search_queries_completed!==1
+      ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256)))fail();
   }
   return value;
 }
