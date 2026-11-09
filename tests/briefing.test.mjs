@@ -58,7 +58,7 @@ test('verified empty FMP candidates retain limited coverage and no-model claim',
 });
 
 test('collection scope uses only fixed enum copy for evaluated cached and unevaluated',()=>{
- const labels={fmp_stock_news_first_page:'수집한 FMP 뉴스 첫 페이지 후보 범위',unverified_candidate_set:'선택 근거 범위 · 전체 사건 수집 미확인'};
+ const labels={fmp_stock_news_first_page:'FMP 뉴스 첫 페이지 중 시점 조건을 충족한 후보 범위',unverified_candidate_set:'선택 근거 범위 · 전체 사건 수집 미확인'};
  for(const status of ['evaluated','cached','unevaluated'])for(const [scope,label] of Object.entries(labels)){
   const row=tenx();Object.assign(row.qualitative,{status,collection_scope:scope,scope_label:'UNTRUSTED RAW RECEIPT'});
   const before=structuredClone(row),model=stockBriefing(row);assert.equal(model.scopeCopy,label);assert.deepEqual(row,before);assert.doesNotMatch(JSON.stringify(model),/UNTRUSTED RAW RECEIPT/);
@@ -83,4 +83,22 @@ test('MLG business evidence is independent of event news and never changes score
  const removed=structuredClone(row);Object.assign(removed.qualitative,{legacy_a:3,adopted_a:0,score_delta:-3,ai_supply:'ineligible'});removed.qualitative.ai_evidence.role=null;
  assert.match(stockBriefing(removed).aiEvidence.summary,/공급 가점 제외/);
  delete row.qualitative.ai_evidence;assert.equal(stockBriefing(row).status,'evaluated');
+});
+
+test('unknown source timezone preserves raw clock and validates the full conservative interval',()=>{
+ const raw='2026-11-06 10:00:00';
+ const metadata={basis:'fmp_publishedDate_timezone_unspecified',precision:'local_datetime_timezone_unknown',timezone:null,offset_enclosure_hours:24,earliest_utc:'2026-11-05T10:00:00+00:00',latest_utc:'2026-11-07T10:00:00+00:00'};
+ const row=tenx();Object.assign(row.qualitative.event,{published_at:raw,publication_time:metadata});
+ const before=structuredClone(row),view=stockBriefing(row);
+ assert.equal(view.status,'evaluated');assert.equal(view.events[0].publishedAt,raw);assert.equal(view.events[0].publicationTimeUnknown,true);assert.deepEqual(row,before);
+ for(const mutate of [r=>delete r.qualitative.event.publication_time,r=>r.qualitative.event.publication_time.timezone='UTC',r=>r.qualitative.event.publication_time.latest_utc='2026-11-07T10:00:01Z',r=>r.qualitative.event.published_at='2026-02-30 10:00:00',r=>r.qualitative.data_as_of='2026-11-07T09:59:59Z']){
+  const bad=structuredClone(row);mutate(bad);assert.equal(stockBriefing(bad).status,'invalid');
+ }
+ const mlg={symbol:'TEST',strategy:'MLG',qualitative:{status:'evaluated',legacy_a:0,adopted_a:3,legacy_e:.65,adopted_e:.65,score_delta:3,data_as_of:cutoff,analyzed_at:analyzed,events:[],ai_supply:'eligible',ai_evidence:{symbol:'TEST',source_url:event.source_url,published_at:raw,publication_time:metadata,role:'model_cloud'}}};
+ assert.equal(stockBriefing(mlg).aiEvidence.publicationTimeUnknown,true);
+});
+test('collection counts and page warning are validated and do not echo arbitrary labels',()=>{
+ const row=tenx();Object.assign(row.qualitative,{collection_scope:'fmp_stock_news_first_page',collection_summary:{raw_count:5,admitted_count:2,excluded_count:2,pagination_may_continue:true,scope_label:'UNTRUSTED'}});
+ assert.equal(stockBriefing(row).collectionCopy,'수집 5건 · 시점 조건 채택 2건 · 제외 2건 · 다음 페이지 후보가 더 있을 수 있음');
+ for(const bad of [{raw_count:-1},{admitted_count:8},{excluded_count:1.5},{pagination_may_continue:'true'}]){const other=structuredClone(row);Object.assign(other.qualitative.collection_summary,bad);assert.equal(stockBriefing(other).collectionCopy,null);}
 });

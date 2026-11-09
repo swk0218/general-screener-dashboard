@@ -5,7 +5,7 @@ const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'
 const number = value => typeof value==='number'?value.toLocaleString('ko-KR',{maximumFractionDigits:2}):value;
 function Clock({label,value}) { return <span>{label} <time dateTime={value||undefined}>{time(value)}</time></span>; }
 function Evidence({item}) {
-  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks"><Clock label="발표" value={item.publishedAt}/></div>
+  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>}</div>
     <ul>{item.sources.map((source,index)=><li key={`${source.url}-${index}`}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>{source.quote?<p>{source.quote}</p>:null}</li>)}</ul></details>;
 }
 export function StockBriefing({recommendation,compact=false}) {
@@ -15,6 +15,7 @@ export function StockBriefing({recommendation,compact=false}) {
     <header><h3>사건·사업 판단</h3><small>{value.label}</small></header>
     {value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null}
     {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}
+    {value.collectionCopy?<p className="briefing-note">{value.collectionCopy}</p>:null}
     {!compact&&<>
       {value.scores.length>0&&<dl className="briefing-scores">{value.scores.map(([label,score])=><div key={label}><dt>{label}</dt><dd>{number(score)}</dd></div>)}</dl>}
       {value.rankingCopy?<p className="briefing-note">{value.rankingCopy}</p>:null}

@@ -12,15 +12,35 @@ export const STATUS_COPY = Object.freeze({
   stale:'이전 자료', invalid:'분석 자료 확인 필요',
 });
 const COLLECTION_SCOPE_COPY = Object.freeze({
-  fmp_stock_news_first_page:'수집한 FMP 뉴스 첫 페이지 후보 범위',
+  fmp_stock_news_first_page:'FMP 뉴스 첫 페이지 중 시점 조건을 충족한 후보 범위',
   unverified_candidate_set:'선택 근거 범위 · 전체 사건 수집 미확인',
 });
 const unavailable = () => ({status:'invalid',label:STATUS_COPY.invalid,events:[],scores:[]});
+export function publicationDisplay(source, cutoff) {
+  if(!source || !timestamp(cutoff))return null;
+  const raw=source.published_at, meta=source.publication_time;
+  if(meta == null)return timestamp(raw)&&Date.parse(raw)<=Date.parse(cutoff)?{publishedAt:raw}:null;
+  if(typeof raw!=='string'||!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(raw)
+    ||meta.basis!=='fmp_publishedDate_timezone_unspecified'||meta.precision!=='local_datetime_timezone_unknown'
+    ||meta.timezone!==null||meta.offset_enclosure_hours!==24
+    ||!timestamp(meta.earliest_utc)||!timestamp(meta.latest_utc))return null;
+  // UTC-shaped anchor is arithmetic only, never an inferred publication timezone.
+  const normalized=raw.replace(' ','T'),anchor=Date.parse(normalized+'Z');
+  if(!Number.isFinite(anchor)||new Date(anchor).toISOString().slice(0,19)!==normalized.slice(0,19)
+    ||Date.parse(meta.earliest_utc)!==anchor-86400000||Date.parse(meta.latest_utc)!==anchor+86400000
+    ||Date.parse(meta.latest_utc)>Date.parse(cutoff))return null;
+  return {publishedAt:raw,publicationTimeUnknown:true};
+}
+function collectionCopy(summary) {
+  if(!summary||!['raw_count','admitted_count','excluded_count'].every(k=>Number.isSafeInteger(summary[k])&&summary[k]>=0)
+    ||summary.admitted_count+summary.excluded_count>summary.raw_count||typeof summary.pagination_may_continue!=='boolean')return null;
+  return `수집 ${summary.raw_count}건 · 시점 조건 채택 ${summary.admitted_count}건 · 제외 ${summary.excluded_count}건${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
+}
 function stockEvent(event, cutoff, symbol) {
-  if(!event || !text(event.id) || event.symbol !== symbol || !timestamp(event.published_at)
-    || Date.parse(event.published_at)>Date.parse(cutoff) || !safeSourceUrl(event.source_url)
+  const publication=publicationDisplay(event,cutoff);
+  if(!event || !text(event.id) || event.symbol !== symbol || !publication || !safeSourceUrl(event.source_url)
     || !text(event.reason)) return null;
-  return {id:event.id,summary:text(event.reason),publishedAt:event.published_at,sources:[{url:safeSourceUrl(event.source_url),label:'원문',quote:text(event.quote)}]};
+  return {id:event.id,summary:text(event.reason),...publication,sources:[{url:safeSourceUrl(event.source_url),label:'원문',quote:text(event.quote)}]};
 }
 export function stockBriefing(recommendation) {
   const q = recommendation?.qualitative;
@@ -28,6 +48,7 @@ export function stockBriefing(recommendation) {
   if(!q || typeof q !== 'object' || !Object.hasOwn(STATUS_COPY,q.status)) return unavailable();
   const base={status:q.status,label:STATUS_COPY[q.status],reason:text(q.reason),events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
   if(['evaluated','cached','unevaluated'].includes(q.status)&&Object.hasOwn(COLLECTION_SCOPE_COPY,q.collection_scope))base.scopeCopy=COLLECTION_SCOPE_COPY[q.collection_scope];
+  if(['evaluated','cached','unevaluated'].includes(q.status)&&q.collection_scope==='fmp_stock_news_first_page')base.collectionCopy=collectionCopy(q.collection_summary);
   if(['disabled','fallback','unevaluated','unavailable','uncertain','stale'].includes(q.status))return base;
   if(!base.dataAsOf || !base.analyzedAt || Date.parse(base.analyzedAt)<Date.parse(base.dataAsOf)) return unavailable();
   if(recommendation.strategy === 'TENX') {
@@ -60,14 +81,14 @@ export function stockBriefing(recommendation) {
     base.events=events.slice(0,3);
     if(q.ai_evidence != null) {
       const evidence=q.ai_evidence;
+      const publication=publicationDisplay(evidence,base.dataAsOf);
       const roles={semiconductor:'반도체 공급',compute_memory:'컴퓨팅·메모리 공급',connectivity:'연결 인프라 공급',datacenter_hardware:'데이터센터 장비 공급',model_cloud:'모델·클라우드 공급'};
       if(!['eligible','ineligible'].includes(q.ai_supply)||!evidence||evidence.symbol!==recommendation.symbol
-        ||!safeSourceUrl(evidence.source_url)||!timestamp(evidence.published_at)
-        ||Date.parse(evidence.published_at)>Date.parse(base.dataAsOf)
+        ||!safeSourceUrl(evidence.source_url)||!publication
         ||(q.ai_supply==='eligible'&&(!Object.hasOwn(roles,evidence.role)||q.adopted_a!==3))
         ||(q.ai_supply==='ineligible'&&q.adopted_a!==0))return unavailable();
       const summary=q.ai_supply==='eligible'?`AI 사업 판단 · ${roles[evidence.role]}`:'AI 사업 판단 · 공급 가점 제외 근거 확인';
-      base.aiEvidence={id:'ai-supply',summary,publishedAt:evidence.published_at,sources:[{url:safeSourceUrl(evidence.source_url),label:'사업 근거 원문'}]};
+      base.aiEvidence={id:'ai-supply',summary,...publication,sources:[{url:safeSourceUrl(evidence.source_url),label:'사업 근거 원문'}]};
     }
     base.summary=events[0]?.summary||base.aiEvidence?.summary||base.reason||'기존 산식으로 정성 판단 반영';
   } else return unavailable();
