@@ -50,6 +50,7 @@ export function stockBriefing(recommendation) {
   if(!q || typeof q !== 'object' || !Object.hasOwn(STATUS_COPY,q.status)) return unavailable();
   const reasons={not_evaluated:'정성 평가를 수행하지 않았습니다.',incomplete_collection:'뉴스 수집 범위가 불완전해 정성 점수 반영을 보류했습니다.',configuration_missing:'정성 분석 설정을 확인할 수 없습니다.',readiness_or_evidence_blocked:'자금·근거 확인이 끝나지 않아 정성 점수 반영을 보류했습니다.',provider_or_contract_failure:'정성 분석 결과를 확인할 수 없어 기존 점수를 유지합니다.'};
   const base={status:q.status,label:STATUS_COPY[q.status],reason:Object.hasOwn(reasons,q.reason)?reasons[q.reason]:text(q.reason),events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
+  if(q.legacy_risk_retained===true&&Number.isSafeInteger(q.legacy_observation_count)&&q.legacy_observation_count>0&&q.legacy_observation_count<=2000)base.legacyCopy=`과거 위험 관찰 ${q.legacy_observation_count}건 유지 · 해소 검토 필요`;
   if(['evaluated','cached','unevaluated'].includes(q.status)&&Object.hasOwn(COLLECTION_SCOPE_COPY,q.collection_scope))base.scopeCopy=COLLECTION_SCOPE_COPY[q.collection_scope];
   if(['evaluated','cached','unevaluated'].includes(q.status)&&q.collection_scope==='fmp_stock_news_first_page')base.collectionCopy=collectionCopy(q.collection_summary);
   if(q.status==='unevaluated'&&recommendation.strategy==='TENX'&&finite(recommendation.quantitative_score)&&recommendation.ranking_basis==='quantitative_score'){

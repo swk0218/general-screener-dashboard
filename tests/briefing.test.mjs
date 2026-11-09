@@ -112,3 +112,13 @@ test('uncertain excluded news remains visible and unevaluated Q never becomes ze
  assert.deepEqual(row,before);
  for(const count of [-1,2,1.5,'1']){row.qualitative.collection_summary.uncertain_time_count=count;assert.equal(stockBriefing(row).collectionCopy,null);}
 });
+
+
+test('retained legacy risks disclose observation count without granting evaluation',()=>{
+ const row={strategy:'MLG',qualitative:{status:'unevaluated',legacy_risk_retained:true,legacy_observation_count:3,legacy_observations:[{quote:'PRIVATE_RAW_MUST_NOT_DISPLAY'}]}};
+ const view=stockBriefing(row);
+ assert.equal(view.legacyCopy,'과거 위험 관찰 3건 유지 · 해소 검토 필요');
+ assert.equal(view.status,'unevaluated');assert.deepEqual(view.scores,[]);
+ assert.doesNotMatch(JSON.stringify(view),/PRIVATE_RAW_MUST_NOT_DISPLAY/);
+ for(const count of [0,-1,2001,1.5,'3']){row.qualitative.legacy_observation_count=count;assert.equal(stockBriefing(row).legacyCopy,undefined);}
+});

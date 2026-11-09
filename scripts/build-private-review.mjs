@@ -22,6 +22,23 @@ const bundle=reviewBundle({schema:'gpt_private_review_v1',created_at:new Date().
   source_files:sources.map((raw,i)=>({name:names[i],sha256:createHash('sha256').update(raw).digest('hex')})),
   numeric:{run_id:'42622109601',result:numeric},
   samples:inputs.map(x=>({...x,report:reports.find(r=>r.case_id===x.case_id)}))});
+const legacyPath=arg('--legacy-seed');
+if(legacyPath){
+ const wrapper=JSON.parse(await readFile(legacyPath,'utf8')),state=wrapper.state;
+ const fingerprint=createHash('sha256').update(JSON.stringify(state)).digest('hex');
+ if(wrapper.sha256!==fingerprint||state?.schema!=='mlg_qualitative_risk_history_v1'
+   ||!Array.isArray(state.covered_symbols)||state.covered_symbols.length!==0
+   ||Object.keys(state.active||{}).length!==0||!state.legacy_observations)throw Error('Invalid carry-only seed');
+ bundle.legacy_review={mode:'carry_only',evaluation_coverage:0,state_sha256:fingerprint,
+   source_run_id:state.legacy_source.run_id,observed_by:state.legacy_source.observed_by,
+   companies:Object.entries(state.legacy_observations).map(([symbol,records])=>{
+     const rows=Object.values(records);
+     return {symbol,level:rows.some(r=>r.mlg_state==='severe')?'severe':'watch',
+       observations:rows.length,missing_publication:rows.filter(r=>!r.source_publication_raw).length,
+       action_dates:[...new Set(rows.map(r=>r.original_event_date).filter(Boolean))].sort()};
+   }).sort((a,b)=>a.symbol.localeCompare(b.symbol))};
+ reviewBundle(bundle);
+}
 const password=randomBytes(15).toString('base64url');
 const encrypted=await encryptEnvelope(bundle,password);
 reviewBundle(await decryptEnvelope(encrypted,password));

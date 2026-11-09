@@ -23,6 +23,18 @@ function Sample({sample}) {
     <details className="review-source"><summary>실행 근거</summary><p>요청 식별자 <code>{r.request_hash}</code></p><p>기록된 provider 상태 {r.provider_status} · 입력 {r.usage?.input_tokens} / 출력 {r.usage?.output_tokens} tokens</p><p className="briefing-note">새 API 요청은 수행하지 않습니다. 토큰 수는 비용 청구액이 아닙니다.</p></details>
   </article>;
 }
+function LegacyObservations({bundle}){
+ const legacy=bundle.legacy_review;if(!legacy)return null;
+ return <section className="review-card" aria-label="MLG 과거 위험 관찰">
+  <span className="review-eyebrow">복구된 과거 실행 · {legacy.source_run_id}</span>
+  <h2>과거 위험 관찰 {legacy.companies.length}개 회사</h2>
+  <p>발표 시각이 없는 관찰도 원래 날짜와 상태로 보존합니다. 기존 위험을 지키는 보호용 이력이며, 신규 GPT 평가가 허용된 회사는 0개입니다.</p>
+  <p className="briefing-note">원본 실행 완료 기록 {clock(legacy.observed_by)} · 기사 발표 시각과 별개</p>
+  <div className="review-table-scroll"><table><thead><tr><th>종목</th><th>과거 분류</th><th>관찰 근거</th><th>발표 시각 없음</th><th>원래 행동 날짜</th></tr></thead>
+   <tbody>{legacy.companies.map(item=><tr key={item.symbol}><td>{item.symbol}</td><td>{item.level}</td><td>{item.observations}건</td><td>{item.missing_publication}건</td><td>{item.action_dates.join(', ')||'미수록'}</td></tr>)}</tbody></table></div>
+  <p className="review-hold">현재 위험 해소·회사 전체 무위험·새 모델 평가 완료로 해석하지 않습니다.</p>
+ </section>;
+}
 function Numeric({bundle}) {
   const [query,setQuery]=useState(''),[selected,setSelected]=useState(null);
   const result=bundle.numeric.result,rows=numericRows(bundle,query);
@@ -42,7 +54,7 @@ function Overview({bundle}) {
   const result=bundle.numeric.result;
   return <><div className="review-stat-grid">{[['수치 검증',result.counts.rankable+'개 순위'],['저장된 SEC 판정',bundle.samples.length+'개 제한 표본'],['GPT 운영 한도','$50 / 월'],['현재 운영','기본 OFF']].map(([k,v])=><section className="review-stat" key={k}><span>{k}</span><strong>{v}</strong></section>)}</div>
     <section className="review-card"><span className="review-eyebrow">AI BRIEFING</span><h2>사건·사업 판단</h2><div className="review-summary-grid">{bundle.samples.map(s=><article key={s.case_id}><h3>{s.packet.symbol} · {s.packet.task.toUpperCase()}</h3><p>{s.packet.task==='mlg'?s.report.model_decision.ai_reason:s.report.sample_events[0]?.reason}</p><span className="review-tag">SEC 표본 · 운영 미반영</span></article>)}</div></section>
-    <section className="review-card"><h2>확인 가능한 범위</h2><p>실제 TENX 숫자 결과와 실제 SEC 표본 판정을 탐색할 수 있습니다. 실행과 자료 범위가 달라 표본 Q·AI 가점을 기존 총점에 합산하지 않습니다.</p><ul><li>최신 뉴스 시각이 분석 경계와 겹치면 정성 점수를 보류합니다.</li><li>MLG 과거 위험 원문 복구와 최초 이력 연결은 미완료입니다.</li><li>월 $50는 운영 상한입니다. 실제 자금·별도 운영 원장 설정은 미확인입니다.</li><li>Radar 실제 검색·뉴스 실행 자료는 아직 없습니다.</li></ul></section>
+    <section className="review-card"><h2>확인 가능한 범위</h2><p>실제 TENX 숫자 결과와 실제 SEC 표본 판정을 탐색할 수 있습니다. 실행과 자료 범위가 달라 표본 Q·AI 가점을 기존 총점에 합산하지 않습니다.</p><ul><li>최신 뉴스 시각이 분석 경계와 겹치면 정성 점수를 보류합니다.</li><li>MLG 보호용 과거 관찰 이력은 복구됐고, 신규 평가용 회사 검토는 남아 있습니다.</li><li>월 $50는 운영 상한입니다. 실제 자금·별도 운영 원장 설정은 미확인입니다.</li><li>Radar 실제 검색·뉴스 실행 자료는 아직 없습니다.</li></ul></section>
     <section className="review-card"><h2>자료 기록</h2><p className="briefing-note">이 파일의 생성 시각 {clock(bundle.created_at)}은 원문 시각이나 분석 시각을 갱신하지 않습니다.</p>{bundle.source_files.map(f=><details className="review-source" key={f.name}><summary>{f.name}</summary><code>SHA-256 {f.sha256}</code></details>)}</section></>;
 }
 export function ReviewApp() {
@@ -67,14 +79,14 @@ export function ReviewApp() {
     e.target.value='';
   }
   return <Theme theme={neutralTheme} colorScheme="dark"><div className="review-shell"><header className="review-top"><div className="brand-wordmark">GENERAL SCREENER</div><span className="review-tag">GPT 격리 체험</span>{bundle&&<button type="button" onClick={lock}>체험 잠금</button>}</header>
-    {!bundle?<main className="review-unlock"><span className="review-eyebrow">PRIVATE REVIEW</span><h1>저장된 실제 결과를<br/>직접 확인하세요</h1><p>별도 체험 암호로 열리는 로컬 검토본입니다.<br/>운영 비밀번호와 API 연결은 사용하지 않습니다.</p><form onSubmit={unlock}><label>체험 암호<input autoComplete="off" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button type="submit" disabled={busy}>{busy?'여는 중…':'체험 열기'}</button></form><label className="review-import">다른 검토 자료 불러오기<input type="file" accept=".json,application/json" onChange={choose}/></label>{input&&<p role="status">선택한 검토 자료를 사용합니다.</p>}{error&&<p role="alert">{error}</p>}<p className="briefing-note">자료는 이 창의 메모리에서 처리하며 저장하지 않습니다.</p></main>:<>
+    {!bundle?<main className="review-unlock"><span className="review-eyebrow">PRIVATE REVIEW</span><h1>저장된 실제 결과를<br/>직접 확인하세요</h1><p>별도 체험 암호로 열리는 비공개 검토본입니다.<br/>운영 비밀번호와 API 연결은 사용하지 않습니다.</p><form onSubmit={unlock}><label>체험 암호<input autoComplete="off" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button type="submit" disabled={busy}>{busy?'여는 중…':'체험 열기'}</button></form><label className="review-import">다른 검토 자료 불러오기<input type="file" accept=".json,application/json" onChange={choose}/></label>{input&&<p role="status">선택한 검토 자료를 사용합니다.</p>}{error&&<p role="alert">{error}</p>}<p className="briefing-note">자료는 이 창의 메모리에서 처리하며 저장하지 않습니다.</p></main>:<>
     <aside className="review-notice">검토 전용 · 운영 미반영 · 저장된 자료 · 새 유료 호출 없음</aside>
     <nav className="review-nav" aria-label="체험 화면">{tabs.map(([id,label])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
     <main className="review-content"><header className="review-heading"><span className="review-eyebrow">{tab==='overview'?'GENERAL SCREENER · GPT REVIEW':tab.toUpperCase()+' · GPT REVIEW'}</span><h1>{({overview:'수치 결과와 정성 판단',mlg:'AI 공급 역할과 위험 판단',tenx:'원점수와 사건 보정',radar:'시장 신호와 주요 뉴스'})[tab]}</h1></header>
       {tab==='overview'&&<Overview bundle={bundle}/>}
-      {tab==='mlg'&&<><Sample sample={findSample(bundle,'mlg')}/><section className="review-card"><h2>MLG 반영 규칙</h2><p>기존 AI 가점 A와 사건 E를 검증된 판단으로 교체합니다.</p><p className="review-formula">총점 변화 = 6 × (새 E − 기존 E) + 새 A − 기존 A</p><p>이전 위험의 해소 근거가 확인되지 않으면 기존 위험을 유지합니다. 최초 위험 이력 연결이 끝나기 전 운영 점수를 채택하지 않습니다.</p></section></>}
+      {tab==='mlg'&&<><Sample sample={findSample(bundle,'mlg')}/><LegacyObservations bundle={bundle}/><section className="review-card"><h2>MLG 반영 규칙</h2><p>기존 AI 가점 A와 사건 E를 검증된 판단으로 교체합니다.</p><p className="review-formula">총점 변화 = 6 × (새 E − 기존 E) + 새 A − 기존 A</p><p>이전 위험의 해소 근거가 확인되지 않으면 기존 위험을 유지합니다. 과거 관찰 이력은 보호용으로 연결되며, 회사별 근거 검토가 끝나기 전 새 의미 점수를 채택하지 않습니다.</p></section></>}
       {tab==='tenx'&&<><Sample sample={findSample(bundle,'tenx')}/><Numeric bundle={bundle}/></>}
-      {tab==='radar'&&<section className="review-card"><h2>시장 주요 뉴스</h2><RadarNews value={{schema_version:'radar_news_v1',affects_beta:false,status:'unavailable',events:[]}}/><p>실제 검색·원문 검증을 마친 Radar 뉴스 자료가 없어 분석 불가로 표시합니다.</p><p>검증된 뉴스를 최대 3개까지 별도로 제시하며, 기존 Beta 점수·경보·저널에는 반영하지 않습니다.</p><p>MLG·TENX·Radar는 검토된 동일 월 예산 원장을 공유하도록 연결됩니다. 실제 운영 자금과 접근 설정 검증은 남아 있습니다.</p></section>}
+      {tab==='radar'&&<section className="review-card"><h2>시장 주요 뉴스</h2><RadarNews value={{schema_version:'radar_news_v1',affects_beta:false,status:'unavailable',events:[]}}/><p>실제 검색·원문 검증을 마친 Radar 뉴스 자료가 없어 분석 불가로 표시합니다.</p><p>검증된 뉴스를 최대 3개까지 별도로 제시하며, 기존 Beta 점수·경보·저널에는 반영하지 않습니다.</p><p>세 제품의 합산 월 한도는 $50입니다. 실제 운영 자금과 권한이 준비되기 전 새 검색을 실행하지 않습니다.</p></section>}
     </main><footer className="review-footer">원래 개발 브랜치의 검토본 · 운영 반영은 자체 검토와 사용자 체험·명시 승인 후 진행</footer></>}
   </div></Theme>;
 }

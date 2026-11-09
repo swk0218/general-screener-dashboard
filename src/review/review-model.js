@@ -44,6 +44,22 @@ export function reviewBundle(value) {
     const ai=report.model_decision.ai_evidence;
     if (ai && (typeof ai.quote!=='string' || !p.evidence.some(e=>e.url===ai.source_url && e.quote.includes(ai.quote)))) fail();
   }
+  if(value.legacy_review!=null){
+    const legacy=value.legacy_review;
+    if(legacy.mode!=='carry_only'||legacy.evaluation_coverage!==0
+      ||!Number.isSafeInteger(legacy.source_run_id)||legacy.source_run_id<=0
+      ||!stamp(legacy.observed_by)||!/^[a-f0-9]{64}$/.test(legacy.state_sha256)
+      ||!Array.isArray(legacy.companies)||!legacy.companies.length||legacy.companies.length>5000)fail();
+    const symbols=new Set();
+    for(const item of legacy.companies){
+      if(!item||!/^[A-Z0-9.^-]{1,20}$/.test(item.symbol)||symbols.has(item.symbol)
+        ||!['watch','severe'].includes(item.level)||!Number.isSafeInteger(item.observations)
+        ||item.observations<=0||!Number.isSafeInteger(item.missing_publication)
+        ||item.missing_publication<0||item.missing_publication>item.observations
+        ||!Array.isArray(item.action_dates)||item.action_dates.some(d=>typeof d!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(d)))fail();
+      symbols.add(item.symbol);
+    }
+  }
   return value;
 }
 export function findSample(bundle, strategy) {

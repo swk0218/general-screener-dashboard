@@ -22,3 +22,10 @@ test('import refuses false production adoption, mismatched evidence and unsafe s
   x=>x.numeric.result.ranked_all[0].rank=2
  ]){const fixture=reviewFixture();mutate(fixture);assert.throws(()=>reviewBundle(fixture),/REVIEW_BUNDLE_INVALID/);}
 });
+
+test('legacy observations remain a review hold and cannot imply company coverage',()=>{
+ const fixture=reviewFixture();
+ assert.equal(reviewBundle(fixture).legacy_review.evaluation_coverage,0);
+ fixture.legacy_review.evaluation_coverage=1;
+ assert.throws(()=>reviewBundle(fixture),/REVIEW_BUNDLE_INVALID/);
+});

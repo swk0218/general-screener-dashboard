@@ -16,6 +16,7 @@ export function StockBriefing({recommendation,compact=false}) {
     {value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null}
     {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}
     {value.collectionCopy?<p className="briefing-note">{value.collectionCopy}</p>:null}
+    {value.legacyCopy?<p className="briefing-note">{value.legacyCopy}</p>:null}
     {!compact&&<>
       {value.scores.length>0&&<dl className="briefing-scores">{value.scores.map(([label,score])=><div key={label}><dt>{label}</dt><dd>{number(score)}</dd></div>)}</dl>}
       {value.rankingCopy?<p className="briefing-note">{value.rankingCopy}</p>:null}

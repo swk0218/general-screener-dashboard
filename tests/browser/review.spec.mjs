@@ -10,6 +10,12 @@ test('private import explores stored sample and independent numeric run then cle
  await expect(page.getByRole('alert')).toBeVisible();
  await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'수치 결과와 정성 판단'})).toBeVisible();
+ await page.getByRole('button',{name:'MLG',exact:true}).click();
+ const legacy=page.getByRole('region',{name:'MLG 과거 위험 관찰'});
+ await expect(legacy).toContainText('과거 위험 관찰 1개 회사');
+ await expect(legacy).toContainText('신규 GPT 평가가 허용된 회사는 0개');
+ await expect(legacy.getByRole('row').nth(1)).toContainText('2026-11-02');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'TENX',exact:true}).click();
  const sample=page.getByRole('article',{name:'TEST 저장 표본'});
  await expect(sample).toContainText('표본 Q +2');
