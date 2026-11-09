@@ -34,3 +34,10 @@ Current explicit user instructions and reviewed release gates govern changes.
 [Earlier guidance](https://github.com/swk0218/general-screener-dashboard/blob/b0b4602498ffb1997083c6ffb4453423123c6177/AGENTS.md)
 records prior phases; its dated prohibitions or approvals are not current launch
 instructions or independent authority for a new deployment or security change.
+
+Optional GPT briefing follows `docs/GPT_BRIEFING_OPERATIONS.md` and the UI
+presentation contract. Keep producer scores/ranking authoritative; isolate
+malformed/failed enrichment from numeric data. News transport is separately
+AEAD-authenticated and default OFF (`VITE_GPT_NEWS_ENABLED`). Never put provider
+keys, unencrypted news/recommendations or test fixtures in public assets. Preserve
+source cutoff versus analysis/build/publication times and clear news on lock.
