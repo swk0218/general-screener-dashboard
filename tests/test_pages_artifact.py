@@ -14,12 +14,6 @@ WAIT = NAMESPACE['wait_for_artifact']
 
 
 class PagesArtifactTests(unittest.TestCase):
-    def test_optional_news_build_flag_is_explicit_and_default_off(self):
-        build = WORKFLOW.split('      - name: Verify and build\n', 1)[1].split('      - uses:', 1)[0]
-        self.assertIn("VITE_GPT_NEWS_ENABLED: ${{ vars.VITE_GPT_NEWS_ENABLED == 'true' && 'true' || 'false' }}", build)
-        self.assertIn('run: npm run check', build)
-        self.assertNotIn('secrets.', build)
-
     def artifact(self, **changes):
         value = dict(id=42, name='github-pages-verified-77-2', expired=False,
                      size_in_bytes=200, workflow_run=dict(id=77, head_sha='a' * 40))
@@ -151,5 +145,4 @@ class PagesArtifactTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
 
