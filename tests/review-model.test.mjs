@@ -29,3 +29,15 @@ test('legacy observations remain a review hold and cannot imply company coverage
  fixture.legacy_review.evaluation_coverage=1;
  assert.throws(()=>reviewBundle(fixture),/REVIEW_BUNDLE_INVALID/);
 });
+
+
+test('reviewed legacy eligibility retains all risks and actual Radar failure is never ready',()=>{
+ const source=reviewFixture();
+ source.legacy_review.mode='reviewed_retained';source.legacy_review.evaluation_coverage=1;
+ source.legacy_review.reviewed_symbols=['TEST'];source.legacy_review.companies[0].reviewed=true;
+ source.radar_validation={status:'incomplete',run_id:123,provider_requests:1,search_completed:false,reason:'provider_http_error',retries:0,actual_billing_confirmed:false};
+ assert.equal(reviewBundle(source).legacy_review.companies[0].level,'watch');
+ for(const mutate of [x=>x.legacy_review.reviewed_symbols=['OTHER'],x=>x.radar_validation.search_completed=true,x=>x.radar_validation.status='ready']){
+  const bad=structuredClone(source);mutate(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
+ }
+});

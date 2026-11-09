@@ -27,16 +27,30 @@ if(legacyPath){
  const wrapper=JSON.parse(await readFile(legacyPath,'utf8')),state=wrapper.state;
  const fingerprint=createHash('sha256').update(JSON.stringify(state)).digest('hex');
  if(wrapper.sha256!==fingerprint||state?.schema!=='mlg_qualitative_risk_history_v1'
-   ||!Array.isArray(state.covered_symbols)||state.covered_symbols.length!==0
+   ||!Array.isArray(state.covered_symbols)
    ||Object.keys(state.active||{}).length!==0||!state.legacy_observations)throw Error('Invalid carry-only seed');
- bundle.legacy_review={mode:'carry_only',evaluation_coverage:0,state_sha256:fingerprint,
+ const reviewed=state.covered_symbols;
+ if(reviewed.some(symbol=>!state.legacy_observations[symbol]
+   ||state.coverage_reviews?.[symbol]?.status!=='reviewed_retained_legacy_risks'
+   ||JSON.stringify([...state.coverage_reviews[symbol].observation_ids].sort())!==JSON.stringify(Object.keys(state.legacy_observations[symbol]).sort())))throw Error('Invalid retained review');
+ bundle.legacy_review={mode:reviewed.length?'reviewed_retained':'carry_only',evaluation_coverage:reviewed.length,reviewed_symbols:reviewed,state_sha256:fingerprint,
    source_run_id:state.legacy_source.run_id,observed_by:state.legacy_source.observed_by,
    companies:Object.entries(state.legacy_observations).map(([symbol,records])=>{
      const rows=Object.values(records);
-     return {symbol,level:rows.some(r=>r.mlg_state==='severe')?'severe':'watch',
+     return {symbol,reviewed:reviewed.includes(symbol),review_reason:state.coverage_reviews?.[symbol]?.reason||null,level:rows.some(r=>r.mlg_state==='severe')?'severe':'watch',
        observations:rows.length,missing_publication:rows.filter(r=>!r.source_publication_raw).length,
        action_dates:[...new Set(rows.map(r=>r.original_event_date).filter(Boolean))].sort()};
    }).sort((a,b)=>a.symbol.localeCompare(b.symbol))};
+ reviewBundle(bundle);
+}
+const radarPath=arg('--radar-receipt');
+if(radarPath){
+ const r=JSON.parse(await readFile(radarPath,'utf8'));
+ if(!Number.isSafeInteger(r.run_id)||r.run_id<=0||r.provider_calls!==1
+   ||r.provider_request_http_error!==true||r.search_execution_verified!==false
+   ||r.adopted_events!==0||r.retried!==false)throw Error('Invalid actual Radar receipt');
+ bundle.radar_validation={status:'incomplete',run_id:r.run_id,provider_requests:1,
+   search_completed:false,reason:'provider_http_error',retries:0,actual_billing_confirmed:false};
  reviewBundle(bundle);
 }
 const password=randomBytes(15).toString('base64url');

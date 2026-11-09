@@ -46,10 +46,15 @@ export function reviewBundle(value) {
   }
   if(value.legacy_review!=null){
     const legacy=value.legacy_review;
-    if(legacy.mode!=='carry_only'||legacy.evaluation_coverage!==0
+    if(!['carry_only','reviewed_retained'].includes(legacy.mode)||!Number.isSafeInteger(legacy.evaluation_coverage)||legacy.evaluation_coverage<0
       ||!Number.isSafeInteger(legacy.source_run_id)||legacy.source_run_id<=0
       ||!stamp(legacy.observed_by)||!/^[a-f0-9]{64}$/.test(legacy.state_sha256)
       ||!Array.isArray(legacy.companies)||!legacy.companies.length||legacy.companies.length>5000)fail();
+    const reviewed=legacy.reviewed_symbols||[];
+    if(!Array.isArray(reviewed)||new Set(reviewed).size!==reviewed.length
+      ||reviewed.length!==legacy.evaluation_coverage
+      ||(legacy.mode==='carry_only'&&reviewed.length!==0)
+      ||(legacy.mode==='reviewed_retained'&&reviewed.length===0))fail();
     const symbols=new Set();
     for(const item of legacy.companies){
       if(!item||!/^[A-Z0-9.^-]{1,20}$/.test(item.symbol)||symbols.has(item.symbol)
@@ -57,8 +62,17 @@ export function reviewBundle(value) {
         ||item.observations<=0||!Number.isSafeInteger(item.missing_publication)
         ||item.missing_publication<0||item.missing_publication>item.observations
         ||!Array.isArray(item.action_dates)||item.action_dates.some(d=>typeof d!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(d)))fail();
+      if(item.reviewed!==undefined&&item.reviewed!==reviewed.includes(item.symbol))fail();
+      if(item.review_reason!=null&&(typeof item.review_reason!=='string'||item.review_reason.length>1200))fail();
       symbols.add(item.symbol);
     }
+    if(reviewed.some(symbol=>!symbols.has(symbol)))fail();
+  }
+  if(value.radar_validation!=null){
+    const r=value.radar_validation;
+    if(r.status!=='incomplete'||!Number.isSafeInteger(r.run_id)||r.run_id<=0
+      ||r.provider_requests!==1||r.search_completed!==false||r.reason!=='provider_http_error'
+      ||r.retries!==0||r.actual_billing_confirmed!==false)fail();
   }
   return value;
 }
