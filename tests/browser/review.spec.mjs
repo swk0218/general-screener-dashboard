@@ -10,6 +10,16 @@ test('private import explores stored sample and independent numeric run then cle
  await expect(page.getByRole('alert')).toBeVisible();
  await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'수치 결과와 정성 판단'})).toBeVisible();
+ // Text must remain legible when the component Theme supplies its own defaults.
+ for(const locator of [page.getByRole('heading',{name:'수치 결과와 정성 판단'}),page.locator('.review-card p').first()]){
+  const contrast=await locator.evaluate(el=>{
+   const luminance=css=>{const rgb=css.match(/[0-9.]+/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
+   const foreground=luminance(getComputedStyle(el).color),background=luminance(getComputedStyle(document.body).backgroundColor);
+   return (Math.max(foreground,background)+.05)/(Math.min(foreground,background)+.05);
+  });
+  expect(contrast).toBeGreaterThanOrEqual(4.5);
+ }
+
  await page.getByRole('button',{name:'MLG',exact:true}).click();
  const legacy=page.getByRole('region',{name:'MLG 과거 위험 관찰'});
  await expect(legacy).toContainText('과거 위험 관찰 1개 회사');

@@ -54,7 +54,8 @@ if(radarPath){
    ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256))throw Error('Invalid actual Radar receipt');
  bundle.radar_validation={status:'incomplete',run_id:r.run_id,provider_requests:1,
    search_completed:false,search_queries_completed:1,reason:'search_evidence_incomplete',
-   retries:0,actual_billing_confirmed:false,artifact_sha256:r.artifact_sha256};
+   retries:0,actual_billing_confirmed:false,artifact_sha256:r.artifact_sha256,
+   cutoff:r.cutoff,analyzed_at:r.analyzed_at};
  reviewBundle(bundle);
 }
 const password=randomBytes(15).toString('base64url');

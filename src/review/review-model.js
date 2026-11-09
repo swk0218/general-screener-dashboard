@@ -75,7 +75,8 @@ export function reviewBundle(value) {
       ||!['provider_http_error','search_evidence_incomplete'].includes(r.reason)
       ||r.retries!==0||r.actual_billing_confirmed!==false)fail();
     if(r.reason==='search_evidence_incomplete'&&(r.search_queries_completed!==1
-      ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256)))fail();
+      ||!/^[a-f0-9]{64}$/.test(r.artifact_sha256)||!stamp(r.cutoff)||!stamp(r.analyzed_at)
+      ||Date.parse(r.analyzed_at)<Date.parse(r.cutoff)))fail();
   }
   return value;
 }
