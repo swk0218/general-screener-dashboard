@@ -1,5 +1,3 @@
-import { loadRadarNewsDelivery } from "./features/qualitative/news-envelope.js";
-import { StockBriefing, RadarNews, OverviewBriefing } from "./features/qualitative/Briefing.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -748,7 +746,6 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
             <div><dt>최근 종가</dt><dd>{displayCurrentPrice}{hasCurrentPrice ? <small className="metric-as-of">{recommendation.current_price_as_of} 기준</small> : null}</dd></div>
           </dl>
         </header>
-        <StockBriefing recommendation={recommendation} />
         <div className="dossier-grid">
           <section className="dossier-block">
             <h2>선정 근거</h2>
@@ -818,7 +815,6 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
       </section>
       <FactTape items={timingFacts} />
       {!detail.hasRichDetail ? <div className="archive-notice"><strong>과거 기록</strong><p>이 실행에는 상세 설명이 없어 보관된 수치와 위험 신호만 표시합니다.</p></div> : null}
-      <StockBriefing recommendation={recommendation} compact />
       <RiskList risks={detail.risks} limit={3} />
       {dataCautions.length ? <div className="detail-data-caution"><EvidenceList items={dataCautions} /></div> : null}
       {onOpenFull ? (
@@ -1131,7 +1127,7 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
   );
 }
 
-function OverviewView({ payload, index, radar, radarStatus, radarNews, onRadar, onStrategy, onOpenDetail, onPerformance, onHistory }) {
+function OverviewView({ payload, index, radar, radarStatus, onRadar, onStrategy, onOpenDetail, onPerformance, onHistory }) {
   const latestRuns = Object.keys(STRATEGIES).map((strategy) => {
     const strategyRuns = index.runsByStrategy.get(strategy) || [];
     const run = strategyRuns[0] || null;
@@ -1170,8 +1166,6 @@ function OverviewView({ payload, index, radar, radarStatus, radarNews, onRadar, 
       <h1 className="sr-only">대시보드</h1>
 
       <RadarSummary delivery={radar} status={radarStatus} onOpen={onRadar} />
-      <RadarNews value={radarNews} compact />
-      <OverviewBriefing runs={latestRuns} />
       <section className="overview-screening" aria-labelledby="screening-changes-title">
       <h2 id="screening-changes-title">스크리닝 변화</h2>
       <section className="since-visit" aria-label="최근 실행 변화">
@@ -1585,7 +1579,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock }) {
+function Dashboard({ payload, radar, radarStatus, seasonality, onLock }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
@@ -1654,7 +1648,7 @@ function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock
     content = (
       <OverviewView
         radar={radar}
-        radarStatus={radarStatus} radarNews={radarNews}
+        radarStatus={radarStatus}
         onRadar={() => navigate({ view: "radar", strategy })}
         payload={payload}
         index={index}
@@ -1665,7 +1659,7 @@ function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock
       />
     );
   } else if (route.view === "radar") {
-    content = <RadarView delivery={radar} status={radarStatus} radarNews={radarNews} seasonality={seasonality} />;
+    content = <RadarView delivery={radar} status={radarStatus} seasonality={seasonality} />;
   } else if (route.view === "history") {
     content = <HistoryView payload={payload} index={index} onStrategy={selectStrategy} />;
   } else if (route.view === "performance") {
@@ -1737,7 +1731,6 @@ export function App() {
   const [radar, setRadar] = useState(null);
   const [radarStatus, setRadarStatus] = useState(null);
   const [seasonality, setSeasonality] = useState(null);
-  const [radarNews, setRadarNews] = useState(null);
   const radarRequest = useRef(null);
   const unlockGeneration = useRef(0);
   const [dashboardRevision, setDashboardRevision] = useState(0);
@@ -1772,12 +1765,6 @@ export function App() {
     setRadar(null);
     setRadarStatus(null);
     setSeasonality(null);
-    setRadarNews(null);
-    if(import.meta.env.VITE_GPT_NEWS_ENABLED === "true") {
-      loadRadarNewsDelivery(`${import.meta.env.BASE_URL}data/radar-news.enc.json`, passphrase, controller.signal)
-        .then(value => { if(unlockGeneration.current === generation) setRadarNews(value); })
-        .catch(() => { if(unlockGeneration.current === generation) setRadarNews({schema_version:'radar_news_v1',status:'unavailable',affects_beta:false,events:[]}); });
-    }
     loadSeasonalityDelivery(`${import.meta.env.BASE_URL}data/radar-seasonality.enc.json`, passphrase, controller.signal)
       .then(value => { if (unlockGeneration.current === generation) setSeasonality(value); })
       .catch(() => { if (unlockGeneration.current === generation) setSeasonality(null); });
@@ -1793,7 +1780,6 @@ export function App() {
     setRadar(null);
     setRadarStatus(null);
     setSeasonality(null);
-    setRadarNews(null);
     setPayload(null);
   }
 
@@ -1807,7 +1793,7 @@ export function App() {
           onRetry={() => setDashboardRevision((current) => current + 1)}
           onLock={lock}
         >
-          <Dashboard payload={payload} radar={radar} radarStatus={radarStatus} radarNews={radarNews} seasonality={seasonality} onLock={lock} />
+          <Dashboard payload={payload} radar={radar} radarStatus={radarStatus} seasonality={seasonality} onLock={lock} />
         </AppErrorBoundary>
       ) : (
         <UnlockScreen envelope={envelope} envelopeError={envelopeError} onUnlock={unlock} />
@@ -1815,4 +1801,3 @@ export function App() {
     </Theme>
   );
 }
-

@@ -41,8 +41,6 @@ jobs:
 
       - name: Verify and build
         timeout-minutes: 10
-        env:
-          VITE_GPT_NEWS_ENABLED: ${{ vars.VITE_GPT_NEWS_ENABLED == 'true' && 'true' || 'false' }}
         run: npm run check
 
       - uses: actions/setup-python@v5
@@ -230,5 +228,4 @@ jobs:
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
         with:
           artifact_name: github-pages-verified-${{ github.run_id }}-${{ github.run_attempt }}
-
 

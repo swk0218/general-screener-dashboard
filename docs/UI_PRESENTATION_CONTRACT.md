@@ -45,37 +45,3 @@ Both Radar dates include their year. The authenticated packet's basis remains
 visible when no successful-refresh/publication receipt can be verified; show
 `갱신 확인 불가` in place of a refresh date. The absence of a refresh receipt
 does not erase a known observation date or manufacture a successful update.
-
-
-## Optional GPT qualitative briefing (GS-GPT-02)
-
-Enrichment is display-only and optional. Missing `recommendation.qualitative`
-leaves existing screens unchanged. MLG shows producer-declared legacy/adopted A/E
-and `score_delta`; TENX shows distinct `quantitative_score` (S),
-`qualitative_adjustment` (Q), `adjusted_score` (T), and `ranking_basis`.
-The browser validates consistency but never recalculates published scores or sorts
-recommendations by Q/T. Incomplete cohort means the producer retains S ranking.
-`unevaluated`/fallback/disabled/stale never masquerade as evaluated zero.
-Evidence opens on demand, links are HTTPS without URL credentials, and source
-cutoff and analysis clocks stay separate. Malformed optional enrichment cannot
-invalidate the numeric payload or expose arbitrary HTML.
-
-Radar news is an independent encrypted sidecar, not a Beta model input. The
-reader is disabled unless `VITE_GPT_NEWS_ENABLED=true` is explicitly set at build
-or local preview time. It reads `data/radar-news.enc.json` only during unlock,
-using the entered passphrase without storing it. Its envelope uses AES-256-GCM,
-600000-round PBKDF2-SHA256, ciphertext SHA256, envelope version
-`radar_news_encrypted_v1` and AAD `radar_news_v1`. News failure is isolated from
-Beta score/alert availability. Lock/unmount aborts loading and clears decrypted
-news; late responses cannot restore it after lock.
-
-`radar_news_v1` requires `affects_beta:false`, run/policy identity, cutoff and
-analysis times, status, and zero to three deduplicated events. Each item contains
-headline, summary, market transmission explanation, publication time and HTTPS
-sources. Politics is allowed when market-relevant, without partisan preference.
-A verified empty result is distinct from unavailable. Cached source cutoff stays
-visible; news older than 24 hours is labeled previous data, including in a
-long-open tab. An empty stale result is not described as no important news.
-No provider keys, plaintext public news/recommendations or raw receipts enter the
-frontend repository. Encrypted transport publication remains a separate release
-gate. Existing source/build/publication clocks and data journals are unchanged.
