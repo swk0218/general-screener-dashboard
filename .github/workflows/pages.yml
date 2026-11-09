@@ -3,6 +3,9 @@ name: Deploy GENERAL SCREENER
 on:
   push:
     branches: [main]
+    # Recovery journals are consumed from Git and excluded from the web artifact.
+    paths-ignore:
+      - 'public/data/radar-journal/**'
   workflow_dispatch:
 
 permissions:
