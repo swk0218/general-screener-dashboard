@@ -102,3 +102,13 @@ test('collection counts and page warning are validated and do not echo arbitrary
  assert.equal(stockBriefing(row).collectionCopy,'수집 5건 · 시점 조건 채택 2건 · 제외 2건 · 다음 페이지 후보가 더 있을 수 있음');
  for(const bad of [{raw_count:-1},{admitted_count:8},{excluded_count:1.5},{pagination_may_continue:'true'}]){const other=structuredClone(row);Object.assign(other.qualitative.collection_summary,bad);assert.equal(stockBriefing(other).collectionCopy,null);}
 });
+
+test('uncertain excluded news remains visible and unevaluated Q never becomes zero',()=>{
+ const row={symbol:'TEST',strategy:'TENX',quantitative_score:70,ranking_basis:'quantitative_score',qualitative:{status:'unevaluated',reason:'incomplete_collection',collection_scope:'fmp_stock_news_first_page',collection_summary:{raw_count:2,admitted_count:1,excluded_count:1,uncertain_time_count:1,pagination_may_continue:false}}};
+ const before=structuredClone(row),view=stockBriefing(row);
+ assert.match(view.collectionCopy,/발행 시각 경계 미확정 1건/);
+ assert.match(view.reason,/불완전/);
+ assert.deepEqual(view.scores,[['원점수 S',70],['사건 보정 Q','미평가'],['보정 점수 T','미산출']]);
+ assert.deepEqual(row,before);
+ for(const count of [-1,2,1.5,'1']){row.qualitative.collection_summary.uncertain_time_count=count;assert.equal(stockBriefing(row).collectionCopy,null);}
+});

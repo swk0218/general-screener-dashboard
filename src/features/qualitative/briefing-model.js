@@ -34,7 +34,9 @@ export function publicationDisplay(source, cutoff) {
 function collectionCopy(summary) {
   if(!summary||!['raw_count','admitted_count','excluded_count'].every(k=>Number.isSafeInteger(summary[k])&&summary[k]>=0)
     ||summary.admitted_count+summary.excluded_count>summary.raw_count||typeof summary.pagination_may_continue!=='boolean')return null;
-  return `수집 ${summary.raw_count}건 · 시점 조건 채택 ${summary.admitted_count}건 · 제외 ${summary.excluded_count}건${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
+  const uncertain=summary.uncertain_time_count;
+  if(uncertain!==undefined&&(!Number.isSafeInteger(uncertain)||uncertain<0||uncertain>summary.excluded_count))return null;
+  return `수집 ${summary.raw_count}건 · 시점 조건 채택 ${summary.admitted_count}건 · 제외 ${summary.excluded_count}건${uncertain>0?` · 발행 시각 경계 미확정 ${uncertain}건`:''}${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
 }
 function stockEvent(event, cutoff, symbol) {
   const publication=publicationDisplay(event,cutoff);
@@ -46,9 +48,14 @@ export function stockBriefing(recommendation) {
   const q = recommendation?.qualitative;
   if(q == null) return null;
   if(!q || typeof q !== 'object' || !Object.hasOwn(STATUS_COPY,q.status)) return unavailable();
-  const base={status:q.status,label:STATUS_COPY[q.status],reason:text(q.reason),events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
+  const reasons={not_evaluated:'정성 평가를 수행하지 않았습니다.',incomplete_collection:'뉴스 수집 범위가 불완전해 정성 점수 반영을 보류했습니다.',configuration_missing:'정성 분석 설정을 확인할 수 없습니다.',readiness_or_evidence_blocked:'자금·근거 확인이 끝나지 않아 정성 점수 반영을 보류했습니다.',provider_or_contract_failure:'정성 분석 결과를 확인할 수 없어 기존 점수를 유지합니다.'};
+  const base={status:q.status,label:STATUS_COPY[q.status],reason:Object.hasOwn(reasons,q.reason)?reasons[q.reason]:text(q.reason),events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
   if(['evaluated','cached','unevaluated'].includes(q.status)&&Object.hasOwn(COLLECTION_SCOPE_COPY,q.collection_scope))base.scopeCopy=COLLECTION_SCOPE_COPY[q.collection_scope];
   if(['evaluated','cached','unevaluated'].includes(q.status)&&q.collection_scope==='fmp_stock_news_first_page')base.collectionCopy=collectionCopy(q.collection_summary);
+  if(q.status==='unevaluated'&&recommendation.strategy==='TENX'&&finite(recommendation.quantitative_score)&&recommendation.ranking_basis==='quantitative_score'){
+    base.scores=[['원점수 S',recommendation.quantitative_score],['사건 보정 Q','미평가'],['보정 점수 T','미산출']];
+    base.rankingCopy='이번 전체 순위는 원점수 기준 · 정성 평가는 보류';
+  }
   if(['disabled','fallback','unevaluated','unavailable','uncertain','stale'].includes(q.status))return base;
   if(!base.dataAsOf || !base.analyzedAt || Date.parse(base.analyzedAt)<Date.parse(base.dataAsOf)) return unavailable();
   if(recommendation.strategy === 'TENX') {
