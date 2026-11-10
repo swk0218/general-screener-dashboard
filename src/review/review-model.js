@@ -111,6 +111,7 @@ export function reviewBundle(value) {
       ||!['ready','cached','unavailable'].includes(n.status)||!Array.isArray(n.events)
       ||n.events.length>3||radarBriefing(n,Date.parse(value.created_at))?.status!==n.status)fail();
   }
+  radarReviewProvenance(value);
   return value;
 }
 export function findSample(bundle, strategy) {
@@ -119,4 +120,28 @@ export function findSample(bundle, strategy) {
 export function numericRows(bundle, query='') {
   const q=query.trim().toUpperCase();
   return bundle.numeric.result.ranked_all.filter(x=>!q || (x.symbol+' '+x.company_name).toUpperCase().includes(q));
+}
+
+// Keep the original paid result separate from later deterministic receiver work.
+export function radarReviewProvenance(value) {
+  const review=value.radar_completion_review;
+  if(review==null)return null;
+  const proof=review.final_receiver_revalidation,live=review.latest_actual_report,n=value.actual_radar_news;
+  const count=x=>Number.isSafeInteger(x)&&x>=0&&x<=3;
+  if(!proof||proof.schema!=='completed_search_source_binding_replay_v1'
+    ||!Number.isSafeInteger(proof.original_run)||proof.original_run<=0
+    ||!count(proof.original_events)||!count(proof.replay_events)
+    ||proof.original_status!=='ready'||proof.replay_status!=='cached'
+    ||proof.model_calls!==0||proof.http_calls!==0||proof.financial_writes!==0
+    ||proof.original_live_result_preserved!==true
+    ||review.current_display_is_cached_revalidation_not_new_paid_search!==true
+    ||live?.status!=='live_search_and_adoption_pass'||live.news_status!==proof.original_status
+    ||live.events!==proof.original_events||live.provider_calls!==1
+    ||!stamp(live.cutoff)||!stamp(proof.original_search_cutoff)
+    ||Date.parse(live.cutoff)!==Date.parse(proof.original_search_cutoff)
+    ||n?.status!=='cached'||n.events.length!==proof.replay_events
+    ||String(n.run_id).split('-')[0]!==String(proof.original_run)
+    ||!stamp(n.cached_cutoff_at)||Date.parse(n.cached_cutoff_at)!==Date.parse(proof.original_search_cutoff))fail();
+  return {originalRun:proof.original_run,originalCount:proof.original_events,
+    replayCount:proof.replay_events,originalCutoff:proof.original_search_cutoff};
 }

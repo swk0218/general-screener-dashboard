@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {encryptEnvelope} from '../../src/crypto/envelope.js';
-import {reviewFixture} from '../review-fixture.mjs';
+import {reviewFixture,radarReplayFixture} from '../review-fixture.mjs';
 const password='TEST_ONLY_REVIEW',payload=await encryptEnvelope(reviewFixture(),password);
 test('private import explores stored sample and independent numeric run then clears on lock',async({page},testInfo)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -76,4 +76,22 @@ test('observed company panel explores stored Q and original evidence while keepi
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
  await expect(page.getByText('TEST_ONLY 회사 사건을 확인했습니다.')).toHaveCount(0);
+});
+
+
+test('Radar review displays original one and cached three separately at each width',async({page})=>{
+ const encrypted=await encryptEnvelope(radarReplayFixture(),password);
+ await page.goto('/review.html');
+ await page.locator('input[type=file]').setInputFiles({name:'radar.enc.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(encrypted))});
+ await page.getByLabel('체험 암호',{exact:true}).fill(password);
+ await page.getByRole('button',{name:'체험 열기',exact:true}).click();
+ await page.getByRole('button',{name:'RADAR',exact:true}).click();
+ const provenance=page.getByLabel('Radar 실행 구분');
+ await expect(provenance).toContainText('최초 실제 실행 123 · 당시 채택 1건.');
+ await expect(provenance).toContainText('저장 응답 재검증 3건');
+ await expect(provenance).toContainText('새 실검색 결과가 아닙니다.');
+ await expect(page.getByText('TEST_ONLY 뉴스 2',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
+ await expect(page.getByLabel('Radar 실행 구분')).toHaveCount(0);
 });

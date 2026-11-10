@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reviewBundle,numericRows} from '../src/review/review-model.js';
-import {reviewFixture} from './review-fixture.mjs';
+import {reviewBundle,numericRows,radarReviewProvenance} from '../src/review/review-model.js';
+import {reviewFixture,radarReplayFixture} from './review-fixture.mjs';
 test('review keeps original scores and order without assigning sample Q to the numeric run',()=>{
  const source=reviewFixture(),before=structuredClone(source),bundle=reviewBundle(source);
  assert.equal(bundle.numeric.result.ranked_all[0].tenx_score,70);
@@ -82,4 +82,21 @@ test('actual Radar snapshot stays independent from Beta and historical source cl
  cutoff_at:'2026-11-09T09:59:00Z',analyzed_at:'2026-11-09T10:00:00Z'};
  assert.equal(reviewBundle(b).actual_radar_news.events.length,0);
  b.actual_radar_news.affects_beta=true;assert.throws(()=>reviewBundle(b),/REVIEW_BUNDLE_INVALID/);
+});
+
+
+test('review distinguishes original live adoption from zero-call cached revalidation',()=>{
+ const b=radarReplayFixture(),before=structuredClone(b);
+ assert.equal(reviewBundle(b),b);
+ assert.deepEqual(radarReviewProvenance(b),{originalRun:123,originalCount:1,replayCount:3,originalCutoff:b.created_at});
+ assert.deepEqual(b,before);
+ for(const mutate of [
+  x=>x.radar_completion_review.final_receiver_revalidation.original_events=3,
+  x=>x.radar_completion_review.final_receiver_revalidation.replay_events=1,
+  x=>x.radar_completion_review.final_receiver_revalidation.model_calls=1,
+  x=>x.actual_radar_news.status='ready',
+  x=>x.radar_completion_review.final_receiver_revalidation.original_run=456,
+  x=>x.radar_completion_review.latest_actual_report.cutoff='2026-11-08T10:00:00Z'
+ ]){const bad=structuredClone(b);mutate(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);}
+ assert.equal(radarReviewProvenance(reviewFixture()),null);
 });

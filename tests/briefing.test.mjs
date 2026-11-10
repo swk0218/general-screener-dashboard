@@ -159,3 +159,12 @@ test('provider citation news never shows a model quote as original verified text
  assert.equal(view.events[0].sources[0].quote,null);
  assert.equal(view.events[0].publicationTimeUnverified,true);
 });
+
+
+test('optional assessment persistence failure is visible without changing the numeric score',()=>{
+ const row={symbol:'TEST',strategy:'TENX',quantitative_score:70,ranking_basis:'quantitative_score',
+   qualitative:{status:'unevaluated',q:null,reason:'assessment_persistence_failed'}};
+ const view=stockBriefing(row);
+ assert.equal(view.status,'unevaluated');assert.match(view.reason,/저장에 실패/);
+ assert.deepEqual(view.scores,[['원점수 S',70],['사건 보정 Q','미평가'],['보정 점수 T','미산출']]);
+});
