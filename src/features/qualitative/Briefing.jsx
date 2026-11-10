@@ -5,7 +5,7 @@ const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'
 const number = value => typeof value==='number'?value.toLocaleString('ko-KR',{maximumFractionDigits:2}):value;
 function Clock({label,value}) { return <span>{label} <time dateTime={value||undefined}>{time(value)}</time></span>; }
 function Evidence({item}) {
-  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>} {item.observedAt?<Clock label="수집 확인" value={item.observedAt}/>:null}</div>
+  return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnverified?<span>보도 표기 {item.publishedAt} · 원문 시각 미확인</span>:item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>} {item.observedAt?<Clock label="수집 확인" value={item.observedAt}/>:null}</div>
     <ul>{item.sources.map((source,index)=><li key={`${source.url}-${index}`}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>{source.quote?<p>{source.quote}</p>:null}</li>)}</ul></details>;
 }
 export function StockBriefing({recommendation,compact=false}) {
@@ -33,7 +33,8 @@ export function RadarNews({value,compact=false}) {
   if(!news)return null;
   return <section className="qualitative-briefing radar-news" aria-label="시장 주요 뉴스">
     <header><h3>시장 주요 뉴스</h3><small>{news.label} · 지수와 별도</small></header>
-    {news.events.length?news.events.map(item=><article key={item.id}><h4>{item.headline}</h4><p>{item.summary}{!compact&&item.why!==item.summary?` ${item.why}`:''}</p>{!compact&&<Evidence item={item}/>}</article>):news.status==='ready'?<p>확인된 주요 사건 없음</p>:null}
+    {news.coverageCopy?<p className="briefing-note">{news.coverageCopy}</p>:null}
+    {news.events.length?news.events.map(item=><article key={item.id}><h4>{item.headline}</h4><p><strong>보도 내용</strong> {item.summary}</p>{!compact&&item.why!==item.summary?<p><strong>시장 해석</strong> {item.why}</p>:null}{!compact&&<Evidence item={item}/>}</article>):news.status==='ready'?<p>확인된 주요 사건 없음</p>:null}
     {!compact&&<div className="briefing-clocks"><Clock label="자료 기준" value={news.cacheDataAsOf||news.dataAsOf}/><Clock label="분석" value={news.analyzedAt}/></div>}
   </section>;
 }

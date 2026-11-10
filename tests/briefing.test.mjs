@@ -150,3 +150,12 @@ test('verified partial Radar events disclose incomplete candidate coverage',()=>
  assert.equal(model.status,'ready');assert.equal(model.events.length,1);
  assert.match(model.label,/일부 후보 미확인/);assert.match(model.coverageCopy,/독립 검증/);
 });
+
+test('provider citation news never shows a model quote as original verified text',()=>{
+ const packet=radar();
+ Object.assign(packet.events[0].sources[0],{source_verification:'provider_citation',publication_time_unverified:true,excerpt:'unverified quote'});
+ const view=radarBriefing(packet,Date.parse(analyzed));
+ assert.match(view.label,/原文|원문 별도/);
+ assert.equal(view.events[0].sources[0].quote,null);
+ assert.equal(view.events[0].publicationTimeUnverified,true);
+});

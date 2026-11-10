@@ -125,9 +125,13 @@ export function radarBriefing(value, now=Date.now()) {
   for(const event of value.events) {
     if(!event||typeof event!=='object'||!text(event.event_id)||seen.has(event.event_id)||!text(event.headline)||!text(event.summary)||!text(event.why_it_matters)||!timestamp(event.published_at)||Date.parse(event.published_at)>Date.parse(base.dataAsOf)||!Array.isArray(event.sources)||!event.sources.length||event.sources.length>10||event.sources.some(s=>!s||typeof s!=='object'))return unavailable();
     seen.add(event.event_id);
-    const sources=event.sources.map(source=>({url:safeSourceUrl(source.url),label:text(source.publisher)||'원문',quote:text(source.excerpt),publishedAt:source.published_at}));
+    const sources=event.sources.map(source=>({url:safeSourceUrl(source.url),label:text(source.publisher)||'원문',quote:source.source_verification==='provider_citation'?null:text(source.excerpt),publishedAt:source.published_at}));
     if(sources.some(s=>!s.url||!timestamp(s.publishedAt)||Date.parse(s.publishedAt)>Date.parse(base.dataAsOf)))return unavailable();
-    base.events.push({id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
+    base.events.push({publicationTimeUnverified:event.sources.some(s=>s.publication_time_unverified===true),id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
+  }
+  if(value.coverage?.original_documents_not_all_verified===true||value.events.some(e=>e.sources.some(s=>s.source_verification==='provider_citation'))){
+    base.label='검색 출처 확인 · 원문 별도 확인';
+    base.coverageCopy='검색 API가 실제 조회한 출처 링크입니다. 해당 원문의 인용과 발행 시각은 독립 검증되지 않았습니다.';
   }
   if(value.coverage?.other_candidates_unverified===true){
     base.label=value.status==='cached'?'저장된 뉴스 · 일부 후보 미확인':'확인된 뉴스 · 일부 후보 미확인';
