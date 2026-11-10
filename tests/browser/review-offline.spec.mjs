@@ -30,6 +30,7 @@ test('portable encrypted HTML opens offline without requesting any external reso
  await page.getByRole('button',{name:'체험 열기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'수치 결과와 정성 판단'})).toBeVisible();
  await page.getByRole('button',{name:'TENX',exact:true}).click();
+ await page.getByText('원본 수치 실행·이전 SEC 표본',{exact:true}).click();
  await expect(page.getByRole('article',{name:'TEST 저장 표본'})).toContainText('표본 Q +2');
  await expect(page.getByRole('region',{name:'실제 TENX 숫자 실행'})).toContainText('미평가');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

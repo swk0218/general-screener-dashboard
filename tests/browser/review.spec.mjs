@@ -11,7 +11,7 @@ test('private import explores stored sample and independent numeric run then cle
  await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
  await expect(page.getByRole('heading',{name:'수치 결과와 정성 판단'})).toBeVisible();
  // Text must remain legible when the component Theme supplies its own defaults.
- for(const locator of [page.getByRole('heading',{name:'수치 결과와 정성 판단'}),page.locator('.review-card p').first()]){
+ for(const locator of [page.getByRole('heading',{name:'수치 결과와 정성 판단'}),page.locator('.review-content p').first()]){
   const contrast=await locator.evaluate(el=>{
    const luminance=css=>{const rgb=css.match(/[0-9.]+/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
    const foreground=luminance(getComputedStyle(el).color),background=luminance(getComputedStyle(document.body).backgroundColor);
@@ -21,12 +21,14 @@ test('private import explores stored sample and independent numeric run then cle
  }
 
  await page.getByRole('button',{name:'MLG',exact:true}).click();
+ await page.getByText('이전 표본·과거 위험 기록',{exact:true}).click();
  const legacy=page.getByRole('region',{name:'MLG 과거 위험 관찰'});
  await expect(legacy).toContainText('과거 위험 관찰 1개 회사');
  await expect(legacy).toContainText('신규 GPT 평가가 허용된 회사는 0개');
  await expect(legacy.getByRole('row').nth(1)).toContainText('2026-11-02');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'TENX',exact:true}).click();
+ await page.getByText('원본 수치 실행·이전 SEC 표본',{exact:true}).click();
  const sample=page.getByRole('article',{name:'TEST 저장 표본'});
  await expect(sample).toContainText('표본 Q +2');
  await expect(sample).toContainText('기준 실행 없음');
