@@ -129,6 +129,10 @@ export function radarBriefing(value, now=Date.now()) {
     if(sources.some(s=>!s.url||!timestamp(s.publishedAt)||Date.parse(s.publishedAt)>Date.parse(base.dataAsOf)))return unavailable();
     base.events.push({id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
   }
+  if(value.coverage?.other_candidates_unverified===true){
+    base.label=value.status==='cached'?'저장된 뉴스 · 일부 후보 미확인':'확인된 뉴스 · 일부 후보 미확인';
+    base.coverageCopy='독립 검증을 통과한 사건만 표시합니다.';
+  }
   const sourceCutoff=value.status==='cached'?value.cached_cutoff_at:base.dataAsOf;
   if(value.status==='cached'&&(!timestamp(sourceCutoff)||Date.parse(sourceCutoff)>Date.parse(base.dataAsOf)))return unavailable();
   if(Number.isFinite(now)&&now-Date.parse(sourceCutoff)>24*60*60*1000){base.status='stale';base.label=STATUS_COPY.stale;}

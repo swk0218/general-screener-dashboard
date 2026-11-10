@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {stockBriefing,radarBriefing,safeSourceUrl} from '../src/features/qualitative/briefing-model.js';
 const cutoff='2026-11-07T10:00:00Z', analyzed='2026-11-07T10:01:00Z';
 const event={id:'contract-1',symbol:'TEST',published_at:'2026-11-06T10:00:00Z',source_url:'https://example.com/filing',quote:'TEST_ONLY contract confirmation',reason:'TEST_ONLY limited contract confirmed'};
-const tenx=()=>({symbol:'TEST',strategy:'TENX',quantitative_score:59,qualitative_adjustment:2,adjusted_score:61,ranking_basis:'quantitative_score',qualitative:{status:'evaluated',q:2,event,data_as_of:cutoff,analyzed_at:analyzed}});
+const tenx=()=>({symbol:'TEST',strategy:'TENX',quantitative_score:59,qualitative_adjustment:2,adjusted_score:61,ranking_basis:'quantitative_score',qualitative:{status:'evaluated',q:2,event:structuredClone(event),data_as_of:cutoff,analyzed_at:analyzed}});
 const radar=()=>({schema_version:'radar_news_v1',policy_version:'gs-gpt-02-radar-v1',affects_beta:false,status:'ready',run_id:'TEST_ONLY',cutoff_at:cutoff,analyzed_at:analyzed,events:[{event_id:'policy-1',headline:'TEST_ONLY policy decision',summary:'Decision announced',why_it_matters:'Changes rates',published_at:event.published_at,sources:[{url:event.source_url,publisher:'TEST_ONLY official',excerpt:'TEST_ONLY',published_at:event.published_at}]}]});
 test('absent enrichment preserves current UI; disabled and failure are not normal zero',()=>{
  assert.equal(stockBriefing({}),null);assert.equal(radarBriefing(null),null);
@@ -142,4 +142,11 @@ test('retained boundary context is described separately from excluded sources',(
  const row=tenx();Object.assign(row.qualitative,{collection_scope:'fmp_stock_news_first_page',collection_summary:{raw_count:4,admitted_count:4,excluded_count:0,boundary_context_count:1,pagination_may_continue:false}});
  assert.match(stockBriefing(row).collectionCopy,/검토 후보 4건.*90일 경계 문맥 1건/);
  row.qualitative.collection_summary.boundary_context_count=5;assert.equal(stockBriefing(row).collectionCopy,null);
+});
+
+test('verified partial Radar events disclose incomplete candidate coverage',()=>{
+ const packet=radar();packet.coverage={scope:'verified_retrieved_candidates',other_candidates_unverified:true};
+ const model=radarBriefing(packet,Date.parse(analyzed));
+ assert.equal(model.status,'ready');assert.equal(model.events.length,1);
+ assert.match(model.label,/일부 후보 미확인/);assert.match(model.coverageCopy,/독립 검증/);
 });
