@@ -62,7 +62,14 @@ test('observed company panel explores stored Q and original evidence while keepi
  const panel=page.getByRole('region',{name:'TENX 실제 회사 후보 검토'});
  await panel.getByLabel('회사 검토 찾기').fill('TEST');
  await panel.getByRole('button',{name:'TEST 검토 상세'}).click();
+ const detail=panel.getByRole('region',{name:'TEST 회사 검토 상세'});
+ await expect(detail).toBeFocused();
+ await expect(detail).toBeInViewport();
  await expect(panel).toContainText('TEST_ONLY 회사 사건을 확인했습니다.');
+ expect(await panel.locator('.review-table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+ await detail.getByRole('button',{name:'검토 닫기'}).click();
+ await expect(panel.getByRole('button',{name:'TEST 검토 상세'})).toBeFocused();
+ await panel.getByRole('button',{name:'TEST 검토 상세'}).click();
  await expect(panel).toContainText('원점수 S');await expect(panel).toContainText('71');
  await panel.getByText('실제 전달 원문 발췌 1',{exact:true}).click();
  await expect(panel).toContainText('시간대 미확인');
