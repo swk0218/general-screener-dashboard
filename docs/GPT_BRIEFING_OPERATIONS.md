@@ -73,3 +73,22 @@ five calls. The existing shared allocation has $0.002727 unreserved capacity;
 the owner's monthly $50 ceiling is not an automatic additional call allowance.
 Site refresh and new Library uploads remain separately restricted. This source
 integration does not refresh the user's previously delivered private preview.
+
+
+## Resume: stored-review compatibility (2026-11-11)
+
+Opening the unchanged Library v12 bundle exposed a renderer contract regression:
+74 of 670 stored events used canonical `routine`, `unknown` or `clean` states
+that the new display validator omitted. The actual company schema has seven
+states; `resolved` is a stage, not an eighth state. The display now accepts the
+same enum, labels routine as limited risk and unknown as uncertainty, and keeps
+risk badges when `new_state=false`. Only positive/clean premiums become neutral
+for no incremental change, matching the existing producer behavior.
+
+The original 242 company cases, 121 numeric rows, dates and all source/proposal
+bytes remain unchanged. The existing Radar proof still distinguishes actual 1
+from cached 3. No stored response is relabelled as a v3 model classification.
+Two new focused compatibility checks and actual v12 import passed. Earlier full
+regression and paid calls are not rerun for this resume; any future release must
+record its own applicable acceptance evidence. The local preview candidate is
+prepared without refreshing Site or saving new Library versions.

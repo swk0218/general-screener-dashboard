@@ -1,3 +1,4 @@
+import {eventAssessment} from '../src/features/qualitative/event-assessment.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reviewBundle,numericRows,radarReviewProvenance} from '../src/review/review-model.js';
@@ -113,4 +114,31 @@ test('review keeps normalized exclusion and original proposal distinct and rejec
  const proposal=pending.observed_review.cases[0].events[0];Object.assign(proposal,{q:1,mlg_state:'positive'});delete proposal.scoring_excluded;delete proposal.scoring_exclusion_reason;
  assert.equal(reviewBundle(pending).observed_review.cases[0].q,null);
  const malformed=structuredClone(source);malformed.observed_review.cases[0].events[0].scoring_exclusion_reason='private arbitrary prose';assert.throws(()=>reviewBundle(malformed),/REVIEW_BUNDLE_INVALID/);
+});
+
+
+test('stored canonical event states preserve the entire original company review',()=>{
+ const source=reviewFixture();
+ const cases=['positive','clean','neutral','routine','unknown','watch','severe'].map((state,i)=>({
+  strategy:'mlg',symbol:'STATE'+i,company_name:'TEST_ONLY canonical state',production_adopted:false,
+  semantic_rule_status:'cached',baseline_e:.65,proposed_e:.55,baseline_a:3,proposed_a:3,
+  events:[{id:'event-'+i,quote:'TEST_ONLY recorded event.',reason:'TEST_ONLY recorded assessment.',mlg_state:state}],sources:[]}));
+ source.observed_review={schema:'observed_company_preview_v1',data_as_of:source.created_at,production_adopted:false,numeric_run_id:'123',monthly_allocation_microusd:4400000,cases};
+ const before=structuredClone(source),view=reviewBundle(source);
+ assert.equal(view.observed_review.cases.length,7);assert.deepEqual(view,before);
+ for(const c of cases)assert.notEqual(eventAssessment(c.events[0],'MLG').label,'이전 저장 판정');
+ assert.equal(eventAssessment({mlg_state:'routine'},'MLG').label,'제한적 위험');
+ assert.equal(eventAssessment({mlg_state:'unknown'},'MLG').tone,'neutral');
+ const malformed=structuredClone(source);malformed.observed_review.cases[0].events[0].mlg_state='invented';
+ assert.throws(()=>reviewBundle(malformed),/REVIEW_BUNDLE_INVALID/);
+});
+
+test('nonincremental risk presentation retains the producer risk state',()=>{
+ for(const state of ['routine','watch','severe']){
+  const event={mlg_state:state,new_state:false,q:0},before=structuredClone(event);
+  const view=eventAssessment(event,'MLG');assert.equal(view.tone,'negative');assert.notEqual(view.label,'중립');assert.deepEqual(event,before);
+  assert.equal(eventAssessment(event,'TENX').label,'Q 0');
+ }
+ for(const state of ['positive','clean'])assert.equal(eventAssessment({mlg_state:state,new_state:false},'MLG').label,'중립');
+ assert.equal(eventAssessment({mlg_state:'resolved'},'MLG'),null);
 });

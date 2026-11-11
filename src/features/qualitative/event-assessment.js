@@ -1,6 +1,7 @@
 // Display only: producer-normalized scores remain authoritative.
 const bases = ['business_event','analyst_view','donation','non_business'];
-const states = ['neutral','positive','watch','severe','resolved'];
+// Same seven event states as company_semantics_v3; resolved is an event stage.
+const states = ['positive','clean','neutral','routine','unknown','watch','severe'];
 const exclusions = Object.freeze({
   analyst_view_excluded:'애널리스트 의견',
   donation_excluded:'기부 자체',
@@ -33,9 +34,9 @@ export function eventAssessment(event, strategy='MLG', proposalOnly=false) {
   if(excluded)return {excluded:true,tone:'neutral',label:'점수 제외',note:exclusions[reason],classified};
   if(strategy.toUpperCase()==='TENX'&&event.q!==undefined)
     return {excluded:false,tone:event.q>0?'positive':event.q<0?'negative':'neutral',
-      label:`Q ${event.q>0?'+':''}${event.q}`,note:event.new_state===false?'일상적 이행·새 변화 없음':null,classified};
-  const state=event.new_state===false?'neutral':event.mlg_state;
-  const labels={positive:'긍정',neutral:'중립',watch:'위험 관찰',severe:'중대 위험',resolved:'해소 근거'};
-  return {excluded:false,tone:['watch','severe'].includes(state)?'negative':state==='positive'?'positive':'neutral',
-    label:labels[state]||'이전 저장 판정',note:event.new_state===false?'일상적 이행·새 변화 없음':null,classified};
+      label:`Q ${event.q>0?'+':''}${event.q}`,note:event.new_state===false?'새 경제 변화 없음':null,classified};
+  const state=event.new_state===false&&['positive','clean'].includes(event.mlg_state)?'neutral':event.mlg_state;
+  const labels={positive:'긍정',clean:'범위 내 위험 없음',neutral:'중립',routine:'제한적 위험',unknown:'판단 불확실',watch:'위험 관찰',severe:'중대 위험'};
+  return {excluded:false,tone:['routine','watch','severe'].includes(state)?'negative':state==='positive'?'positive':'neutral',
+    label:labels[state]||'이전 저장 판정',note:event.new_state===false?'새 경제 변화 없음':null,classified};
 }
