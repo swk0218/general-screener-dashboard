@@ -1,3 +1,4 @@
+import {eventAssessment} from './event-assessment.js';
 // Optional enrichment is isolated from the score/encryption contracts.
 const text = value => typeof value === 'string' && value.trim() ? value.trim().slice(0,1200) : null;
 const finite = value => typeof value === 'number' && Number.isFinite(value);
@@ -50,11 +51,11 @@ function collectionCopy(summary) {
   if(context!==undefined&&(!Number.isSafeInteger(context)||context<0||context>summary.admitted_count))return null;
   return `수집 ${summary.raw_count}건 · ${context>0?'검토 후보':'시점 조건 채택'} ${summary.admitted_count}건${context>0?` · 90일 경계 문맥 ${context}건`:''} · 제외 ${summary.excluded_count}건${uncertain>0?` · 발행 시각 경계 미확정 ${uncertain}건`:''}${summary.pagination_may_continue?' · 다음 페이지 후보가 더 있을 수 있음':''}`;
 }
-function stockEvent(event, cutoff, symbol) {
-  const publication=publicationDisplay(event,cutoff);
-  if(!event || !text(event.id) || event.symbol !== symbol || !publication || !safeSourceUrl(event.source_url)
+function stockEvent(event, cutoff, symbol, strategy) {
+  const publication=publicationDisplay(event,cutoff),assessment=eventAssessment(event,strategy);
+  if(!event || !assessment || !text(event.id) || event.symbol !== symbol || !publication || !safeSourceUrl(event.source_url)
     || !text(event.reason)) return null;
-  return {id:event.id,summary:text(event.reason),...publication,sources:[{url:safeSourceUrl(event.source_url),label:'원문',quote:text(event.quote)}]};
+  return {id:event.id,summary:text(event.reason),assessment,...publication,sources:[{url:safeSourceUrl(event.source_url),label:'원문',quote:text(event.quote)}]};
 }
 export function stockBriefing(recommendation) {
   const q = recommendation?.qualitative;
@@ -76,8 +77,9 @@ export function stockBriefing(recommendation) {
     if(!finite(s)||!Number.isInteger(adjustment)||Math.abs(adjustment)>3||q.q!==adjustment
       ||!finite(t)||Math.abs(t-Math.max(0,Math.min(100,s+adjustment)))>1e-8
       ||!['adjusted_score','quantitative_score'].includes(recommendation.ranking_basis))return unavailable();
-    const event=q.event?stockEvent(q.event,base.dataAsOf,recommendation.symbol):null;
-    if((q.event&&!event)||(adjustment!==0&&!event))return unavailable();
+    const event=q.event?stockEvent(q.event,base.dataAsOf,recommendation.symbol,'TENX'):null;
+    if((q.event&&!event)||(adjustment!==0&&(!event||event.assessment.excluded))
+      ||(q.event?.q!==undefined&&q.event.q!==adjustment))return unavailable();
     base.scores=[['원점수 S',s],['사건 보정 Q',adjustment],['보정 점수 T',t]];
     base.rankingCopy=recommendation.ranking_basis==='adjusted_score'?'이번 순위는 보정 점수 기준':'이번 순위는 원점수 기준 · 보정은 참고값';
     base.events=event?[event]:[];
@@ -92,13 +94,13 @@ export function stockBriefing(recommendation) {
       base.summary+=` · ${base.coverageCopy}`;
     }
   } else if(recommendation.strategy === 'MLG') {
-    const validE=[0,.15,.35,.45,.55,.65,.82,.9];
-    if(![q.legacy_a,q.adopted_a].every(v=>[0,3].includes(v))||![q.legacy_e,q.adopted_e].every(v=>validE.includes(v))||!Array.isArray(q.events)||q.events.length>3)return unavailable();
-    const events=q.events.map(e=>stockEvent(e,base.dataAsOf,recommendation.symbol));
+    const validE=[0,.15,.35,.45,.55,.65,.8,.82,.9];
+    if(![q.legacy_a,q.adopted_a].every(v=>[0,3].includes(v))||![q.legacy_e,q.adopted_e].every(v=>validE.includes(v))||!Array.isArray(q.events)||q.events.length>100)return unavailable();
+    const events=q.events.map(e=>stockEvent(e,base.dataAsOf,recommendation.symbol,'MLG'));
     if(events.some(e=>!e)||new Set(events.map(e=>e.id)).size!==events.length)return unavailable();
     if(!finite(q.score_delta)||Math.abs(q.score_delta-(6*(q.adopted_e-q.legacy_e)+(q.adopted_a-q.legacy_a)))>1e-8)return unavailable();
     base.scores=[['AI 공급',`${q.legacy_a} → ${q.adopted_a}`],['사건 E',`${q.legacy_e} → ${q.adopted_e}`],['총점 변화',q.score_delta]];
-    base.events=events.slice(0,3);
+    base.events=events;
     if(q.ai_evidence != null) {
       const evidence=q.ai_evidence;
       const publication=publicationDisplay(evidence,base.dataAsOf);
@@ -110,7 +112,8 @@ export function stockBriefing(recommendation) {
       const summary=q.ai_supply==='eligible'?`AI 사업 판단 · ${roles[evidence.role]}`:'AI 사업 판단 · 공급 가점 제외 근거 확인';
       base.aiEvidence={id:'ai-supply',summary,...publication,sources:[{url:safeSourceUrl(evidence.source_url),label:'사업 근거 원문'}]};
     }
-    base.summary=events[0]?.summary||base.aiEvidence?.summary||base.reason||'기존 산식으로 정성 판단 반영';
+    base.summary=events.find(e=>!e.assessment.excluded)?.summary||base.aiEvidence?.summary
+      ||(events.length?'확인한 의견·기부 등은 사건 가감점에서 제외':base.reason||'기존 산식으로 정성 판단 반영');
   } else return unavailable();
   return base;
 }

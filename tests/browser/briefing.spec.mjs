@@ -48,3 +48,31 @@ test('MLG AI-only evidence is visible without inventing a news event',async({pag
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await panel.screenshot({path:testInfo.outputPath('mlg-ai-evidence.png')});
 });
+
+
+test('MLG limited positive and mixed assertions display the adopted score and excluded reasons',async({page},testInfo)=>{
+ const excluded=(id,basis)=>({...event,id,scoring_basis:basis,scoring_excluded:true,scoring_exclusion_reason:basis+'_excluded',q:0,mlg_state:'neutral',model_q:1,model_mlg_state:'positive'});
+ const q={status:'cached',legacy_a:3,adopted_a:3,legacy_e:.65,adopted_e:.8,score_delta:.9,
+  data_as_of:'2026-11-07T10:00:00Z',analyzed_at:'2026-11-07T10:01:00Z',events:[
+   excluded('analyst','analyst_view'),excluded('gift','donation'),
+   {...event,id:'contract-fact',scoring_basis:'business_event',q:1,mlg_state:'positive'},
+   {...event,id:'routine',reason:'TEST_ONLY 정기 납품을 완료했습니다.',scoring_basis:'business_event',q:0,mlg_state:'neutral',new_state:false}]};
+ const data={contract_version:'general_screener_v2',generated_at:'2026-11-07T10:01:00Z',benchmark:'QQQ',evidence_status:'HOLD: PRICE_OBSERVATION_ARCHIVE_PENDING',runs:[{strategy:'MLG',run_id:'qa-mixed',report_created_at:'2026-11-07T10:01:00Z'}],recommendations:[{strategy:'MLG',run_id:'qa-mixed',symbol:'TEST',recommendation_rank:1,score:63,screening_price:100,current_price:101,current_price_as_of:'2026-11-06',qualitative:q}],performance:{aggregates:[],signals:[]}};
+ const before=JSON.stringify(data),encrypted=await encryptEnvelope(data,password),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/data/payload.enc.json*',r=>r.fulfill({json:encrypted}));
+ for(const file of ['radar-observation.json','market-radar.enc.json','radar-seasonality.enc.json','radar-news.enc.json'])await page.route(`**/data/${file}*`,r=>r.fulfill({status:404}));
+ await page.goto('/#/detail/MLG/qa-mixed/TEST');await page.locator('input[type=password]').fill(password);await page.locator('button[type=submit]').click();
+ const panel=page.getByRole('region',{name:'TEST 정성 분석'});
+ await expect(panel).toContainText('0.65 → 0.8');await expect(panel).toContainText('0.9');
+ await expect(panel.getByText('긍정',{exact:true})).toBeVisible();await expect(panel.getByText('중립',{exact:true})).toBeVisible();
+ await panel.getByText('점수 제외 2건 · 의견·기부·수치 중복',{exact:true}).click();
+ await expect(panel.getByText('애널리스트 의견',{exact:true})).toBeVisible();await expect(panel.getByText('기부 자체',{exact:true})).toBeVisible();
+ await expect(panel.getByText('점수 제외',{exact:true})).toHaveCount(2);
+ await panel.locator('.briefing-stock-event').first().getByText('근거·출처',{exact:true}).click();
+ await expect(panel.getByRole('link',{name:'원문',exact:true}).first()).toHaveAttribute('href','https://example.com/filing');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await panel.screenshot({path:testInfo.outputPath('mlg-mixed-TEST_ONLY.png')});
+ expect(JSON.stringify(data)).toBe(before);expect(errors).toEqual([]);
+ await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();await expect(panel).toHaveCount(0);
+});

@@ -70,8 +70,10 @@ if(observedPath){
   const events=(valid?(row.strategy==='mlg'?v.events:(d.event?[d.event]:[])):e.events)||[];
   const urls=new Set(events.map(x=>x.source_url));if(e.ai_evidence?.source_url)urls.add(e.ai_evidence.source_url);
   const n=tenx.find(x=>x.symbol===row.symbol);
-  return {...row,ai_reason:e.ai_reason||'',events:events.map(x=>({quote:x.quote,reason:x.reason,
-    published_at:x.published_at,occurred_at:x.occurred_at,mlg_state:x.mlg_state})),
+  return {...row,ai_reason:e.ai_reason||'',events:events.map(x=>Object.fromEntries(
+    ['id','quote','reason','source_url','published_at','occurred_at','mlg_state','q',
+      'scoring_basis','scoring_excluded','scoring_exclusion_reason','quantitative_duplicate',
+      'new_state','model_q','model_mlg_state'].filter(k=>x[k]!==undefined).map(k=>[k,x[k]]))),
     sources:(e.evidence||[]).filter(x=>urls.has(x.url)).map(x=>({url:x.url,quote:x.quote,
      published_at:x.published_at,timezone_unknown:!!x.publication_time,observed_at:x.source_observation?.observed_at})),
     ...(row.strategy==='mlg'?{baseline_e:d.baseline_e,baseline_a:d.baseline_a,

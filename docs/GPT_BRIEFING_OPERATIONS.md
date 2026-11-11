@@ -37,3 +37,39 @@ statuses, future evidence, S/Q/T and MLG deltas, duplicate events and cache ages
 `tests/news-envelope.test.mjs` covers authenticated roundtrip, wrong credentials,
 AAD separation, ciphertext tampering and malformed optional data. Do not repeat
 full production CI or live provider calls just to test this renderer.
+
+
+## 2026-11-11 isolated integration
+
+The original development branch incorporates Dashboard main `423d2a8` without
+changing its encrypted payload, Radar feed, observation or journal blobs. Pages
+continues to publish main only; a development CI push is read-only validation.
+No production flag, password, score engine or ranking rule changes here.
+
+Company briefings accept the producer's limited-positive MLG E=.80 and up to
+100 distinct validated event records. The first three business assertions are
+visible; further business facts and excluded assertions expand on demand. This
+limit applies to company evidence, not Radar's separate maximum three headlines.
+Opinion, donation itself, nonbusiness and numeric-duplicate badges use normalized
+producer fields. Conflicting excluded Q is quarantined rather than recalculated.
+The public adapter carries only bounded enum/number metadata, never raw quotes,
+provider traces or credentials. An independent supported business assertion in the
+same article remains eligible. Its URL and publication clock stay attached to it.
+
+The private review preserves original proposals separately from normalized
+adoption. Old unclassified responses remain labelled as the earlier harness and
+are not represented as a fresh classification pass. A new v3 model response has
+not yet been paid for or verified. Actual Radar search adoption (1) and stored
+response revalidation (3) remain distinct; neither is a new search on rebuild.
+
+Validation: Node24 `npm run check`, Pages artifact guard and TEST_ONLY Playwright
+at 320/390/1440px. Browser plugin not available in the local environment; local
+Chromium additionally fails socket creation (EPERM), so the existing development
+CI runs its normal pinned Chromium validation. A passing compile is not visual QA.
+Screenshots are synthetic only; no private source or password is committed.
+
+All new paid work is paused: the specific five-call / $0.04 plan is closed after
+five calls. The existing shared allocation has $0.002727 unreserved capacity;
+the owner's monthly $50 ceiling is not an automatic additional call allowance.
+Site refresh and new Library uploads remain separately restricted. This source
+integration does not refresh the user's previously delivered private preview.

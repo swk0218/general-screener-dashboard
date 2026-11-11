@@ -168,3 +168,34 @@ test('optional assessment persistence failure is visible without changing the nu
  assert.equal(view.status,'unevaluated');assert.match(view.reason,/저장에 실패/);
  assert.deepEqual(view.scores,[['원점수 S',70],['사건 보정 Q','미평가'],['보정 점수 T','미산출']]);
 });
+
+
+test('MLG limited positive E=.80 and more than three distinct events remain producer values',()=>{
+ const row={symbol:'TEST',strategy:'MLG',qualitative:{status:'evaluated',legacy_a:3,adopted_a:3,legacy_e:.65,adopted_e:.8,score_delta:.9,data_as_of:cutoff,analyzed_at:analyzed,events:Array.from({length:4},(_,i)=>({...event,id:'business-'+i,scoring_basis:'business_event',q:1,mlg_state:'positive'}))}};
+ const before=structuredClone(row),view=stockBriefing(row);
+ assert.equal(view.status,'evaluated');assert.equal(view.events.length,4);
+ assert.deepEqual(view.scores,[['AI 공급','3 → 3'],['사건 E','0.65 → 0.8'],['총점 변화',.9]]);
+ assert.deepEqual(row,before);
+});
+test('excluded opinions and donations stay neutral and do not hide an independent business fact',()=>{
+ const excluded={...event,id:'opinion',scoring_basis:'analyst_view',scoring_excluded:true,scoring_exclusion_reason:'analyst_view_excluded',q:0,model_q:2,mlg_state:'neutral',model_mlg_state:'positive'};
+ const row={symbol:'TEST',strategy:'MLG',qualitative:{status:'cached',legacy_a:3,adopted_a:3,legacy_e:.65,adopted_e:.8,score_delta:.9,data_as_of:cutoff,analyzed_at:analyzed,events:[excluded,{...event,id:'business',reason:'TEST_ONLY independent contract fact',scoring_basis:'business_event',q:1,mlg_state:'positive'}]}};
+ const view=stockBriefing(row);
+ assert.match(view.summary,/independent contract/);assert.equal(view.events[0].assessment.label,'점수 제외');
+ assert.equal(view.events[0].assessment.note,'애널리스트 의견');
+ const zero=tenx();Object.assign(zero,{qualitative_adjustment:0,adjusted_score:59});Object.assign(zero.qualitative,{q:0,event:excluded});
+ assert.equal(stockBriefing(zero).status,'evaluated');
+ const original=structuredClone(zero);
+ for(const basis of ['donation','non_business','business_event']){
+  const r=structuredClone(original);Object.assign(r.qualitative.event,{scoring_basis:basis,quantitative_duplicate:basis==='business_event',scoring_exclusion_reason:basis==='business_event'?'numeric_duplicate_excluded':basis+'_excluded'});
+  assert.equal(stockBriefing(r).events[0].assessment.excluded,true);
+ }
+ // A conflicting published Q is quarantined, never recalculated in the browser.
+ const bad=structuredClone(original);bad.qualitative.q=2;bad.qualitative_adjustment=2;bad.adjusted_score=61;
+ assert.equal(stockBriefing(bad).status,'invalid');
+ zero.qualitative.event.q=1;assert.equal(stockBriefing(zero).status,'invalid');
+});
+test('old unclassified records stay unclassified and malformed classifications are isolated',()=>{
+ const row=tenx();assert.equal(stockBriefing(row).events[0].assessment.classified,false);
+ row.qualitative.event.scoring_basis='__proto__';assert.equal(stockBriefing(row).status,'invalid');
+});

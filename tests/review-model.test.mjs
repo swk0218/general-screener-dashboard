@@ -100,3 +100,14 @@ test('review distinguishes original live adoption from zero-call cached revalida
  ]){const bad=structuredClone(b);mutate(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);}
  assert.equal(radarReviewProvenance(reviewFixture()),null);
 });
+
+
+test('review keeps normalized exclusion and original proposal distinct and rejects a conflicting adopted Q',()=>{
+ const source=reviewFixture();
+ source.observed_review={schema:'observed_company_preview_v1',data_as_of:'2026-11-09T10:00:00Z',production_adopted:false,numeric_run_id:'123',monthly_allocation_microusd:4400000,cases:[{
+  strategy:'tenx',symbol:'TEST',company_name:'TEST_ONLY',production_adopted:false,semantic_rule_status:'cached',quantitative_score:70,q:0,adjusted_score:70,
+  events:[{quote:'TEST_ONLY donation.',reason:'TEST_ONLY 점수 제외',scoring_basis:'donation',scoring_excluded:true,scoring_exclusion_reason:'donation_excluded',mlg_state:'neutral',q:0,model_q:1}],sources:[]}]};
+ const before=structuredClone(source);assert.equal(reviewBundle(source).observed_review.cases[0].events[0].model_q,1);assert.deepEqual(source,before);
+ const bad=structuredClone(source);Object.assign(bad.observed_review.cases[0],{q:1,adjusted_score:71});assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
+ const malformed=structuredClone(source);malformed.observed_review.cases[0].events[0].scoring_exclusion_reason='private arbitrary prose';assert.throws(()=>reviewBundle(malformed),/REVIEW_BUNDLE_INVALID/);
+});

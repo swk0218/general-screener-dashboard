@@ -17,6 +17,7 @@ export function ReviewGuide({bundle}) {
   return <details className="review-guide"><summary>검토 안내<ChevronDown size={14} aria-hidden="true"/></summary><div>
     <p>저장된 분석을 살펴보는 검토본입니다. 새 유료 호출과 운영 점수 반영은 없습니다.</p>
     <p>회사별 판단은 확인한 FMP 첫 페이지 후보 범위에 대한 제안입니다. 근거 규칙 통과가 회사 전체의 무위험이나 판단 정확성을 보증하지 않습니다. 미평가가 남아 있는 TENX 순위는 원점수 S를 유지합니다.</p>
+    <p>새 하네스는 애널리스트 의견·기부 자체·수치 중복을 사건 가감점에서 제외합니다. 이전 저장 결과는 재분류하지 않고 당시 판정을 보존합니다.</p>
     <p>월 합산 GPT 운영 상한은 $50입니다. 검토 자료 작성 {time(bundle.created_at)}은 원문·분석 시각을 갱신하지 않습니다.</p>
   </div></details>;
 }

@@ -97,3 +97,27 @@ test('Radar review displays original one and cached three separately at each wid
  await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
  await expect(page.getByLabel('Radar 실행 구분')).toHaveCount(0);
 });
+
+
+test('company review separates normalized exclusion from the earlier model proposal',async({page},testInfo)=>{
+ const fixture=reviewFixture();
+ fixture.observed_review={schema:'observed_company_preview_v1',data_as_of:'2026-11-09T10:00:00Z',production_adopted:false,numeric_run_id:'123',monthly_allocation_microusd:4400000,cases:[{
+  strategy:'tenx',symbol:'TEST',company_name:'TEST_ONLY 검증 회사',production_adopted:false,semantic_rule_status:'cached',quantitative_score:70,q:0,adjusted_score:70,
+  events:[{id:'gift',quote:'TEST_ONLY donation announcement.',reason:'TEST_ONLY 기부 발표 자체는 사업 가감점에서 제외합니다.',source_url:'https://example.com/gift',published_at:'2026-11-08 10:00:00',occurred_at:'2026-11-08',q:0,model_q:1,mlg_state:'neutral',model_mlg_state:'positive',scoring_basis:'donation',scoring_excluded:true,scoring_exclusion_reason:'donation_excluded'}],sources:[]}]};
+ const encrypted=await encryptEnvelope(fixture,password),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/review.html');await page.locator('input[type=file]').setInputFiles({name:'TEST_ONLY.enc.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(encrypted))});
+ await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
+ await page.getByRole('button',{name:'TENX',exact:true}).click();
+ const panel=page.getByRole('region',{name:'TENX 실제 회사 후보 검토'});
+ await panel.getByLabel('회사 검토 찾기').fill('TEST');await panel.getByRole('button',{name:'TEST 검토 상세'}).click();
+ const detail=panel.getByRole('region',{name:'TEST 회사 검토 상세'});
+ await expect(detail).toBeFocused();await expect(detail.getByText('점수 제외',{exact:true})).toBeVisible();await expect(detail.getByText('기부 자체',{exact:true})).toBeVisible();
+ await expect(detail).toContainText('70');await expect(detail).not.toContainText('Q +1');
+ await detail.getByText('사건 원문·시점',{exact:true}).click();
+ await expect(detail).toContainText('채택 전 모델 제안 Q +1 · 실제 가감점과 별도');
+ await expect(detail.getByRole('link',{name:'사건 원문 열기'})).toHaveAttribute('href','https://example.com/gift');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await detail.screenshot({path:testInfo.outputPath('company-exclusion-TEST_ONLY.png')});
+ await detail.getByRole('button',{name:'검토 닫기'}).click();await expect(panel.getByRole('button',{name:'TEST 검토 상세'})).toBeFocused();
+ await page.getByRole('button',{name:'체험 잠금',exact:true}).click();await expect(panel).toHaveCount(0);expect(errors).toEqual([]);
+});

@@ -1,3 +1,4 @@
+import {eventAssessment} from '../features/qualitative/event-assessment.js';
 import { safeSourceUrl, radarBriefing } from '../features/qualitative/briefing-model.js';
 
 const finite = x => typeof x === 'number' && Number.isFinite(x);
@@ -93,8 +94,10 @@ export function reviewBundle(value) {
         ||!Array.isArray(c.events)||c.events.length>100||!Array.isArray(c.sources)||c.sources.length>50
         ||c.sources.some(x=>!safeSourceUrl(x.url)||typeof x.quote!=='string'||x.quote.length>6000
           ||typeof x.published_at!=='string')
-        ||c.events.some(e=>typeof e.quote!=='string'||typeof e.reason!=='string'))fail();
+        ||c.events.some(e=>!eventAssessment(e,c.strategy)||typeof e.quote!=='string'||typeof e.reason!=='string'
+          ||(e.source_url!==undefined&&!safeSourceUrl(e.source_url))))fail();
       if(c.strategy==='tenx'){
+        if(c.q!==null&&c.q!==0&&c.events.length&&c.events.every(e=>eventAssessment(e,c.strategy).excluded))fail();
         const original=value.numeric.result.ranked_all.find(x=>x.symbol===c.symbol);
         if(!original||c.quantitative_score!==original.tenx_score)fail();
         if(['evaluated','cached'].includes(c.semantic_rule_status)

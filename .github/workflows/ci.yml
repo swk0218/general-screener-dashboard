@@ -1,8 +1,12 @@
 name: Frontend regression CI
 on:
-  pull_request:
   push:
-    branches-ignore: [main]
+    branches: [codex/gpt-screener-development-20261107]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

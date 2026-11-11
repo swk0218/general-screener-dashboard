@@ -8,12 +8,16 @@ function Evidence({item}) {
   return <details className="briefing-evidence"><summary>근거·출처</summary><div className="briefing-clocks">{item.publicationTimeUnverified?<span>보도 표기 {item.publishedAt} · 원문 시각 미확인</span>:item.publicationTimeUnknown?<span>발표 {item.publishedAt} · 시간대 미확인</span>:<Clock label="발표" value={item.publishedAt}/>} {item.observedAt?<Clock label="수집 확인" value={item.observedAt}/>:null}</div>
     <ul>{item.sources.map((source,index)=><li key={`${source.url}-${index}`}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>{source.quote?<p>{source.quote}</p>:null}</li>)}</ul></details>;
 }
+function StockEvent({item}) {
+  return <article className="briefing-stock-event"><div className="briefing-event-heading"><span className={'event-badge is-'+item.assessment.tone}>{item.assessment.label}</span>{item.assessment.note&&<small>{item.assessment.note}</small>}</div><p>{item.summary}</p><Evidence item={item}/></article>;
+}
 export function StockBriefing({recommendation,compact=false}) {
   const value=stockBriefing(recommendation);
   if(!value)return null;
+  const eligible=value.events.filter(e=>!e.assessment.excluded),excluded=value.events.filter(e=>e.assessment.excluded);
   return <section className="qualitative-briefing" aria-label={`${recommendation.symbol} 정성 분석`}>
     <header><h3>사건·사업 판단</h3><small>{value.label}</small></header>
-    {value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null}
+    {(compact||!value.events.length)&&(value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null)}
     {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}
     {value.collectionCopy?<p className="briefing-note">{value.collectionCopy}</p>:null}
     {value.legacyCopy?<p className="briefing-note">{value.legacyCopy}</p>:null}
@@ -21,7 +25,9 @@ export function StockBriefing({recommendation,compact=false}) {
       {value.scores.length>0&&<dl className="briefing-scores">{value.scores.map(([label,score])=><div key={label}><dt>{label}</dt><dd>{number(score)}</dd></div>)}</dl>}
       {value.rankingCopy?<p className="briefing-note">{value.rankingCopy}</p>:null}
       <div className="briefing-clocks"><Clock label="자료 기준" value={value.dataAsOf}/><Clock label="분석" value={value.analyzedAt}/></div>
-      {value.events.map((item,index)=><div key={item.id}>{index>0?<p>{item.summary}</p>:null}<Evidence item={item}/></div>)}
+      {eligible.slice(0,3).map(item=><StockEvent key={item.id} item={item}/>)}
+      {eligible.length>3&&<details className="briefing-evidence"><summary>다른 사업 사건 {eligible.length-3}건</summary>{eligible.slice(3).map(item=><StockEvent key={item.id} item={item}/>)}</details>}
+      {excluded.length>0&&<details className="briefing-evidence briefing-excluded"><summary>점수 제외 {excluded.length}건 · 의견·기부·수치 중복</summary>{excluded.map(item=><StockEvent key={item.id} item={item}/>)}</details>}
       {value.aiEvidence?<div><p>{value.aiEvidence.summary}</p><Evidence item={value.aiEvidence}/></div>:null}
     </>}
   </section>;
