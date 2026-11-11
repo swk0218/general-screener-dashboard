@@ -109,5 +109,8 @@ test('review keeps normalized exclusion and original proposal distinct and rejec
   events:[{quote:'TEST_ONLY donation.',reason:'TEST_ONLY 점수 제외',scoring_basis:'donation',scoring_excluded:true,scoring_exclusion_reason:'donation_excluded',mlg_state:'neutral',q:0,model_q:1}],sources:[]}]};
  const before=structuredClone(source);assert.equal(reviewBundle(source).observed_review.cases[0].events[0].model_q,1);assert.deepEqual(source,before);
  const bad=structuredClone(source);Object.assign(bad.observed_review.cases[0],{q:1,adjusted_score:71});assert.throws(()=>reviewBundle(bad),/REVIEW_BUNDLE_INVALID/);
+ const pending=structuredClone(source);Object.assign(pending.observed_review.cases[0],{semantic_rule_status:'unevaluated',q:null,adjusted_score:null});
+ const proposal=pending.observed_review.cases[0].events[0];Object.assign(proposal,{q:1,mlg_state:'positive'});delete proposal.scoring_excluded;delete proposal.scoring_exclusion_reason;
+ assert.equal(reviewBundle(pending).observed_review.cases[0].q,null);
  const malformed=structuredClone(source);malformed.observed_review.cases[0].events[0].scoring_exclusion_reason='private arbitrary prose';assert.throws(()=>reviewBundle(malformed),/REVIEW_BUNDLE_INVALID/);
 });

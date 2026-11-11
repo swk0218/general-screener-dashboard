@@ -94,7 +94,7 @@ export function reviewBundle(value) {
         ||!Array.isArray(c.events)||c.events.length>100||!Array.isArray(c.sources)||c.sources.length>50
         ||c.sources.some(x=>!safeSourceUrl(x.url)||typeof x.quote!=='string'||x.quote.length>6000
           ||typeof x.published_at!=='string')
-        ||c.events.some(e=>!eventAssessment(e,c.strategy)||typeof e.quote!=='string'||typeof e.reason!=='string'
+        ||c.events.some(e=>!eventAssessment(e,c.strategy,c.semantic_rule_status==='unevaluated')||typeof e.quote!=='string'||typeof e.reason!=='string'
           ||(e.source_url!==undefined&&!safeSourceUrl(e.source_url))))fail();
       if(c.strategy==='tenx'){
         if(c.q!==null&&c.q!==0&&c.events.length&&c.events.every(e=>eventAssessment(e,c.strategy).excluded))fail();

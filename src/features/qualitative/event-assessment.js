@@ -7,7 +7,7 @@ const exclusions = Object.freeze({
   non_business_excluded:'사업과 무관',
   numeric_duplicate_excluded:'수치에 이미 반영',
 });
-export function eventAssessment(event, strategy='MLG') {
+export function eventAssessment(event, strategy='MLG', proposalOnly=false) {
   if(!event||typeof event!=='object'
     ||(event.scoring_basis!==undefined&&!bases.includes(event.scoring_basis))
     ||(event.scoring_excluded!==undefined&&typeof event.scoring_excluded!=='boolean')
@@ -23,6 +23,9 @@ export function eventAssessment(event, strategy='MLG') {
   const expected=event.scoring_basis&&event.scoring_basis!=='business_event'
     ?event.scoring_basis+'_excluded':event.quantitative_duplicate===true?'numeric_duplicate_excluded':undefined;
   const excluded=event.scoring_excluded===true;
+  // An unevaluated model proposal has no adopted score; keep it inspectable.
+  if(proposalOnly&&expected&&!excluded&&!reason)return {excluded:true,tone:'neutral',
+    label:'미채택 제안',note:exclusions[expected],classified};
   if((expected&&(!excluded||reason!==expected))
     ||(reason&&!excluded)||(excluded&&!reason)
     ||(excluded&&((event.q!==undefined&&event.q!==0)

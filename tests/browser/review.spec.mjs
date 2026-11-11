@@ -112,7 +112,8 @@ test('company review separates normalized exclusion from the earlier model propo
  await panel.getByLabel('회사 검토 찾기').fill('TEST');await panel.getByRole('button',{name:'TEST 검토 상세'}).click();
  const detail=panel.getByRole('region',{name:'TEST 회사 검토 상세'});
  await expect(detail).toBeFocused();await expect(detail.getByText('점수 제외',{exact:true})).toBeVisible();await expect(detail.getByText('기부 자체',{exact:true})).toBeVisible();
- await expect(detail).toContainText('70');await expect(detail).not.toContainText('Q +1');
+ await expect(detail.locator('.review-score-strip')).toContainText('70');await expect(detail.locator('.review-score-strip')).not.toContainText('+1');
+ await expect(detail.getByText('채택 전 모델 제안 Q +1 · 실제 가감점과 별도',{exact:true})).not.toBeVisible();
  await detail.getByText('사건 원문·시점',{exact:true}).click();
  await expect(detail).toContainText('채택 전 모델 제안 Q +1 · 실제 가감점과 별도');
  await expect(detail.getByRole('link',{name:'사건 원문 열기'})).toHaveAttribute('href','https://example.com/gift');
