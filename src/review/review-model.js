@@ -1,4 +1,5 @@
 import {eventAssessment} from '../features/qualitative/event-assessment.js';
+import {reviewFollowup} from './followup-model.js';
 import { safeSourceUrl, radarBriefing } from '../features/qualitative/briefing-model.js';
 
 const finite = x => typeof x === 'number' && Number.isFinite(x);
@@ -115,6 +116,7 @@ export function reviewBundle(value) {
       ||n.events.length>3||radarBriefing(n,Date.parse(value.created_at))?.status!==n.status)fail();
   }
   radarReviewProvenance(value);
+  reviewFollowup(value);
   return value;
 }
 export function findSample(bundle, strategy) {

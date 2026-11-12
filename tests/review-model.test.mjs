@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reviewBundle,numericRows,radarReviewProvenance} from '../src/review/review-model.js';
 import {reviewFixture,radarReplayFixture} from './review-fixture.mjs';
+import {followupFixture} from './followup-fixture.mjs';
 test('review keeps original scores and order without assigning sample Q to the numeric run',()=>{
  const source=reviewFixture(),before=structuredClone(source),bundle=reviewBundle(source);
  assert.equal(bundle.numeric.result.ranked_all[0].tenx_score,70);
@@ -141,4 +142,18 @@ test('nonincremental risk presentation retains the producer risk state',()=>{
  }
  for(const state of ['positive','clean'])assert.equal(eventAssessment({mlg_state:state,new_state:false},'MLG').label,'중립');
  assert.equal(eventAssessment({mlg_state:'resolved'},'MLG'),null);
+});
+test('retrospective followups bind exact original cases and clocks without rewriting history',()=>{
+ const b=followupFixture(),old=structuredClone(b);delete old.review_followup;
+ reviewBundle(b);const preserved=structuredClone(b);delete preserved.review_followup;
+ assert.deepEqual(preserved,old);
+ for(const change of [
+  x=>x.review_followup.company[0].symbol='OTHER',
+  x=>x.review_followup.company[0].event_binding.quote='A different assertion',
+  x=>x.review_followup.company[0].event_binding.published_at='2026-11-08T10:00:00Z',
+  x=>x.review_followup.news[0].original_source_url='https://example.com/other',
+  x=>x.review_followup.news[0].original_published_at='2026-11-08T10:00:00Z',
+  x=>x.review_followup.model_calls=1,
+  x=>x.review_followup.company[0].sources[0].url='javascript:alert(1)'
+ ]){const bad=structuredClone(b);change(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_FOLLOWUP_INVALID/);}
 });

@@ -10,6 +10,10 @@ function encrypt(value,aad='radar_news_v1'){
  return {envelope_version:'radar_news_encrypted_v1',algorithm:'AES-256-GCM',kdf:'PBKDF2-SHA256',iterations:600000,salt:salt.toString('base64'),iv:iv.toString('base64'),ciphertext:bytes.toString('base64'),payload_hash_kind:'ciphertext_sha256',payload_hash:createHash('sha256').update(bytes).digest('hex')};
 }
 test('news authenticated roundtrip is independent from Beta',async()=>assert.deepEqual(await decryptRadarNewsEnvelope(encrypt(packet),password),packet));
+test('scoped impact and root-driver fields survive the actual authenticated decoder',async()=>{
+ const value={...packet,events:[{event_id:'TEST_ONLY',headline:'TEST_ONLY 정책',summary:'TEST_ONLY 보도',why_it_matters:'TEST_ONLY 조건부 해석',published_at:packet.cutoff_at,driver_kind:'root_driver',watch_point:'TEST_ONLY 실제 이행을 확인',market_impact:{direction:'uncertain',scope:'TEST_ONLY 미국 주식',condition:'TEST_ONLY 이행 여부 미확정'},sources:[{url:'https://example.com/TEST_ONLY',publisher:'TEST_ONLY',published_at:packet.cutoff_at}]}]};
+ assert.deepEqual(await decryptRadarNewsEnvelope(encrypt(value),password),value);
+});
 test('wrong password, domain, changed ciphertext, bad payload rejected',async()=>{
  const envelope=encrypt(packet);
  await assert.rejects(decryptRadarNewsEnvelope(envelope,'WRONG_TEST_PASSWORD'));

@@ -1,4 +1,5 @@
 import {eventAssessment} from './event-assessment.js';
+import {newsPresentation} from './news-presentation.js';
 // Optional enrichment is isolated from the score/encryption contracts.
 const text = value => typeof value === 'string' && value.trim() ? value.trim().slice(0,1200) : null;
 const finite = value => typeof value === 'number' && Number.isFinite(value);
@@ -130,7 +131,9 @@ export function radarBriefing(value, now=Date.now()) {
     seen.add(event.event_id);
     const sources=event.sources.map(source=>({url:safeSourceUrl(source.url),label:text(source.publisher)||'원문',quote:source.source_verification==='provider_citation'?null:text(source.excerpt),publishedAt:source.published_at}));
     if(sources.some(s=>!s.url||!timestamp(s.publishedAt)||Date.parse(s.publishedAt)>Date.parse(base.dataAsOf)))return unavailable();
-    base.events.push({publicationTimeUnverified:event.sources.some(s=>s.publication_time_unverified===true),id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
+    const presentation=newsPresentation(event);
+    if(!presentation)return unavailable();
+    base.events.push({presentation,publicationTimeUnverified:event.sources.some(s=>s.publication_time_unverified===true),id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
   }
   if(value.coverage?.original_documents_not_all_verified===true||value.events.some(e=>e.sources.some(s=>s.source_verification==='provider_citation'))){
     base.label='검색 출처 확인 · 원문 별도 확인';

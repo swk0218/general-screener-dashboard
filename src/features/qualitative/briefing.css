@@ -14,3 +14,10 @@
 .event-badge{display:inline-flex;align-items:center;border:1px solid var(--gs-divider);border-radius:4px;padding:2px 7px;font-size:11px;line-height:1.5;white-space:nowrap;color:var(--gs-muted)}
 .event-badge.is-positive{color:var(--gs-green);border-color:currentColor}.event-badge.is-negative{color:var(--gs-negative,var(--gs-text));border-color:currentColor}
 .briefing-excluded{margin-top:12px}.briefing-excluded>summary{color:var(--gs-muted)}
+.news-interpretation {display:grid;gap:.55rem;margin:.75rem 0;min-width:0;word-break:keep-all;overflow-wrap:anywhere;}
+.news-watch-point,.news-impact-condition {margin:0;line-height:1.65;}
+.news-impact-line {display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;}
+.news-impact-scope,.news-impact-condition {font-size:.82rem;color:var(--gs-muted);}
+.news-impact.is-positive {color:var(--gs-green);}
+.news-impact.is-negative {color:var(--gs-negative,var(--gs-text));}
+.news-impact.is-mixed,.news-impact.is-uncertain,.news-impact.is-unassessed {color:var(--gs-muted);}

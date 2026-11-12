@@ -10,15 +10,17 @@ import {reviewBundle} from '../src/review/review-model.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=name=>{const i=args.indexOf(name);return i>=0?args[i+1]:null;};
 const input=arg('--inputs'),output=arg('--output'),passwordFile=arg('--password-file');
-if(!input||!output||!passwordFile)throw Error('Use --inputs PRIVATE_INPUT_DIRECTORY --output PRIVATE_HTML --password-file PRIVATE_NEW_PASSPHRASE');
-for(const path of [output,passwordFile]){
+const bundlePath=arg('--bundle');
+const passwordStdin=args.includes('--password-stdin');
+if((!input&&!bundlePath)||!output||(!passwordFile&&!passwordStdin)||passwordStdin&&passwordFile)throw Error('Use --inputs PRIVATE_INPUT_DIRECTORY or --bundle PRIVATE_BUNDLE; --output PRIVATE_HTML; one of --password-file PRIVATE_NEW_PASSPHRASE or --password-stdin');
+for(const path of [output,passwordFile].filter(Boolean)){
   const rel=relative(root,resolve(path));
   if(!rel.startsWith('..'))throw Error('Review artifacts must be outside the source checkout.');
 }
 const names=['actual_numeric_tenx_run_42622109601.json','selected_sec_sample_inputs.json','selected_sec_sample_report.json'];
-const sources=await Promise.all(names.map(name=>readFile(join(input,name))));
+const sources=input?await Promise.all(names.map(name=>readFile(join(input,name)))):[];
 const [numeric,inputs,reports]=sources.map(raw=>JSON.parse(raw));
-const bundle=reviewBundle({schema:'gpt_private_review_v1',created_at:new Date().toISOString(),
+const bundle=bundlePath?reviewBundle(JSON.parse(await readFile(bundlePath,'utf8'))):reviewBundle({schema:'gpt_private_review_v1',created_at:new Date().toISOString(),
   source_files:sources.map((raw,i)=>({name:names[i],sha256:createHash('sha256').update(raw).digest('hex')})),
   numeric:{run_id:'42622109601',result:numeric},
   samples:inputs.map(x=>({...x,report:reports.find(r=>r.case_id===x.case_id)}))});
@@ -87,7 +89,8 @@ if(observedPath){
 }
 const radarResult=arg('--radar-result');
 if(radarResult){bundle.actual_radar_news=JSON.parse(await readFile(radarResult,'utf8')).news;reviewBundle(bundle);}
-const password=randomBytes(15).toString('base64url');
+let password=randomBytes(15).toString('base64url');
+if(passwordStdin){let secret='';for await(const chunk of process.stdin)secret+=chunk;password=secret.trim();if(password.length<12||password.length>128)throw Error('Invalid private input');}
 const encrypted=await encryptEnvelope(bundle,password);
 reviewBundle(await decryptEnvelope(encrypted,password));
 const temp=await mkdtemp(join(tmpdir(),'gpt-private-review-'));
@@ -112,7 +115,7 @@ try{
  const markup=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g,'<script$1></script>');
  if(/<(?:script|link)\b[^>]*(?:src|href)=/.test(markup))throw Error('Review has external assets');
  await writeFile(output,html,{mode:0o600,flag:'wx'});
- await writeFile(passwordFile,password+'\n',{mode:0o600,flag:'wx'});
+ if(passwordFile)await writeFile(passwordFile,password+'\n',{mode:0o600,flag:'wx'});
  await writeFile(output+'.enc.json',JSON.stringify(encrypted),{mode:0o600,flag:'wx'});
  process.stdout.write(JSON.stringify({status:'private_review_built',output:resolve(output),bytes:Buffer.byteLength(html),sha256:createHash('sha256').update(html).digest('hex'),source_files:bundle.source_files})+'\n');
 }finally{await rm(temp,{recursive:true,force:true});}

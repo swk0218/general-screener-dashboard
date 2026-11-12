@@ -199,3 +199,14 @@ test('old unclassified records stay unclassified and malformed classifications a
  const row=tenx();assert.equal(stockBriefing(row).events[0].assessment.classified,false);
  row.qualitative.event.scoring_basis='__proto__';assert.equal(stockBriefing(row).status,'invalid');
 });
+test('news impacts are scoped conditional categories and legacy output remains unassessed',()=>{
+ const base={schema_version:'radar_news_v1',policy_version:'TEST_ONLY',affects_beta:false,status:'ready',run_id:'TEST_ONLY',cutoff_at:'2026-11-07T10:00:00Z',analyzed_at:'2026-11-07T10:01:00Z',events:[{event_id:'TEST_ONLY',headline:'TEST_ONLY 정책',summary:'TEST_ONLY 사실',why_it_matters:'TEST_ONLY 해석',published_at:'2026-11-07T09:00:00Z',sources:[{url:'https://example.com/TEST_ONLY',publisher:'TEST_ONLY',published_at:'2026-11-07T09:00:00Z'}]}]};
+ const now=Date.parse(base.analyzed_at),before=structuredClone(base);
+ assert.equal(radarBriefing(base,now).events[0].presentation.impact.direction,'unassessed');
+ for(const direction of ['positive','negative','neutral','mixed','uncertain']){
+  const b=structuredClone(base);Object.assign(b.events[0],{watch_point:'TEST_ONLY 실제 이행을 확인',market_impact:{direction,scope:'TEST_ONLY 미국 주식',condition:'TEST_ONLY 정책이 이행될 때'}});
+  assert.equal(radarBriefing(b,now).events[0].presentation.impact.direction,direction);
+  delete b.events[0].market_impact.condition;assert.equal(radarBriefing(b,now).status,'invalid');
+ }
+ assert.deepEqual(base,before);
+});

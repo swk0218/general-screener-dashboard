@@ -253,3 +253,7 @@
 @media(prefers-reduced-motion:reduce) { .review-shell * { scroll-behavior:auto; transition:none!important; } }
 
 .review-archive .review-table-scroll { max-height:440px; overflow:auto; }
+.review-followup {border-left:2px solid var(--gs-cyan);padding-left:12px;margin-block:14px;}
+.review-followup-source {margin-top:14px;display:grid;gap:6px;}
+.review-shell .news-impact-scope,.review-shell .news-impact-condition {color:var(--gs-muted);font-size:12px;}
+.review-shell .news-watch-point {font-size:14px;}
