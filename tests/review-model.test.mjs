@@ -157,3 +157,22 @@ test('retrospective followups bind exact original cases and clocks without rewri
   x=>x.review_followup.company[0].sources[0].url='javascript:alert(1)'
  ]){const bad=structuredClone(b);change(bad);assert.throws(()=>reviewBundle(bad),/REVIEW_FOLLOWUP_INVALID/);}
 });
+
+test('equivalent company followup bindings cannot duplicate a note through object key order',()=>{
+ const b=followupFixture(),note=b.review_followup.company[0],binding=note.event_binding;
+ const reordered={occurred_at:binding.occurred_at,quote:binding.quote,published_at:binding.published_at};
+ assert.notEqual(JSON.stringify(reordered),JSON.stringify(binding));
+ const duplicate=structuredClone(note);duplicate.event_binding=reordered;
+ b.review_followup.company=[duplicate];assert.doesNotThrow(()=>reviewBundle(b));
+ b.review_followup.company.push(note);
+ assert.throws(()=>reviewBundle(b),/REVIEW_FOLLOWUP_INVALID/);
+});
+test('company and news source publication cannot follow the recorded manual review',()=>{
+ for(const kind of ['company','news']){
+  const b=followupFixture(),source=b.review_followup[kind][0].sources[0];
+  b.review_followup[kind][0].sources[0]={...source,verified_published_at:'2026-11-09T11:00:00+01:00'};
+  assert.doesNotThrow(()=>reviewBundle(b));
+  b.review_followup[kind][0].sources[0].verified_published_at=new Date(Date.parse(b.review_followup.reviewed_at)+1000).toISOString();
+  assert.throws(()=>reviewBundle(b),/REVIEW_FOLLOWUP_INVALID/);
+ }
+});
