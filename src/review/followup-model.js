@@ -41,3 +41,12 @@ export function companyFollowups(bundle,row,event) {
 export function newsFollowup(bundle,eventId) {
   return reviewFollowup(bundle)?.news.find(n=>n.event_id===eventId)||null;
 }
+
+// Translate only this recorded transport prefix. Keep every factual sentence and
+// the complete saved text available; this presentation helper never edits data.
+const recordedPrefix='RECONSTRUCTED FROM RECORDED PRIOR REVIEW · 이전 검토 기록에서 재구성했습니다. 새 원문 조회·출처 확인·GPT 응답·점수 재평가가 아닙니다. ';
+export function followupPresentation(value) {
+  return value.startsWith(recordedPrefix)
+    ? {text:value.slice(recordedPrefix.length),reconstructed:true}
+    : {text:value,reconstructed:false};
+}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { stockBriefing, radarBriefing } from './briefing-model.js';
 import {NewsImpact} from './NewsImpact.jsx';
 import './briefing.css';
-const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})+' KST' : '미확인';
+const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})+' KST' : '미확인';
 const number = value => typeof value==='number'?value.toLocaleString('ko-KR',{maximumFractionDigits:2}):value;
 function Clock({label,value}) { return <span>{label} <time dateTime={value||undefined}>{time(value)}</time></span>; }
 function Evidence({item}) {

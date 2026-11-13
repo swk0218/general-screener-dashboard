@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {reviewBundle,numericRows,radarReviewProvenance} from '../src/review/review-model.js';
 import {reviewFixture,radarReplayFixture} from './review-fixture.mjs';
 import {followupFixture} from './followup-fixture.mjs';
+import {followupPresentation} from '../src/review/followup-model.js';
 test('review keeps original scores and order without assigning sample Q to the numeric run',()=>{
  const source=reviewFixture(),before=structuredClone(source),bundle=reviewBundle(source);
  assert.equal(bundle.numeric.result.ranked_all[0].tenx_score,70);
@@ -175,4 +176,17 @@ test('company and news source publication cannot follow the recorded manual revi
   b.review_followup[kind][0].sources[0].verified_published_at=new Date(Date.parse(b.review_followup.reviewed_at)+1000).toISOString();
   assert.throws(()=>reviewBundle(b),/REVIEW_FOLLOWUP_INVALID/);
  }
+});
+
+
+test('followup copy removes only the exact recorded prefix and preserves all saved evidence',()=>{
+ const prefix='RECONSTRUCTED FROM RECORDED PRIOR REVIEW · 이전 검토 기록에서 재구성했습니다. 새 원문 조회·출처 확인·GPT 응답·점수 재평가가 아닙니다. ';
+ const b=followupFixture(),fact='TEST_ONLY 원래 발행 시각과 확인 한계를 보존합니다.';
+ b.review_followup.news[0].note=prefix+fact;
+ const before=structuredClone(b);
+ assert.deepEqual(followupPresentation(b.review_followup.news[0].note),{text:fact,reconstructed:true});
+ for(const raw of [fact,'RECONSTRUCTED FROM RECORDED PRIOR REVIEW',fact+' '+prefix]){
+  assert.deepEqual(followupPresentation(raw),{text:raw,reconstructed:false});
+ }
+ assert.deepEqual(b,before);
 });

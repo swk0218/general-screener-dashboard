@@ -72,7 +72,7 @@ test('review hierarchy preserves judgments while exposing details and sources on
  await expect(page.getByLabel('최초 실제 실행 채택',{exact:true})).toHaveText('1건');
  await expect(page.getByLabel('저장 응답 재검증 채택',{exact:true})).toHaveText('3건');
  const article=page.locator('.radar-news article').first();
- await article.getByRole('button',{name:'시장 해석',exact:true}).click();
+ await article.getByText('보도 내용·기존 시장 해석',{exact:true}).click();
  await expect(article.getByText(data.actual_radar_news.events[0].why_it_matters,{exact:true})).toBeVisible();
  await article.getByText('근거·출처',{exact:true}).click();
  await expect(article.getByRole('link',{name:'TEST_ONLY 매체'})).toHaveAttribute('href',data.actual_radar_news.events[0].sources[0].url);

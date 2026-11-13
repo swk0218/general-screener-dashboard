@@ -5,14 +5,18 @@ import {createHash,randomBytes} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {build} from 'vite';
 import react from '@vitejs/plugin-react';
-import {encryptEnvelope,decryptEnvelope} from '../src/crypto/envelope.js';
+import {encryptEnvelope,decryptEnvelope,parseEnvelope} from '../src/crypto/envelope.js';
 import {reviewBundle} from '../src/review/review-model.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),arg=name=>{const i=args.indexOf(name);return i>=0?args[i+1]:null;};
 const input=arg('--inputs'),output=arg('--output'),passwordFile=arg('--password-file');
-const bundlePath=arg('--bundle');
+const bundlePath=arg('--bundle'),encryptedPath=arg('--encrypted-bundle');
+const expectedEnvelopeHash=arg('--expected-envelope-sha256');
 const passwordStdin=args.includes('--password-stdin');
-if((!input&&!bundlePath)||!output||(!passwordFile&&!passwordStdin)||passwordStdin&&passwordFile)throw Error('Use --inputs PRIVATE_INPUT_DIRECTORY or --bundle PRIVATE_BUNDLE; --output PRIVATE_HTML; one of --password-file PRIVATE_NEW_PASSPHRASE or --password-stdin');
+if([input,bundlePath,encryptedPath].filter(Boolean).length!==1||!output
+  ||(encryptedPath?passwordFile||passwordStdin||!/^[a-f0-9]{64}$/.test(expectedEnvelopeHash||'')
+    :(!passwordFile&&!passwordStdin)||passwordStdin&&passwordFile||expectedEnvelopeHash))throw Error('Choose one: --inputs or --bundle with --password-file/--password-stdin; or --encrypted-bundle with --expected-envelope-sha256. Always set --output outside the checkout.');
+if(encryptedPath&&['--legacy-seed','--radar-receipt','--observed-review','--radar-result'].some(flag=>args.includes(flag)))throw Error('Preserved encrypted input cannot be enriched or changed.');
 for(const path of [output,passwordFile].filter(Boolean)){
   const rel=relative(root,resolve(path));
   if(!rel.startsWith('..'))throw Error('Review artifacts must be outside the source checkout.');
@@ -20,10 +24,10 @@ for(const path of [output,passwordFile].filter(Boolean)){
 const names=['actual_numeric_tenx_run_42622109601.json','selected_sec_sample_inputs.json','selected_sec_sample_report.json'];
 const sources=input?await Promise.all(names.map(name=>readFile(join(input,name)))):[];
 const [numeric,inputs,reports]=sources.map(raw=>JSON.parse(raw));
-const bundle=bundlePath?reviewBundle(JSON.parse(await readFile(bundlePath,'utf8'))):reviewBundle({schema:'gpt_private_review_v1',created_at:new Date().toISOString(),
+const bundle=bundlePath?reviewBundle(JSON.parse(await readFile(bundlePath,'utf8'))):input?reviewBundle({schema:'gpt_private_review_v1',created_at:new Date().toISOString(),
   source_files:sources.map((raw,i)=>({name:names[i],sha256:createHash('sha256').update(raw).digest('hex')})),
   numeric:{run_id:'42622109601',result:numeric},
-  samples:inputs.map(x=>({...x,report:reports.find(r=>r.case_id===x.case_id)}))});
+  samples:inputs.map(x=>({...x,report:reports.find(r=>r.case_id===x.case_id)}))}):null;
 const legacyPath=arg('--legacy-seed');
 if(legacyPath){
  const wrapper=JSON.parse(await readFile(legacyPath,'utf8')),state=wrapper.state;
@@ -89,10 +93,22 @@ if(observedPath){
 }
 const radarResult=arg('--radar-result');
 if(radarResult){bundle.actual_radar_news=JSON.parse(await readFile(radarResult,'utf8')).news;reviewBundle(bundle);}
-let password=randomBytes(15).toString('base64url');
-if(passwordStdin){let secret='';for await(const chunk of process.stdin)secret+=chunk;password=secret.trim();if(password.length<12||password.length>128)throw Error('Invalid private input');}
-const encrypted=await encryptEnvelope(bundle,password);
-reviewBundle(await decryptEnvelope(encrypted,password));
+let password,encrypted,encryptedJson;
+if(encryptedPath){
+ // UI-only rebuild: retain the exact serialized envelope and passphrase. This
+ // validates transport shape/integrity; authenticated bundle validation still
+ // happens on unlock, without asking the builder for the private passphrase.
+ encryptedJson=await readFile(encryptedPath,'utf8');
+ if(createHash('sha256').update(encryptedJson).digest('hex')!==expectedEnvelopeHash)throw Error('Encrypted input hash mismatch');
+ if(/<\/script/i.test(encryptedJson))throw Error('Unsafe encrypted input markup');
+ encrypted=parseEnvelope(encryptedJson);
+}else{
+ password=randomBytes(15).toString('base64url');
+ if(passwordStdin){let secret='';for await(const chunk of process.stdin)secret+=chunk;password=secret.trim();if(password.length<12||password.length>128)throw Error('Invalid private input');}
+ encrypted=await encryptEnvelope(bundle,password);
+ reviewBundle(await decryptEnvelope(encrypted,password));
+ encryptedJson=JSON.stringify(encrypted);
+}
 const temp=await mkdtemp(join(tmpdir(),'gpt-private-review-'));
 try{
  await build({root,configFile:false,publicDir:false,base:'./',plugins:[react()],logLevel:'warn',
@@ -111,11 +127,11 @@ try{
   html=html.replace(m[0],()=>'<style>'+style+'</style>');
  }
  html=html.replace('</head>',"<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'\"></head>");
- html=html.replace('<div id="root">','<script type="application/json" id="review-bundle">'+JSON.stringify(encrypted)+'</script><div id="root">');
+ html=html.replace('<div id="root">','<script type="application/json" id="review-bundle">'+encryptedJson+'</script><div id="root">');
  const markup=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script>/g,'<script$1></script>');
  if(/<(?:script|link)\b[^>]*(?:src|href)=/.test(markup))throw Error('Review has external assets');
  await writeFile(output,html,{mode:0o600,flag:'wx'});
  if(passwordFile)await writeFile(passwordFile,password+'\n',{mode:0o600,flag:'wx'});
- await writeFile(output+'.enc.json',JSON.stringify(encrypted),{mode:0o600,flag:'wx'});
- process.stdout.write(JSON.stringify({status:'private_review_built',output:resolve(output),bytes:Buffer.byteLength(html),sha256:createHash('sha256').update(html).digest('hex'),source_files:bundle.source_files})+'\n');
+ await writeFile(output+'.enc.json',encryptedJson,{mode:0o600,flag:'wx'});
+ process.stdout.write(JSON.stringify({status:'private_review_built',output:resolve(output),bytes:Buffer.byteLength(html),sha256:createHash('sha256').update(html).digest('hex'),source_files:bundle?.source_files,mode:encryptedPath?'preserved_envelope':'encrypted_bundle',envelope_sha256:createHash('sha256').update(encryptedJson).digest('hex')})+'\n');
 }finally{await rm(temp,{recursive:true,force:true});}

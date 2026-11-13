@@ -1,4 +1,4 @@
-import {useEffect,useId,useState} from 'react';
+import {useEffect,useState} from 'react';
 import {ChevronDown,ChevronRight,ArrowUpRight} from 'lucide-react';
 import {radarBriefing} from '../features/qualitative/briefing-model.js';
 import {radarReviewProvenance} from './review-model.js';
@@ -7,15 +7,10 @@ import {newsPresentation} from '../features/qualitative/news-presentation.js';
 import {NewsImpact} from '../features/qualitative/NewsImpact.jsx';
 import {SourceFollowup} from './SourceFollowup.jsx';
 
+import {ReviewClock,reviewTime as time} from './ReviewClock.jsx';
+import {ReviewText} from './ReviewText.jsx';
+export {ReviewText} from './ReviewText.jsx';
 const accepted = row => ['evaluated','cached'].includes(row.semantic_rule_status);
-const time = value => value ? new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})+' KST' : '미확인';
-
-export function ReviewText({children,label='전체 설명'}) {
-  const [open,setOpen]=useState(false),id=useId();
-  if(!children)return null;
-  const lengthy=children.length>170;
-  return <div className="review-reading"><p id={id} className={lengthy&&!open?'review-clamped':''}>{children}</p>{lengthy&&<button type="button" className="review-text-toggle" aria-controls={id} aria-expanded={open} onClick={()=>setOpen(x=>!x)}>{open?'간단히 보기':label}<ChevronDown size={14} aria-hidden="true"/></button>}</div>;
-}
 
 export function ReviewGuide({bundle}) {
   return <details className="review-guide"><summary>검토 안내<ChevronDown size={14} aria-hidden="true"/></summary><div>
@@ -24,7 +19,7 @@ export function ReviewGuide({bundle}) {
     <p>새 하네스는 애널리스트 의견·기부 자체·수치 중복을 사건 가감점에서 제외합니다. 이전 저장 결과는 재분류하지 않고 당시 판정을 보존합니다.</p>
     <p>통상 고객 협력과 단순 실적 상회는 자동 가점하지 않습니다. 수치 중복은 실제 입력 기간·필드가 겹칠 때만 판단하며, 실제 신규 발행의 소유 비중 감소는 기존 희석 반영 기간과 구분합니다.</p>
     {bundle.review_followup&&<p>추가 사실 확인은 사후 수동 검토입니다. 원래 응답·점수·검색 기준과 별도로 표시합니다.</p>}
-    <p>월 합산 GPT 운영 상한은 $50입니다. 검토 자료 작성 {time(bundle.created_at)}은 원문·분석 시각을 갱신하지 않습니다.</p>
+    <p>검토 자료 작성 <ReviewClock value={bundle.created_at}/> · 원문·분석 시각은 각 근거를 따릅니다.</p>
   </div></details>;
 }
 
@@ -60,25 +55,22 @@ export function ReviewRadar({bundle}) {
   const news=radarBriefing(value,now);
   return <section className="review-card review-radar" aria-label="Radar 저장 뉴스 검토">
     <header className="review-section-heading"><div><span className="review-ai-label">AI 뉴스 검토</span><h2>시장 주요 뉴스</h2></div><span className="review-tag">점수·경보 별도</span></header>
-    {proof&&<div className="review-run-proof" aria-label="Radar 실행 구분"><div><span>최초 실제 실행</span><strong aria-label="최초 실제 실행 채택">{proof.originalCount}건</strong></div><div><span>저장 응답 재검증</span><strong aria-label="저장 응답 재검증 채택">{proof.replayCount}건</strong></div><p>현재 화면은 저장 응답 재검증 {proof.replayCount}건입니다. 새 실검색 결과가 아닙니다. 추가 호출 0회.</p><details><summary>실행 기록<ChevronDown size={14} aria-hidden="true"/></summary><p>최초 실제 실행 {proof.originalRun} · 당시 채택 {proof.originalCount}건.</p><p>원래 검색 기준 {time(proof.originalCutoff)} · 원문·발행 시각의 확인 수준은 각 뉴스의 근거 표시를 따릅니다.</p></details></div>}
+    {proof&&<div className="review-run-proof" aria-label="Radar 실행 구분"><div><span>최초 실제 실행</span><strong aria-label="최초 실제 실행 채택">{proof.originalCount}건</strong></div><div><span>저장 응답 재검증</span><strong aria-label="저장 응답 재검증 채택">{proof.replayCount}건</strong></div><p>저장 응답을 다시 검증한 {proof.replayCount}건입니다. 새 실검색 결과가 아닙니다.</p><details><summary>실행 기록<ChevronDown size={14} aria-hidden="true"/></summary><p>최초 실제 실행 {proof.originalRun} · 당시 채택 {proof.originalCount}건.</p><p>원래 검색 기준 {time(proof.originalCutoff)} · 원문·발행 시각의 확인 수준은 각 뉴스의 근거 표시를 따릅니다.</p></details></div>}
     <section className="qualitative-briefing radar-news review-news-list" aria-label="시장 주요 뉴스">
       <p className="review-news-status">{news?.status==='stale'?'이전 저장 뉴스':news?.label||'분석 불가'}{news?.coverageCopy&&<span>{news.coverageCopy}</span>}</p>
-      {news?.events.map((item,index)=><NewsCard item={item} index={index} followup={newsFollowup(bundle,item.id)} key={item.id}/>)}
+      {news?.events.map((item,index)=><NewsCard item={item} index={index} followup={newsFollowup(bundle,item.id)} reviewedAt={bundle.review_followup?.reviewed_at} key={item.id}/>)}
       {!news?.events.length&&<p className="review-empty">{news?.status==='ready'?'확인된 주요 사건 없음':'검토 가능한 뉴스 자료가 없습니다.'}</p>}
-      {value&&<p className="review-note">검색 기준 {time(value.cached_cutoff_at||value.cutoff_at)} · 분석 {time(value.cached_analyzed_at||value.analyzed_at)}</p>}
+      {value&&<p className="review-note">검색 기준 <ReviewClock value={value.cached_cutoff_at||value.cutoff_at}/> · 분석 <ReviewClock value={value.cached_analyzed_at||value.analyzed_at}/></p>}
     </section>
     <p className="review-note">정치·거시·시장 보도를 확인한 범위입니다. 세계 뉴스 전체를 조사했다는 뜻은 아닙니다.</p>
   </section>;
 }
 
-function NewsCard({item,index,followup}) {
-  const [analysisOpen,setAnalysisOpen]=useState(false),id=useId();
-  return <article className="review-news-card"><div className="review-news-meta"><span>NEWS {String(index+1).padStart(2,'0')}</span><span>{item.publicationTimeUnverified?'보도 시각 미확인':time(item.publishedAt)}</span></div><h3>{item.headline}</h3>
+function NewsCard({item,index,followup,reviewedAt}) {
+  return <article className="review-news-card"><div className="review-news-meta"><span>NEWS {String(index+1).padStart(2,'0')}</span><span>{item.publicationTimeUnverified?'보도 시각 미확인':<ReviewClock value={item.publishedAt}/>}</span></div><h3>{item.headline}</h3>
     <NewsImpact presentation={followup?newsPresentation(followup):item.presentation} reviewer={!!followup}/>
-    <details className="review-source"><summary>저장된 보도 내용<ChevronDown size={14} aria-hidden="true"/></summary><ReviewText label="보도 내용 전체">{item.summary}</ReviewText></details>
-    <button type="button" className="review-analysis-toggle" aria-expanded={analysisOpen} aria-controls={id} onClick={()=>setAnalysisOpen(x=>!x)}>시장 해석<ChevronDown size={14} aria-hidden="true"/></button>
-    <div id={id} hidden={!analysisOpen} className="review-analysis"><p>{item.why}</p></div>
-    {followup&&<SourceFollowup note={followup}/>}
+    <details className="review-source review-news-detail"><summary>보도 내용·기존 시장 해석<ChevronDown size={14} aria-hidden="true"/></summary><h4>저장된 보도 내용</h4><ReviewText label="보도 내용 전체">{item.summary}</ReviewText><h4>기존 시장 해석</h4><ReviewText label="기존 해석 전체">{item.why}</ReviewText></details>
+    {followup&&<SourceFollowup note={followup} reviewedAt={reviewedAt}/>}
     <details className="briefing-evidence review-source"><summary>근거·출처<ChevronDown size={15} aria-hidden="true"/></summary><p className="review-note">{item.publicationTimeUnverified?'보도 표기 '+item.publishedAt+' · 원문 시각 미확인':time(item.publishedAt)}</p><ul>{item.sources.map((source,i)=><li key={i}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}<ArrowUpRight size={14} aria-hidden="true"/></a>{source.quote&&<blockquote>{source.quote}</blockquote>}</li>)}</ul></details>
   </article>;
 }

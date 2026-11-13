@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {encryptEnvelope} from '../../src/crypto/envelope.js';
 import {reviewFixture,radarReplayFixture} from '../review-fixture.mjs';
+import {followupFixture} from '../followup-fixture.mjs';
 const password='TEST_ONLY_REVIEW',payload=await encryptEnvelope(reviewFixture(),password);
 test('private import explores stored sample and independent numeric run then clears on lock',async({page},testInfo)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -94,6 +95,11 @@ test('Radar review displays original one and cached three separately at each wid
  await expect(provenance).toContainText('새 실검색 결과가 아닙니다.');
  await expect(page.getByText('TEST_ONLY 뉴스 2',{exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('.review-news-card').last().scrollIntoViewIfNeeded();
+ await page.getByRole('button',{name:'개요',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'수치 결과와 정성 판단'})).toBeInViewport();
+ expect(await page.evaluate(()=>scrollY)).toBe(0);
+ await page.getByRole('button',{name:'RADAR',exact:true}).click();
  await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
  await expect(page.getByLabel('Radar 실행 구분')).toHaveCount(0);
 });
@@ -121,4 +127,28 @@ test('company review separates normalized exclusion from the earlier model propo
  await detail.screenshot({path:testInfo.outputPath('company-exclusion-TEST_ONLY.png')});
  await detail.getByRole('button',{name:'검토 닫기'}).click();await expect(panel.getByRole('button',{name:'TEST 검토 상세'})).toBeFocused();
  await page.getByRole('button',{name:'체험 잠금',exact:true}).click();await expect(panel).toHaveCount(0);expect(errors).toEqual([]);
+});
+
+
+test('manual provenance stays concise while the exact stored wording remains available',async({page})=>{
+ const fixture=followupFixture(),note=fixture.review_followup.news[0];
+ const prefix='RECONSTRUCTED FROM RECORDED PRIOR REVIEW · 이전 검토 기록에서 재구성했습니다. 새 원문 조회·출처 확인·GPT 응답·점수 재평가가 아닙니다. ';
+ note.note=prefix+note.note;note.sources[0].note=prefix+note.sources[0].note;
+ const encrypted=await encryptEnvelope(fixture,password);
+ await page.goto('/review.html');
+ await page.locator('input[type=file]').setInputFiles({name:'TEST_ONLY.enc.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(encrypted))});
+ await page.getByLabel('체험 암호',{exact:true}).fill(password);await page.getByRole('button',{name:'체험 열기',exact:true}).click();
+ await page.getByRole('button',{name:'RADAR',exact:true}).click();
+ const article=page.locator('.review-news-card').first(),followup=article.locator('.review-followup');
+ await expect(article.locator('.news-watch-point')).toContainText(note.watch_point);
+ await followup.getByText('사후 수동 출처 검토',{exact:true}).click();
+ await expect(followup.getByText('이전 검토 기록 기반 · 새 원문 확인·GPT 판단 아님 · 원판정 보존',{exact:true})).toBeVisible();
+ await expect(followup.locator('.review-reading').first()).not.toContainText('RECONSTRUCTED');
+ await expect(followup.getByText(note.note,{exact:true})).not.toBeVisible();
+ await followup.getByText('저장된 검토 문구',{exact:true}).click();
+ await expect(followup.getByText(note.note,{exact:true})).toBeVisible();
+ await expect(followup.locator('time').first()).toHaveAttribute('datetime',fixture.review_followup.reviewed_at);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
+ await expect(followup).toHaveCount(0);
 });

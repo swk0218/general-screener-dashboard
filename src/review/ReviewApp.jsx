@@ -1,5 +1,5 @@
 import {CompanyReview} from './CompanyReview.jsx';
-import {useRef,useState} from 'react';
+import {useLayoutEffect,useRef,useState} from 'react';
 import {Theme} from '@astryxdesign/core/theme';
 import {neutralTheme} from '@astryxdesign/theme-neutral/built';
 import {decryptEnvelope} from '../crypto/envelope.js';
@@ -57,6 +57,8 @@ function Numeric({bundle}) {
 export function ReviewApp() {
   const [bundle,setBundle]=useState(null),[tab,setTab]=useState('overview'),[password,setPassword]=useState(''),[input,setInput]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const epoch=useRef(0);
+  // Each review tab is a new reading context; reveal its heading before paint.
+  useLayoutEffect(()=>{if(bundle)window.scrollTo({top:0,left:0,behavior:'instant'});},[tab,bundle]);
   const embedded=()=>{const el=document.getElementById('review-bundle');return el?JSON.parse(el.textContent):null;};
   const lock=()=>{epoch.current++;setBundle(null);setInput(null);setPassword('');setError('');setBusy(false);setTab('overview');};
   async function unlock(e) {
@@ -78,7 +80,7 @@ export function ReviewApp() {
   return <Theme theme={neutralTheme} colorScheme="dark"><div className="review-shell"><a className="skip-link" href="#review-main">본문으로 이동</a>
     <header className="review-top"><div className="brand-wordmark">GENERAL SCREENER</div><span className="review-ai-label">AI 검토</span>{bundle&&<button type="button" className="review-lock" onClick={lock}><LockKeyhole size={15} aria-hidden="true"/><span>체험 잠금</span></button>}</header>
     {!bundle?<main className="review-unlock"><span className="review-lock-mark"><LockKeyhole size={23} aria-hidden="true"/></span><span className="review-eyebrow">PRIVATE REVIEW</span><h1>저장된 실제 결과를<br/>직접 확인하세요</h1><p>회사 판단과 뉴스 근거를 확인하는 비공개 검토본입니다.</p><form onSubmit={unlock}><label>체험 암호<input autoComplete="off" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button type="submit" disabled={busy}>{busy?'여는 중…':'체험 열기'}</button></form><details className="review-import"><summary>다른 검토 파일 불러오기<ChevronDown size={14} aria-hidden="true"/></summary><label>암호화된 검토 JSON<input type="file" accept=".json,application/json" onChange={choose}/></label></details>{input&&<p role="status">선택한 검토 자료를 사용합니다.</p>}{error&&<p className="review-error" role="alert">{error}</p>}<p className="review-note">새 API 호출 없이 저장된 결과를 살펴봅니다.</p></main>:<>
-    <div className="review-context"><span><span className="review-status-dot"/>검토 전용 <span className="review-note">· 운영 미반영</span></span><ReviewGuide bundle={bundle}/></div>
+    <div className="review-context"><span><span className="review-status-dot"/>과거 저장 결과 <span className="review-note">· 최신 기준 재평가 전</span></span><ReviewGuide bundle={bundle}/></div>
     <nav className="review-nav" aria-label="체험 화면">{tabs.map(([id,label])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
     <main className="review-content" id="review-main"><header className="review-heading"><span className="review-eyebrow">{tab==='overview'?'GENERAL SCREENER':tab.toUpperCase()}</span><h1>{({overview:'수치 결과와 정성 판단',mlg:'AI 공급 역할과 위험 판단',tenx:'원점수와 사건 보정',radar:'시장 신호와 주요 뉴스'})[tab]}</h1><p>{({overview:'판단을 먼저 읽고, 근거를 펼쳐 확인하세요.',mlg:'공급 판정과 위험 제안을 기존 점수와 비교합니다.',tenx:'원점수 S를 유지하며 사건 제안 Q와 근거를 검토합니다.',radar:'보도된 사실과 조건부 시장 해석을 구분합니다.'})[tab]}</p></header>
       {tab==='overview'&&<ReviewOverview bundle={bundle} onNavigate={setTab}/>}
