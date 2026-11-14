@@ -1,3 +1,4 @@
+import {validateFinalLiveReview,validateRadarSnapshotReview} from './final-live-model.js';
 import {eventAssessment} from '../features/qualitative/event-assessment.js';
 import {reviewFollowup} from './followup-model.js';
 import { safeSourceUrl, radarBriefing } from '../features/qualitative/briefing-model.js';
@@ -117,6 +118,8 @@ export function reviewBundle(value) {
   }
   radarReviewProvenance(value);
   reviewFollowup(value);
+  if(value.final_live_review!=null)validateFinalLiveReview(value.final_live_review);
+  if(value.radar_snapshot_review!=null)validateRadarSnapshotReview(value.radar_snapshot_review);
   return value;
 }
 export function findSample(bundle, strategy) {

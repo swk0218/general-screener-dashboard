@@ -118,39 +118,126 @@ export function stockBriefing(recommendation) {
   } else return unavailable();
   return base;
 }
+export const RADAR_SOURCE_VERIFICATION_COPY=Object.freeze({
+  independent_original:'원문 확인',provider_citation:'검색 참조 · 원문 미확인',legacyunknown:'검증 범위 미기록',
+});
+export const RADAR_PUBLICATION_CONFIDENCE_COPY=Object.freeze({
+  independently_verified:'발행 시각 확인',unverified:'보도 표기 · 원문 시각 미확인',unknown:'발행 시각 검증 여부 미기록',
+});
+const radarRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+const RADAR_INCOMPLETE_REASONS=new Set(['search_failed','insufficient_primary_sources',
+  'publication_time_unverified','excerpt_unverified','scope_or_materiality_unverified',
+  'conflicting_sources','tool_budget_exhausted']);
+
+// Shape projection only: native source/receipt authentication belongs to the producer.
+export function radarSourceEvidence(source,{dataAsOf,analyzedAt,receiptCutoff=dataAsOf}={}) {
+  if(!radarRecord(source)||!timestamp(dataAsOf)||!timestamp(analyzedAt)||!timestamp(receiptCutoff))return null;
+  const verification=source.source_verification===undefined?'legacyunknown':source.source_verification;
+  const unverified=source.publication_time_unverified===undefined?null:source.publication_time_unverified;
+  if(!Object.hasOwn(RADAR_SOURCE_VERIFICATION_COPY,verification)
+    ||(source.publication_time_unverified!==undefined&&typeof unverified!=='boolean')
+    ||(verification==='independent_original'&&unverified!==false)
+    ||(verification==='provider_citation'&&unverified!==true))return null;
+  const url=safeSourceUrl(source.url),published=source.published_at;
+  if(!url||!timestamp(published)||Date.parse(published)>Date.parse(dataAsOf))return null;
+  const supplied=[source.retrieved_at,source.received_at].filter(value=>value!=null);
+  if(supplied.some(value=>!timestamp(value))
+    ||(supplied.length===2&&Date.parse(supplied[0])!==Date.parse(supplied[1])))return null;
+  const received=supplied[0]??null;
+  if(received&&(Date.parse(received)<Date.parse(published)||Date.parse(received)>Date.parse(analyzedAt)))return null;
+  const verified=verification==='independent_original'?true:unverified===true?false:null;
+  return {url,label:text(source.publisher)||'원문',
+    quote:verification==='provider_citation'?null:text(source.excerpt),
+    publishedAt:published,sourcePublishedAt:published,sourceReceivedAt:received,
+    receivedByDataCutoff:received===null?null:Date.parse(received)<=Date.parse(receiptCutoff),
+    dataAsOf:receiptCutoff,sourceVerification:verification,publicationTimeUnverified:unverified,
+    publicationTimeVerified:verified,
+    publicationTimeConfidence:verified===true?'independently_verified':unverified===true?'unverified':'unknown',
+    verificationScope:verification==='independent_original'?'received_excerpt_and_publication_clock':
+      verification==='provider_citation'?'provider_consulted_url_only':null};
+}
+
+function radarCoverage(value) {
+  const coverage=value.coverage;
+  if(coverage!=null&&!radarRecord(coverage))return null;
+  for(const key of ['search_complete','other_candidates_unverified','original_documents_not_all_verified'])
+    if(coverage?.[key]!==undefined&&typeof coverage[key]!=='boolean')return null;
+  const reason=coverage?.model_incomplete_reason??null;
+  if(reason!==null&&!RADAR_INCOMPLETE_REASONS.has(reason))return null;
+  const suppliedComplete=coverage?.search_complete;
+  if(suppliedComplete===true&&reason!==null)return null;
+  const complete=suppliedComplete===undefined&&reason!==null?false:suppliedComplete??null;
+  const other=coverage?.other_candidates_unverified??null;
+  const provider=value.events.some(event=>Array.isArray(event?.sources)&&event.sources.some(source=>source?.source_verification==='provider_citation'));
+  const originals=provider?true:coverage?.original_documents_not_all_verified??null;
+  if(['ready','cached'].includes(value.status)&&value.events.length===0
+    &&(complete===false||other===true||originals===true))return null;
+  return {searchComplete:complete,incompleteReason:reason,otherCandidatesUnverified:other,
+    originalDocumentsNotAllVerified:originals};
+}
+
 export function radarBriefing(value, now=Date.now()) {
   if(value == null)return null;
-  if(value.schema_version!=='radar_news_v1'||value.affects_beta!==false||!['disabled','ready','cached','unavailable'].includes(value.status)||!Array.isArray(value.events)||value.events.length>3)return unavailable();
-  const base={status:value.status,label:STATUS_COPY[value.status],events:[],scores:[],dataAsOf:timestamp(value.cutoff_at)?value.cutoff_at:null,analyzedAt:timestamp(value.analyzed_at)?value.analyzed_at:null};
-  if(['disabled','unavailable'].includes(value.status))return value.events.length?unavailable():base;
-  if(!base.dataAsOf||!base.analyzedAt||Date.parse(base.analyzedAt)<Date.parse(base.dataAsOf)||!text(value.run_id)||!text(value.policy_version))return unavailable();
-  if(!Number.isFinite(now)||Date.parse(base.dataAsOf)>now+300000||Date.parse(base.analyzedAt)>now+300000)return unavailable();
-  const seen=new Set();
-  for(const event of value.events) {
-    if(!event||typeof event!=='object'||!text(event.event_id)||seen.has(event.event_id)||!text(event.headline)||!text(event.summary)||!text(event.why_it_matters)||!timestamp(event.published_at)||Date.parse(event.published_at)>Date.parse(base.dataAsOf)||!Array.isArray(event.sources)||!event.sources.length||event.sources.length>10||event.sources.some(s=>!s||typeof s!=='object'))return unavailable();
-    seen.add(event.event_id);
-    const sources=event.sources.map(source=>({url:safeSourceUrl(source.url),label:text(source.publisher)||'원문',quote:source.source_verification==='provider_citation'?null:text(source.excerpt),publishedAt:source.published_at}));
-    if(sources.some(s=>!s.url||!timestamp(s.publishedAt)||Date.parse(s.publishedAt)>Date.parse(base.dataAsOf)))return unavailable();
-    const presentation=newsPresentation(event);
-    if(!presentation)return unavailable();
-    base.events.push({presentation,publicationTimeUnverified:event.sources.some(s=>s.publication_time_unverified===true),id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),publishedAt:event.published_at,sources});
-  }
-  if(value.coverage?.original_documents_not_all_verified===true||value.events.some(e=>e.sources.some(s=>s.source_verification==='provider_citation'))){
+  if(!radarRecord(value)||value.schema_version!=='radar_news_v1'||value.affects_beta!==false
+    ||!['disabled','ready','cached','unavailable'].includes(value.status)
+    ||!Array.isArray(value.events)||value.events.length>3)return unavailable();
+  const coverage=radarCoverage(value);
+  if(!coverage)return unavailable();
+  const base={status:value.status,label:STATUS_COPY[value.status],events:[],scores:[],
+    dataAsOf:timestamp(value.cutoff_at)?value.cutoff_at:null,
+    analyzedAt:timestamp(value.analyzed_at)?value.analyzed_at:null,...coverage,
+    emptyResultVerified:['ready','cached'].includes(value.status)&&value.events.length===0
+      &&coverage.searchComplete===true&&!coverage.otherCandidatesUnverified};
+  const notes=[],relabel=!['disabled','unavailable'].includes(value.status);
+  if(base.searchComplete===false){
+    if(relabel)base.label=value.status==='cached'?'저장된 일부 근거 · 검색 검토 미완료':'일부 근거 확인 · 검색 검토 미완료';
+    notes.push('제한된 후보의 검색 검토가 미완료입니다.');
+  } else if(base.otherCandidatesUnverified){
+    if(relabel)base.label=value.status==='cached'?'저장된 뉴스 · 일부 후보 미확인':'확인된 뉴스 · 일부 후보 미확인';
+  } else if(base.originalDocumentsNotAllVerified&&relabel){
     base.label='검색 출처 확인 · 원문 별도 확인';
-    base.coverageCopy='검색 API가 실제 조회한 출처 링크입니다. 해당 원문의 인용과 발행 시각은 독립 검증되지 않았습니다.';
+  } else if(base.searchComplete===null&&relabel){
+    base.label='검색 완료 여부 미기록';
   }
-  if(value.coverage?.other_candidates_unverified===true){
-    base.label=value.status==='cached'?'저장된 뉴스 · 일부 후보 미확인':'확인된 뉴스 · 일부 후보 미확인';
-    base.coverageCopy='독립 검증을 통과한 사건만 표시합니다.';
-  }
+  if(base.searchComplete===null&&relabel)notes.push('검색 검토 완료 여부는 미기록입니다.');
+  if(base.otherCandidatesUnverified)notes.push('다른 후보의 근거는 독립 검증되지 않았을 수 있습니다.');
+  if(base.originalDocumentsNotAllVerified)
+    notes.push('일부 출처는 검색 API 참조로, 원문의 인용과 발행 시각은 독립 검증되지 않았습니다.');
+  if(notes.length)base.coverageCopy=notes.join(' ');
+  if(['disabled','unavailable'].includes(value.status))return value.events.length?unavailable():base;
+  if(!base.dataAsOf||!base.analyzedAt||Date.parse(base.analyzedAt)<Date.parse(base.dataAsOf)
+    ||!text(value.run_id)||!text(value.policy_version)||!Number.isFinite(now)
+    ||Date.parse(base.dataAsOf)>now+300000||Date.parse(base.analyzedAt)>now+300000)return unavailable();
   const sourceCutoff=value.status==='cached'?value.cached_cutoff_at:base.dataAsOf;
   if(value.status==='cached'&&(!timestamp(sourceCutoff)||Date.parse(sourceCutoff)>Date.parse(base.dataAsOf)))return unavailable();
-  if(Number.isFinite(now)&&now-Date.parse(sourceCutoff)>24*60*60*1000){base.status='stale';base.label=STATUS_COPY.stale;}
+  const seen=new Set();
+  for(const event of value.events) {
+    if(!radarRecord(event)||!text(event.event_id)||seen.has(event.event_id)||!text(event.headline)
+      ||!text(event.summary)||!text(event.why_it_matters)||!timestamp(event.published_at)
+      ||Date.parse(event.published_at)>Date.parse(base.dataAsOf)||!Array.isArray(event.sources)
+      ||!event.sources.length||event.sources.length>10)return unavailable();
+    seen.add(event.event_id);
+    const sources=event.sources.map(source=>radarSourceEvidence(source,{
+      dataAsOf:base.dataAsOf,analyzedAt:base.analyzedAt,receiptCutoff:sourceCutoff}));
+    if(sources.some(source=>source===null))return unavailable();
+    const presentation=newsPresentation(event);
+    if(!presentation)return unavailable();
+    const unverified=sources.some(source=>source.publicationTimeUnverified===true),
+      verified=sources.every(source=>source.publicationTimeVerified===true);
+    base.events.push({presentation,publicationTimeUnverified:unverified?true:verified?false:null,
+      publicationTimeVerified:verified?true:unverified?false:null,
+      publicationTimeConfidence:verified?'independently_verified':unverified?'unverified':'unknown',
+      id:event.event_id,headline:text(event.headline),summary:text(event.summary),why:text(event.why_it_matters),
+      publishedAt:event.published_at,sources});
+  }
+  if(base.events.some(event=>event.sources.some(source=>source.sourceVerification==='legacyunknown')))
+    base.coverageCopy=[base.coverageCopy,'일부 출처의 원문·발행 시각 검증 범위는 미기록입니다.'].filter(Boolean).join(' ');
+  if(now-Date.parse(sourceCutoff)>24*60*60*1000){base.status='stale';base.label=STATUS_COPY.stale;base.emptyResultVerified=false;}
   if(value.status==='cached'){
-    if(!timestamp(value.cached_analyzed_at)||Date.parse(value.cached_analyzed_at)<Date.parse(sourceCutoff)||Date.parse(value.cached_analyzed_at)>Date.parse(base.analyzedAt))return unavailable();
+    if(!timestamp(value.cached_analyzed_at)||Date.parse(value.cached_analyzed_at)<Date.parse(sourceCutoff)
+      ||Date.parse(value.cached_analyzed_at)>Date.parse(base.analyzedAt))return unavailable();
     base.cacheDataAsOf=sourceCutoff;
     base.analyzedAt=value.cached_analyzed_at;
   }
   return base;
 }
-
