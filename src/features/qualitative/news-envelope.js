@@ -30,10 +30,19 @@ export async function decryptRadarNewsEnvelope(envelope, passphrase, validationO
   return validateNews(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)));
 }
 
-export async function loadRadarNewsDelivery(url, passphrase, signal) {
-  const response = await fetch(url, { signal, cache: 'no-store' });
-  if (!response.ok) throw new Error('RADAR_NEWS_UNAVAILABLE');
-  const raw = await response.text();
-  if(raw.length > 180000) throw new Error('RADAR_NEWS_TOO_LARGE');
-  return decryptRadarNewsEnvelope(JSON.parse(raw), passphrase);
+export async function loadRadarNewsDelivery(url, passphrase, signal, {timeoutMs=15000}={}) {
+  const controller=new AbortController();
+  const cancel=()=>controller.abort(signal.reason);
+  if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
+  const timer=setTimeout(()=>controller.abort(new DOMException('RADAR_NEWS_TIMEOUT','TimeoutError')),timeoutMs);
+  try {
+    const response = await fetch(url, { signal:controller.signal, cache: 'no-store' });
+    if (!response.ok) throw new Error('RADAR_NEWS_UNAVAILABLE');
+    const raw = await response.text();
+    if(raw.length > 180000) throw new Error('RADAR_NEWS_TOO_LARGE');
+    return await decryptRadarNewsEnvelope(JSON.parse(raw), passphrase);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort',cancel);
+  }
 }

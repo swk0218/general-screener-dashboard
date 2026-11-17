@@ -3,6 +3,7 @@
 .qualitative-briefing h3,.qualitative-briefing h4{font-size:13px;margin:0 0 8px;font-weight:600}
 .qualitative-briefing p{font-size:13px;line-height:1.6;margin:6px 0;word-break:keep-all;overflow-wrap:break-word}
 .qualitative-briefing small,.briefing-note,.briefing-clocks{font-size:11px;color:var(--gs-muted)}
+.qualitative-briefing:is([data-status=unevaluated],[data-status=invalid],[data-status=unavailable],[data-status=uncertain])>header>small{color:var(--gs-amber)}
 .briefing-scores{display:flex;gap:24px;flex-wrap:wrap;margin:12px 0}
 .briefing-scores dt{font-size:11px;color:var(--gs-muted)}
 .briefing-scores dd{font-size:15px;margin:4px 0;font-variant-numeric:tabular-nums}

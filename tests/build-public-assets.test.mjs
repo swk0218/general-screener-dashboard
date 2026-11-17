@@ -61,6 +61,10 @@ test("artifact guard rejects journal inclusion and damaged or missing browser as
     await mkdir(join(output, "assets"));
     await writeFile(join(output, "assets/app.js"), "// TEST_ONLY");
     await verify();
+    const privatePreview = join(output, "qualitative-preview.html");
+    await writeFile(privatePreview, "TEST_ONLY private review");
+    await assert.rejects(verify(), error => error.stderr.includes("Private qualitative preview must not"));
+    await rm(privatePreview);
     const journal = join(output, "data/radar-journal");
     await mkdir(journal);
     await assert.rejects(verify(), error => error.stderr.includes("Recovery journals must not"));

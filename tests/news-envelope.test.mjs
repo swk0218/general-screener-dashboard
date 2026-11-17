@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomBytes,pbkdf2Sync,createCipheriv,createHash} from 'node:crypto';
-import {decryptRadarNewsEnvelope} from '../src/features/qualitative/news-envelope.js';
+import {decryptRadarNewsEnvelope,loadRadarNewsDelivery} from '../src/features/qualitative/news-envelope.js';
 const password='TEST_ONLY_NEWS';
 const packet={schema_version:'radar_news_v1',policy_version:'gs-gpt-02-radar-v1',affects_beta:false,status:'ready',run_id:'TEST_ONLY',cutoff_at:'2026-11-06T10:00:00Z',analyzed_at:'2026-11-06T10:01:00Z',events:[]};
 function encrypt(value,aad='radar_news_v1'){
@@ -21,4 +21,22 @@ test('wrong password, domain, changed ciphertext, bad payload rejected',async()=
  await assert.rejects(decryptRadarNewsEnvelope({...envelope,payload_hash:'0'.repeat(64)},password),/HASH_MISMATCH/);
  await assert.rejects(decryptRadarNewsEnvelope({...envelope,iterations:1},password),/INVALID/);
  await assert.rejects(decryptRadarNewsEnvelope(encrypt({...packet,affects_beta:true}),password),/INVALID_RADAR_NEWS/);
+});
+test('news delivery deadline covers a stalled body and preserves caller cancellation',async()=>{
+ const original=globalThis.fetch;
+ try {
+  let requestSignal;
+  globalThis.fetch=async(_url,{signal})=>{
+   requestSignal=signal;
+   return {ok:true,text:()=>new Promise((_resolve,reject)=>{
+    if(signal.aborted)reject(signal.reason);else signal.addEventListener('abort',()=>reject(signal.reason),{once:true});
+   })};
+  };
+  await assert.rejects(loadRadarNewsDelivery('/test-news',password,undefined,{timeoutMs:10}),{name:'TimeoutError'});
+  assert.equal(requestSignal.aborted,true);
+  const controller=new AbortController(),pending=loadRadarNewsDelivery('/test-news',password,controller.signal);
+  controller.abort();await assert.rejects(pending,{name:'AbortError'});
+  globalThis.fetch=async()=>({ok:false,status:503,text:async()=>{throw Error('PRIVATE_PROVIDER_RESPONSE');}});
+  await assert.rejects(loadRadarNewsDelivery('/test-news',password),{message:'RADAR_NEWS_UNAVAILABLE'});
+ } finally {globalThis.fetch=original;}
 });

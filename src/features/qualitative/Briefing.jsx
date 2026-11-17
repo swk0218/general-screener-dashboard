@@ -17,7 +17,7 @@ export function StockBriefing({recommendation,compact=false}) {
   const value=stockBriefing(recommendation);
   if(!value)return null;
   const eligible=value.events.filter(e=>!e.assessment.excluded),excluded=value.events.filter(e=>e.assessment.excluded);
-  return <section className="qualitative-briefing" aria-label={`${recommendation.symbol} 정성 분석`}>
+  return <section className="qualitative-briefing" data-status={value.status} aria-label={`${recommendation.symbol} 정성 분석`}>
     <header><h3>사건·사업 판단</h3><small>{value.label}</small></header>
     {(compact||!value.events.length)&&(value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null)}
     {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}

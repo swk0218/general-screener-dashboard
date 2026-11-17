@@ -9,6 +9,8 @@ for (const directory of [publicDirectory, outputDirectory]) {
 }
 await assert.rejects(lstat(resolve(outputDirectory, "data/radar-journal")), { code: "ENOENT" },
   "Recovery journals must not be included in the web build.");
+await assert.rejects(lstat(resolve(outputDirectory, "qualitative-preview.html")), { code: "ENOENT" },
+  "Private qualitative preview must not be included in the web build.");
 
 // Verify every other public asset, including all encrypted feeds and status.
 async function verifyPublicAssets(directory = "") {

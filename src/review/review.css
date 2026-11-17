@@ -1,4 +1,9 @@
 /* The review uses the production terminal tokens and self-hosted Plex fonts. */
+.qualitative-preview-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; font-size:14px; }
+.qualitative-preview-import input { flex:1 1 260px; }
+.qualitative-preview-result .qualitative-briefing h3 { font-size:15px; }
+.qualitative-preview-result .qualitative-briefing p { font-size:14px; }
+.qualitative-preview-result .briefing-scores { margin-block:18px; }
 .review-shell { --review-gutter:var(--desktop-gutter, 28px); --secondary-action-size:11px; --status-label-size:11px; max-width:var(--desktop-frame, 1440px); margin:auto; color:var(--gs-text); font-family:var(--gs-sans); }
 .review-shell :is(h1,h2,h3,h4,p,li,dl,dt,dd,strong,table,td,blockquote,summary,label) { color:inherit; }
 .review-shell :is(h1,h2,h3,h4,p,dl,dd,ul) { margin:0; }

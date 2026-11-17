@@ -10,6 +10,16 @@ test('absent enrichment preserves current UI; disabled and failure are not norma
  for(const status of ['disabled','fallback','unevaluated','unavailable','uncertain','stale'])assert.equal(stockBriefing({qualitative:{status}}).label.includes('완료'),false);
  assert.deepEqual(stockBriefing({qualitative:{status:'unevaluated'}}).scores,[]);
 });
+test('provider failures have Korean recovery copy and preserve unevaluated Q',()=>{
+ for(const [reason,copy] of [['provider_timeout',/응답 시간이 초과/],['provider_http_error',/응답을 받지 못해/],['unexpected_private_trace',/평가 결과를 확인할 수 없어/]]){
+  const row={symbol:'TEST',strategy:'TENX',quantitative_score:70,ranking_basis:'quantitative_score',qualitative:{status:'unevaluated',q:null,reason}};
+  const before=structuredClone(row),view=stockBriefing(row);
+  assert.match(view.reason,copy);assert.doesNotMatch(view.reason,/provider_|private_trace/);
+  assert.deepEqual(view.scores,[['원점수 S',70],['사건 보정 Q','미평가'],['보정 점수 T','미산출']]);
+  assert.deepEqual(row,before);
+ }
+ assert.match(stockBriefing({qualitative:{status:'unknown_private_status'}}).reason,/数値|수치 결과/);
+});
 test('TENX displays S Q T independently without reordering, clamps validated',()=>{
  const row=tenx(),copy=structuredClone(row),model=stockBriefing(row);
  assert.deepEqual(model.scores,[['원점수 S',59],['사건 보정 Q',2],['보정 점수 T',61]]);

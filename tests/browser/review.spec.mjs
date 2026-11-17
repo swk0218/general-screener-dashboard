@@ -41,7 +41,7 @@ test('private import explores stored sample and independent numeric run then cle
  await expect(sample.getByRole('link',{name:'SEC 원문 열기'})).toHaveAttribute('href','https://www.sec.gov/Archives/edgar/data/1/test.htm');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('review-tenx.png'),fullPage:true});
- await page.getByRole('button',{name:'RADAR',exact:true}).click();await expect(page.getByRole('region',{name:'시장 주요 뉴스'})).toContainText('분석 불가');
+ await page.getByRole('button',{name:'RADAR',exact:true}).click();await expect(page.getByRole('region',{name:'기존 저장 시장 뉴스'})).toContainText('분석 불가');
  await page.getByRole('button',{name:'체험 잠금',exact:true}).click();
  await expect(page.getByLabel('체험 암호',{exact:true})).toBeVisible();await expect(page.getByText('TEST_ONLY confirmed contract.')).toHaveCount(0);
  expect(errors).toEqual([]);
@@ -90,8 +90,10 @@ test('Radar review displays original one and cached three separately at each wid
  await page.getByRole('button',{name:'체험 열기',exact:true}).click();
  await page.getByRole('button',{name:'RADAR',exact:true}).click();
  const provenance=page.getByLabel('Radar 실행 구분');
+ await expect(provenance.getByLabel('최초 실제 실행 채택',{exact:true})).toHaveText('1건');
+ await expect(provenance.getByLabel('저장 응답 재검증 채택',{exact:true})).toHaveText('3건');
+ await provenance.getByText('실행 기록',{exact:true}).click();
  await expect(provenance).toContainText('최초 실제 실행 123 · 당시 채택 1건.');
- await expect(provenance).toContainText('저장 응답 재검증 3건');
  await expect(provenance).toContainText('새 실검색 결과가 아닙니다.');
  await expect(page.getByText('TEST_ONLY 뉴스 2',{exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

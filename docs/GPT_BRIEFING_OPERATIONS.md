@@ -1,5 +1,29 @@
 # GPT briefing operations and rollback
 
+## 2026-11-17 development review
+
+The development reader translates `provider_timeout` and `provider_http_error`
+into Korean hold reasons. An unknown failure reason uses a fixed message rather
+than showing provider internals. TENX Q remains unevaluated and the producer's
+numeric ranking stays authoritative. Optional Radar news delivery now has a
+15-second deadline covering both response headers and the encrypted body; a
+timeout follows the existing unavailable state and lock still cancels requests.
+
+For final visual review without a new password, start the existing Vite dev server
+and open `/qualitative-preview.html`. Select `qualitative-review.json` from an
+isolated engine validation run. The file must use `gpt_qualitative_review_v1`,
+`numeric_current=false` and `full_cohort_evaluation=false`. The screen uses the
+same `StockBriefing` component, local fonts and design tokens as the screener.
+It labels the historical numeric score and limited current news separately;
+an API failure is displayed as a held evaluation, never Q=0 or a completed model
+response. Its receipt shows only the run ID, source SHA and request count.
+
+The selected file lives only in page memory and is cleared by closing the data
+or reloading. No password is created or stored. This separate development entry
+is absent from the production build, and `verify:build` rejects its inclusion.
+Never place the actual review JSON in the checkout or public assets. Existing
+production ciphertext, publication journals and Pages deployment remain unchanged.
+
 This change implements the GS-GPT-02 presentation contract. MLG/TENX producers
 own classification, numeric application and cohort ranking. MarketRadar owns
 news selection and costs. This repo has no paid API calls, financial credentials,
