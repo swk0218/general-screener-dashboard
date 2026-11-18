@@ -71,6 +71,22 @@ test("TENX does not subtract scores across engine definitions; same-definition a
   }
 });
 
+test("TENX preserves rank movement but skips score deltas when S and T change", () => {
+  for (const [before, after, expected] of [
+    [undefined, "quantitative_score", -2], ["quantitative_score", "adjusted_score", null],
+    ["adjusted_score", undefined, null], ["adjusted_score", "adjusted_score", -2],
+  ]) {
+    const runs = ["1","2"].map((run_id, i) => ({ strategy: "TENX", run_id, report_created_at: `2026-11-0${i+1}T00:00:00Z` }));
+    const recommendations = runs.map(({strategy,run_id}, i) => ({ strategy, run_id, symbol: "TEST", recommendation_rank: 2-i, score: 64-2*i, ranking_basis: [before,after][i] }));
+    const index = createDashboardIndex({runs,recommendations});
+    const transition = getIndexedRunChanges(index, "TENX", "2").transitions[0];
+    assert.equal(transition.scoreDelta, expected);
+    assert.equal(transition.rankingBasisChanged, expected===null);
+    assert.equal(transition.rankDelta, 1);
+    assert.equal(getIndexedRunChanges(index, "TENX", "1").transitions[0].isBaseline, true);
+  }
+});
+
 test("round-trips screener and full detail hash routes", () => {
   const historical = { view: "selection", strategy: "TENX", runId: "run / 2" };
   assert.match(serializeHashRoute(historical), /^#\/selection\/TENX/);

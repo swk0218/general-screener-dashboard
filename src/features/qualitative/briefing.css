@@ -22,3 +22,7 @@
 .news-impact.is-positive {color:var(--gs-green);}
 .news-impact.is-negative {color:var(--gs-negative,var(--gs-text));}
 .news-impact.is-mixed,.news-impact.is-uncertain,.news-impact.is-unassessed {color:var(--gs-muted);}
+
+.briefing-evidence summary,.briefing-evidence a{min-height:24px;line-height:24px}
+.briefing-evidence a{display:inline-block;min-width:24px}
+.briefing-evidence :is(summary,a):focus-visible{outline:2px solid currentColor;outline-offset:2px}

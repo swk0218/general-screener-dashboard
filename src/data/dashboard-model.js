@@ -359,12 +359,14 @@ function optionalNumber(value) {
     : Number(value);
 }
 
-function makeTransition(status, run, recommendation, previousRecommendation, missingRunCount, streak) {
+function makeTransition(status, run, recommendation, previousRecommendation, missingRunCount, streak, isBaseline = false) {
   const currentRank = optionalNumber(recommendation?.recommendation_rank);
   const currentScore = optionalNumber(recommendation?.score);
   const previousRank = optionalNumber(previousRecommendation?.recommendation_rank);
   const previousScore = optionalNumber(previousRecommendation?.score);
-  const scoreBasisChanged = run.strategy === "TENX" && Boolean(recommendation) && Boolean(previousRecommendation)
+  const rankingBasisChanged = run.strategy === "TENX" && Boolean(recommendation && previousRecommendation)
+    && (recommendation.ranking_basis ?? "quantitative_score") !== (previousRecommendation.ranking_basis ?? "quantitative_score");
+  const scoreBasisChanged = rankingBasisChanged || run.strategy === "TENX" && Boolean(recommendation) && Boolean(previousRecommendation)
     && recommendation?.detail?.score_breakdown?.score_name
       !== previousRecommendation?.detail?.score_breakdown?.score_name;
   return Object.freeze({
@@ -384,6 +386,8 @@ function makeTransition(status, run, recommendation, previousRecommendation, mis
     rankDelta: currentRank === null || previousRank === null ? null : previousRank - currentRank,
     scoreDelta: scoreBasisChanged || currentScore === null || previousScore === null ? null : currentScore - previousScore,
     scoreBasisChanged,
+    rankingBasisChanged,
+    isBaseline,
     missingRunCount,
     streak,
   });
@@ -463,6 +467,7 @@ export function createDashboardIndex(payload = {}) {
           immediatePrevious || priorAppearance?.recommendation || null,
           missingRunCount,
           streak,
+          runIndex === 0,
         );
         transitions.push(transition);
         if (!timelineEventsBySymbol.has(symbol)) timelineEventsBySymbol.set(symbol, []);

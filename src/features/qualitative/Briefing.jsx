@@ -22,6 +22,7 @@ export function StockBriefing({recommendation,compact=false}) {
     {(compact||!value.events.length)&&(value.summary?<p>{value.summary}</p>:value.reason?<p>{value.reason}</p>:null)}
     {value.scopeCopy?<p className="briefing-note">{value.scopeCopy}</p>:null}
     {value.collectionCopy?<p className="briefing-note">{value.collectionCopy}</p>:null}
+    {value.claimCopy?<p className="briefing-note">{value.claimCopy}</p>:null}
     {value.legacyCopy?<p className="briefing-note">{value.legacyCopy}</p>:null}
     {!compact&&<>
       {value.scores.length>0&&<dl className="briefing-scores">{value.scores.map(([label,score])=><div key={label}><dt>{label}</dt><dd>{number(score)}</dd></div>)}</dl>}
@@ -29,7 +30,7 @@ export function StockBriefing({recommendation,compact=false}) {
       <div className="briefing-clocks"><Clock label="자료 기준" value={value.dataAsOf}/><Clock label="분석" value={value.analyzedAt}/></div>
       {eligible.slice(0,3).map(item=><StockEvent key={item.id} item={item}/>)}
       {eligible.length>3&&<details className="briefing-evidence"><summary>다른 사업 사건 {eligible.length-3}건</summary>{eligible.slice(3).map(item=><StockEvent key={item.id} item={item}/>)}</details>}
-      {excluded.length>0&&<details className="briefing-evidence briefing-excluded"><summary>점수 제외 {excluded.length}건 · 의견·기부·수치 중복</summary>{excluded.map(item=><StockEvent key={item.id} item={item}/>)}</details>}
+      {excluded.length>0&&<details className="briefing-evidence briefing-excluded"><summary>점수 제외 {excluded.length}건</summary>{excluded.map(item=><StockEvent key={item.id} item={item}/>)}</details>}
       {value.aiEvidence?<div><p>{value.aiEvidence.summary}</p><Evidence item={value.aiEvidence}/></div>:null}
     </>}
   </section>;

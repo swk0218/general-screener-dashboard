@@ -66,7 +66,7 @@ test('MLG limited positive and mixed assertions display the adopted score and ex
  const panel=page.getByRole('region',{name:'TEST 정성 분석'});
  await expect(panel).toContainText('0.65 → 0.8');await expect(panel).toContainText('0.9');
  await expect(panel.getByText('긍정',{exact:true})).toBeVisible();await expect(panel.getByText('중립',{exact:true})).toBeVisible();
- await panel.getByText('점수 제외 2건 · 의견·기부·수치 중복',{exact:true}).click();
+ await panel.getByText('점수 제외 2건',{exact:true}).click();
  await expect(panel.getByText('애널리스트 의견',{exact:true})).toBeVisible();await expect(panel.getByText('기부 자체',{exact:true})).toBeVisible();
  await expect(panel.getByText('점수 제외',{exact:true})).toHaveCount(2);
  await panel.locator('.briefing-stock-event').first().getByText('근거·출처',{exact:true}).click();
@@ -75,4 +75,17 @@ test('MLG limited positive and mixed assertions display the adopted score and ex
  await panel.screenshot({path:testInfo.outputPath('mlg-mixed-TEST_ONLY.png')});
  expect(JSON.stringify(data)).toBe(before);expect(errors).toEqual([]);
  await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();await expect(panel).toHaveCount(0);
+});
+
+test('data-contract failure after authentication does not tell the reader to change password', async({page})=>{
+  const invalid=await encryptEnvelope({contract_version:'TEST_ONLY_invalid'},password);
+  await page.route('**/data/payload.enc.json*',route=>route.fulfill({json:invalid}));
+  await page.goto('/#/overview');
+  const pass=page.locator('input[type=password]'),submit=page.locator('button[type=submit]');
+  await pass.fill('TEST_ONLY_wrong');await submit.click();
+  await expect(page.getByRole('alert')).toContainText('암호문구가 맞지 않거나');
+  await pass.fill(password);await submit.click();
+  await expect(page.getByRole('alert')).toContainText('데이터를 복호화했지만 스크리너 형식을 확인하지 못했습니다.');
+  await expect(page.getByRole('alert')).not.toContainText('TEST_ONLY');
+  await expect(page.locator('.app-shell')).toHaveCount(0);
 });

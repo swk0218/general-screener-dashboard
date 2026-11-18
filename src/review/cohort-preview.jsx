@@ -17,7 +17,8 @@ function CohortContext({value}){
   const c=value.cohort;
   return <section className="cohort-review-context" aria-label="개발 코호트 검증">
     <div className="cohort-review-heading"><strong>개발 브랜치 · {c.strategy} 정성 검토</strong><span>{c.evaluatedCount}/{c.expectedCount} 완료{c.unevaluatedCount?` · ${c.unevaluatedCount} 미평가`:''} · 운영 미반영</span></div>
-    {c.executionStatus==='not_run'&&<p className="cohort-review-warning" role="note" aria-label="정성 분석 미실행"><strong>정성 분석 미실행</strong> · GitHub 결제·지출 한도로 작업이 시작되지 않았습니다. 뉴스 수집과 GPT 평가는 수행되지 않았습니다.</p>}
+    {c.executionStatus==='not_run'&&<p className="cohort-review-warning" role="note" aria-label="정성 분석 미실행"><strong>정성 분석 미실행</strong> · {c.blocker==='qualitative_disabled'?'정성 분석을 끈 상태에서 수치 결과를 확인했습니다.':'GitHub 결제·지출 한도로 작업이 시작되지 않았습니다.'} 뉴스 수집과 GPT 평가는 수행되지 않았습니다.</p>}
+    {c.status==='partial'&&c.executionStatus!=='not_run'&&<p className="cohort-review-warning" role="note">전체 후보 평가가 끝나지 않아 원점수로 순위를 표시합니다.</p>}
     <p>{c.numericAsOf?'수치 자료 기준':'자료 기준'} <ReviewClock value={c.numericAsOf||c.cutoffAt}/> · 순위는 {c.rankingBasis==='adjusted_score'?'보정 점수 T':'원점수 S'} 기준입니다.</p>
     {c.numericAsOf&&c.executionStatus!=='not_run'&&<p>뉴스 판단 기준 <ReviewClock value={c.cutoffAt}/></p>}
     <a className="cohort-review-open" href={`#/selection/${c.strategy}`}>{c.strategy} 스크리너 보기 →</a>

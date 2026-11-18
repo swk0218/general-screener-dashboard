@@ -26,7 +26,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { decryptEnvelope } from "./crypto/envelope.js";
+import { decryptEnvelope, EnvelopeDecryptionError, EnvelopeValidationError } from "./crypto/envelope.js";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.jsx";
 import { assertDashboardPayload } from "./data/contract.js";
 import { quarantineDashboardPayload } from "./data/payload-quarantine.js";
@@ -262,15 +262,18 @@ function returnTone(value) {
 
 function transitionLabel(transition) {
   const status = String(transition?.status || "").toUpperCase();
+  if (transition?.isBaseline) return "첫 기록";
   if (status === "NEW") return "신규 진입";
   if (status === "RE-ENTRY") return "재진입";
   if (status === "EXIT") return "제외";
+  if (transition?.rankingBasisChanged) return "순위 기준 변경";
   if (transition?.scoreBasisChanged) return "산식 변경";
   return formatSigned(transition?.scoreDelta);
 }
 
 function transitionTone(transition) {
   const status = String(transition?.status || "").toUpperCase();
+  if (transition?.isBaseline) return "is-neutral";
   if (status === "NEW" || status === "RE-ENTRY") return "is-positive";
   if (status === "EXIT") return "is-negative";
   return returnTone(transition?.scoreDelta);
@@ -305,6 +308,8 @@ function useHashRoute() {
   return [route, navigate];
 }
 
+class DashboardPayloadError extends Error {}
+
 function UnlockScreen({ envelope, envelopeError, onUnlock }) {
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState("");
@@ -318,9 +323,17 @@ function UnlockScreen({ envelope, envelopeError, onUnlock }) {
     try {
       await onUnlock(passphrase);
       setPassphrase("");
-    } catch {
+    } catch (error) {
       setPassphrase("");
-      setError("암호문구가 맞지 않거나 데이터가 손상되었습니다.");
+      if (error instanceof DashboardPayloadError) {
+        setError("데이터를 복호화했지만 스크리너 형식을 확인하지 못했습니다. 게시된 데이터를 확인해 주세요.");
+      } else if (error instanceof EnvelopeDecryptionError) {
+        setError("암호문구가 맞지 않거나 데이터가 손상되었습니다.");
+      } else if (error instanceof EnvelopeValidationError) {
+        setError("암호화된 파일 형식을 확인하지 못했습니다. 게시된 데이터를 확인해 주세요.");
+      } else {
+        setError("현재 환경에서 스크리너 데이터를 열 수 없습니다.");
+      }
     } finally {
       setIsUnlocking(false);
     }
@@ -679,11 +692,11 @@ function SymbolTimelineTable({ timeline, limit = 10 }) {
           {entries.map((entry) => (
             <tr key={`${entry.runId}:${entry.status}`}>
               <td>{formatDate(entry.reportDate || entry.reportCreatedAt)}</td>
-              <td className={`timeline-state is-${entry.status.toLowerCase()}`}>{{ NEW: "신규 진입", "RE-ENTRY": "재진입", RETAINED: "유지", EXIT: "제외" }[entry.status] || entry.status}</td>
+              <td className={`timeline-state is-${entry.status.toLowerCase()}`}>{entry.isBaseline ? "첫 기록" : { NEW: "신규 진입", "RE-ENTRY": "재진입", RETAINED: "유지", EXIT: "제외" }[entry.status] || entry.status}</td>
               <td>{entry.missingRunCount ? `${entry.missingRunCount}회` : "—"}</td>
               <td>{entry.currentRank ?? "—"}</td>
               <td>{formatNumber(entry.currentScore)}</td>
-              <td>{entry.scoreBasisChanged ? "산식 변경" : entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
+              <td>{entry.rankingBasisChanged ? "순위 기준 변경" : entry.scoreBasisChanged ? "산식 변경" : entry.status === "NEW" ? "—" : formatSigned(entry.scoreDelta)}</td>
               <td>{entry.status === "EXIT" ? "종료" : `${entry.streak}회`}</td>
             </tr>
           ))}
@@ -789,7 +802,7 @@ function DetailPanel({ recommendation, strategy, run, timeline, onClose, onOpenF
             <div><dt>신호 ID</dt><dd>{recommendation.signal_id || "—"}</dd></div>
             <div><dt>보고 시각</dt><dd>{formatKst(run?.report_created_at)}</dd></div>
             <div><dt>소스 SHA</dt><dd>{run?.sha || run?.commit_sha || recommendation.source_sha || "—"}</dd></div>
-            <div><dt>선정 가격 기준</dt><dd>{priceBasisLabel(recommendation.screening_price_basis) || "보관값"}{recommendation.screening_price_as_of ? ` · ${recommendation.screening_price_as_of}` : ""}</dd></div>
+            <div><dt>선정 가격 기준</dt><dd>{priceBasisLabel(recommendation.screening_price_basis) || (hasValue(recommendation.screening_price) ? "보관값" : "미수록")}{recommendation.screening_price_as_of ? ` · ${recommendation.screening_price_as_of}` : ""}</dd></div>
             <div><dt>최근 종가 기준</dt><dd>{priceBasisLabel(recommendation.current_price_basis) || "—"}{recommendation.current_price_as_of ? ` · ${recommendation.current_price_as_of}` : ""}</dd></div>
           </dl>
         </details>
@@ -1013,30 +1026,37 @@ function SelectionView({ payload, index, strategy, query, setQuery, selectedRunI
     }
   }
 
+  const modeBar = (
+    <section className="screener-mode-bar" aria-label="스크리너 선택">
+      <StrategyModeControl strategy={strategy} onChange={onStrategy} />
+    </section>
+  );
   if (!currentRun) {
     return (
-      <section className="secondary-view empty-route-state">
-        <p>GENERAL / {strategy}</p>
-        {requestedRunMissing ? (
-          <>
-            <h1>요청한 실행을 찾을 수 없습니다.</h1>
-            <span>이 실행 ID는 현재 보관 데이터에 없으므로 최신 목록으로 자동 변경하지 않았습니다.</span>
-            <button type="button" className="route-back" onClick={onLatest}>최신 실행으로</button>
-          </>
-        ) : null}
-        <div hidden={requestedRunMissing}>
-        <h1>공식 실행이 아직 없습니다.</h1>
-        <span>엔진이 검증된 실행을 게시하면 추천 목록이 표시됩니다.</span>
-        </div>
-      </section>
+      <div className="selection-view">
+        {modeBar}
+        <section className="secondary-view empty-route-state">
+          <p>GENERAL / {strategy}</p>
+          {requestedRunMissing ? (
+            <>
+              <h1>요청한 실행을 찾을 수 없습니다.</h1>
+              <span>이 실행 ID는 현재 보관 데이터에 없으므로 최신 목록으로 자동 변경하지 않았습니다.</span>
+              <button type="button" className="route-back" onClick={onLatest}>최신 실행으로</button>
+            </>
+          ) : (
+            <>
+              <h1>공식 실행이 아직 없습니다.</h1>
+              <span>엔진이 검증된 실행을 게시하면 추천 목록이 표시됩니다.</span>
+            </>
+          )}
+        </section>
+      </div>
     );
   }
 
   return (
     <div className="selection-view">
-      <section className="screener-mode-bar" aria-label="스크리너 선택">
-        <StrategyModeControl strategy={strategy} onChange={onStrategy} />
-      </section>
+      {modeBar}
           <div className="selection-filter">
             <TextInput
               label="현재 실행 종목 필터"
@@ -1147,6 +1167,7 @@ function OverviewView({ payload, index, radar, radarStatus, radarNews, onRadar, 
       strategy,
       run,
       picks,
+      isBaseline: changes?.isBaseline,
       added,
       removed,
       retained,
@@ -1183,11 +1204,13 @@ function OverviewView({ payload, index, radar, radarStatus, radarNews, onRadar, 
                 <ChevronRight size={16} aria-hidden="true" />
                 {item.run ? <UpdateBadge date={item.run.report_date || item.run.report_created_at} /> : null}
               </span>
-              <dl className="visit-changes">
+              {!item.run || item.isBaseline ? (
+                <dl className="visit-changes"><div><dt>비교 기준</dt><dd>{item.run ? "첫 기록 · 이전 실행 없음" : "공식 실행 없음"}</dd></div></dl>
+              ) : <dl className="visit-changes">
                 <div><dt>새 진입</dt><dd className={`is-added${item.added.length ? " has-change" : ""}`}>{item.added.length ? `+ ${item.added.join(" · ")}` : "없음"}</dd></div>
                 <div><dt>제외</dt><dd className={`is-removed${item.removed.length ? " has-change" : ""}`}>{item.removed.length ? `− ${item.removed.join(" · ")}` : "없음"}</dd></div>
                 <div><dt>유지 / 순위</dt><dd>{item.retained.length} · ↑{item.rankUp} ↓{item.rankDown}</dd></div>
-              </dl>
+              </dl>}
             </button>
           ))}
         </div>
@@ -1628,7 +1651,8 @@ export function Dashboard({ payload, radar, radarStatus, radarNews, seasonality,
   function navigateItem(id) {
     setGlobalQuery("");
     if (id === "screener") {
-      selectStrategy(strategy);
+      const available = Object.keys(STRATEGIES).find(key => index.runsByStrategy.get(key)?.length);
+      selectStrategy(latestStrategyRun ? strategy : available || strategy);
       return;
     }
     if (id === "performance") {
@@ -1763,8 +1787,12 @@ export function App() {
 
   async function unlock(passphrase) {
     const decrypted = await decryptEnvelope(envelope, passphrase);
-    const validated = assertDashboardPayload(decrypted);
-    setPayload(assertDashboardPayload(quarantineDashboardPayload(validated)));
+    try {
+      const validated = assertDashboardPayload(decrypted);
+      setPayload(assertDashboardPayload(quarantineDashboardPayload(validated)));
+    } catch {
+      throw new DashboardPayloadError();
+    }
     const generation = ++unlockGeneration.current;
     radarRequest.current?.abort();
     const controller = new AbortController();

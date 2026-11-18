@@ -19,8 +19,9 @@ export function cohortReview(value) {
   const c=value.cohort;
   if(c.numeric_as_of!==undefined&&!stamp(c.numeric_as_of))fail();
   if(c.execution_status!==undefined){
-    if(c.execution_status!=='not_run'||c.blocker!=='github_billing_limit'
-      ||typeof c.blocked_run_id!=='string'||!/^\d+$/.test(c.blocked_run_id)
+    const billingBlocked=c.blocker==='github_billing_limit'&&typeof c.blocked_run_id==='string'&&/^\d+$/.test(c.blocked_run_id);
+    const disabled=c.blocker==='qualitative_disabled'&&c.blocked_run_id===undefined;
+    if(c.execution_status!=='not_run'||!(billingBlocked||disabled)
       ||!stamp(c.numeric_as_of)||c.status!=='partial'||c.evaluated_count!==0
       ||c.unevaluated_count!==c.expected_count||c.ranking_basis!=='quantitative_score')fail();
   }else if(c.blocker!==undefined||c.blocked_run_id!==undefined)fail();

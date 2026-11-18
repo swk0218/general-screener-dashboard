@@ -11,7 +11,7 @@ test('absent enrichment preserves current UI; disabled and failure are not norma
  assert.deepEqual(stockBriefing({qualitative:{status:'unevaluated'}}).scores,[]);
 });
 test('provider failures have Korean recovery copy and preserve unevaluated Q',()=>{
- for(const [reason,copy] of [['provider_timeout',/응답 시간이 초과/],['provider_http_error',/응답을 받지 못해/],['unexpected_private_trace',/평가 결과를 확인할 수 없어/]]){
+ for(const [reason,copy] of [['provider_timeout',/응답 시간이 초과/],['provider_http_error',/응답을 받지 못해/],['unexpected_private_trace',/평가 결과를 확인하지 못했습니다/]]){
   const row={symbol:'TEST',strategy:'TENX',quantitative_score:70,ranking_basis:'quantitative_score',qualitative:{status:'unevaluated',q:null,reason}};
   const before=structuredClone(row),view=stockBriefing(row);
   assert.match(view.reason,copy);assert.doesNotMatch(view.reason,/provider_|private_trace/);
@@ -219,4 +219,15 @@ test('news impacts are scoped conditional categories and legacy output remains u
   delete b.events[0].market_impact.condition;assert.equal(radarBriefing(b,now).status,'invalid');
  }
  assert.deepEqual(base,before);
+});
+
+test('failed MLG evaluation discloses only the bounded, published protective E',()=>{
+ const row={strategy:'MLG',qualitative:{status:'unevaluated',reason:'insufficient_evidence',legacy_e:.65,retained_risk_e:.35,claim_evidence_complete:false}};
+ const view=stockBriefing(row);
+ assert.deepEqual(view.scores,[['보호 규칙 적용 E',.35]]);
+ assert.match(view.reason,/근거가 부족/);
+ assert.match(view.claimCopy,/일부 주장/);
+ for(const value of [-.1,.66,null,'0.35',NaN]){
+   assert.deepEqual(stockBriefing({...row,qualitative:{...row.qualitative,retained_risk_e:value}}).scores,[]);
+ }
 });

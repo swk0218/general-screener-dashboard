@@ -44,6 +44,17 @@ test('a job blocked before start stays NOT_RUN with a separate numeric source cl
   }
 });
 
+test('numeric replay with qualitative mode off carries no invented blocked run or billing failure',()=>{
+  const input=notRunCohortPreviewFixture();
+  input.cohort.blocker='qualitative_disabled';
+  delete input.cohort.blocked_run_id;
+  const review=cohortReview(input);
+  assert.equal(review.cohort.blocker,'qualitative_disabled');
+  assert.equal(review.cohort.blockedRunId,undefined);
+  input.cohort.blocked_run_id='999001';
+  assert.throws(()=>cohortReview(input),/COHORT_REVIEW_INVALID/);
+});
+
 test('private preview source is dev-only, loopback-only, outside the checkout and never logs its path',async()=>{
   const directory=await mkdtemp(join(tmpdir(),'cohort-review-server-'));
   try{

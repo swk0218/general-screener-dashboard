@@ -116,3 +116,9 @@ Two new focused compatibility checks and actual v12 import passed. Earlier full
 regression and paid calls are not rerun for this resume; any future release must
 record its own applicable acceptance evidence. The local preview candidate is
 prepared without refreshing Site or saving new Library versions.
+
+### Native publisher browser regression
+
+Use the engine's `scripts/build_general_screener_payload.py` on a private copy of tracking data. Include both strategies and at least one newly enriched recommendation when verifying a publisher or schema change. Keep its JSON outside the checkout and the public assets directory.
+
+Run `SCREENER_PUBLISHED_REVIEW_FILE=/absolute/private/payload.json npx playwright test tests/browser/publisher-local.spec.mjs` in the dashboard checkout. The test encrypts the supplied output with an ephemeral test credential, opens the regular local dashboard, and visits one detail for every strategy and assessment status present. This exercises decryption and the display contract. Live collection, provider access, and cohort coverage require separate evidence.

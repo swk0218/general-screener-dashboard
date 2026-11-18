@@ -93,7 +93,7 @@ test("does not show a latest-result link on historical screener runs", () => {
   assert.doesNotMatch(historicalBanner, /최신 결과 보기|onClick=\{onLatest\}/);
   assert.match(
     appSource,
-    /function navigateItem\(id\) \{[\s\S]*?if \(id === "screener"\) \{\s*selectStrategy\(strategy\);\s*return;/,
+    /function navigateItem\(id\) \{[\s\S]*?if \(id === "screener"\) \{[\s\S]*?selectStrategy\(latestStrategyRun \? strategy : available \|\| strategy\);\s*return;/,
   );
 });
 
