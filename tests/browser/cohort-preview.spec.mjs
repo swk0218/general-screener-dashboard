@@ -1,0 +1,66 @@
+import {test,expect} from '@playwright/test';
+import {cohortPreviewFixture} from '../cohort-preview-fixture.mjs';
+
+test('full cohort opens the real screener directly and keeps producer S Q T and evidence',async({page},testInfo)=>{
+  const errors=[],unexpected=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('request',request=>{
+    if(/\/data\/.*\.enc\.json|api\.openai\.com|financialmodelingprep/i.test(request.url()))unexpected.push(request.url());
+  });
+  const fixture=cohortPreviewFixture(),original=JSON.stringify(fixture);
+  await page.route('**/__development/cohort-review',route=>route.fulfill({json:fixture}));
+  await page.goto('/cohort-preview.html#/overview');
+  await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'스크리닝 변화',exact:true})).toBeVisible();
+  await expect(page.locator('input[type=password],input[type=file]')).toHaveCount(0);
+  const cohort=page.getByRole('region',{name:'개발 코호트 검증'});
+  await expect(cohort).toContainText('TENX 정성 검토');
+  await expect(cohort).toContainText('2/2 완료');
+  await cohort.getByText('전체 후보 검토 2개',{exact:true}).click();
+  await expect(cohort.getByRole('table')).toContainText('TESTA');
+  await expect(cohort.getByRole('table')).toContainText('TESTB');
+  await cohort.getByText('전체 후보 검토 2개',{exact:true}).click();
+  await page.locator('.visit-strategy').filter({has:page.getByText('TENX',{exact:true})}).click();
+  await expect(page).toHaveURL(/#\/selection\/TENX$/);
+  await expect(page.getByRole('heading',{name:'현재 선정 종목',exact:true})).toBeVisible();
+  await page.locator('button[aria-label^="TESTA,"][aria-label$="상세 보기"]:visible').first().click();
+  await expect(page).toHaveURL(/#\/detail\/TENX\/TEST_ONLY-tenx\/TESTA$/);
+  const panel=page.getByRole('region',{name:'TESTA 정성 분석'});
+  await expect(panel).toContainText('원점수 S');await expect(panel).toContainText('사건 보정 Q');
+  await expect(panel).toContainText('보정 점수 T');
+  await expect(panel.locator('.briefing-scores')).toContainText('70');
+  await expect(panel.locator('.briefing-scores')).toContainText('2');
+  await expect(panel.locator('.briefing-scores')).toContainText('72');
+  await expect(panel).toContainText('이번 순위는 보정 점수 기준');
+  await panel.getByText('근거·출처',{exact:true}).click();
+  await expect(panel.getByRole('link',{name:'원문',exact:true})).toHaveAttribute('href','https://example.com/TEST_ONLY/contract');
+  await expect(panel).toContainText('TEST_ONLY disclosed contract.');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await panel.screenshot({path:testInfo.outputPath('cohort-briefing-evidence-TEST_ONLY.png')});
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:testInfo.outputPath('cohort-screener-detail-TEST_ONLY.png'),fullPage:false});
+  await page.getByRole('button',{name:'목록으로',exact:true}).click();
+  await expect(page).toHaveURL(/#\/selection\/TENX\/TEST_ONLY-tenx$/);
+  await page.getByRole('button',{name:'HISTORY',exact:true}).filter({visible:true}).first().click();
+  await expect(page).toHaveURL(/#\/history$/);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.locator('button[aria-label="스크리너 잠금"]:visible').first().click();
+  await expect(page.getByText('검토 자료를 닫았습니다.',{exact:true})).toBeVisible();
+  await expect(page.locator('.app-shell,input[type=password],input[type=file]')).toHaveCount(0);
+  await page.getByRole('button',{name:'자료 다시 불러오기',exact:true}).click();
+  await expect(page.locator('.app-shell')).toBeVisible();
+  expect(JSON.stringify(fixture)).toBe(original);expect(errors).toEqual([]);expect(unexpected).toEqual([]);
+});
+
+test('failed or invalid cohort loading never falls back to production data or asks for a password',async({page})=>{
+  const productionRequests=[];
+  page.on('request',request=>{if(/\/data\/.*\.enc\.json/.test(request.url()))productionRequests.push(request.url());});
+  await page.route('**/__development/cohort-review',route=>route.fulfill({status:503}));
+  await page.goto('/cohort-preview.html');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('.app-shell,input[type=password],input[type=file]')).toHaveCount(0);
+  await page.unroute('**/__development/cohort-review');
+  await page.route('**/__development/cohort-review',route=>route.fulfill({json:{schema:'INVALID_TEST_ONLY'}}));
+  await page.reload();await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('.app-shell')).toHaveCount(0);expect(productionRequests).toEqual([]);
+});

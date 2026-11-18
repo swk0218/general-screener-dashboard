@@ -11,6 +11,8 @@ await assert.rejects(lstat(resolve(outputDirectory, "data/radar-journal")), { co
   "Recovery journals must not be included in the web build.");
 await assert.rejects(lstat(resolve(outputDirectory, "qualitative-preview.html")), { code: "ENOENT" },
   "Private qualitative preview must not be included in the web build.");
+await assert.rejects(lstat(resolve(outputDirectory, "cohort-preview.html")), { code: "ENOENT" },
+  "Private cohort preview must not be included in the web build.");
 
 // Verify every other public asset, including all encrypted feeds and status.
 async function verifyPublicAssets(directory = "") {
@@ -44,6 +46,9 @@ assert.equal(legacyWoffFiles.length, 0, "Legacy WOFF files must not be emitted."
 assert.ok(javascriptSizes.length > 0, "No JavaScript build assets were emitted.");
 for (const asset of javascriptSizes) {
   assert.ok(asset.bytes <= 550 * 1024, `${asset.file} exceeds the 550 KiB chunk budget.`);
+  const javascript = await readFile(resolve(assetsDirectory, asset.file), "utf8");
+  assert.doesNotMatch(javascript, /gpt_cohort_review_v1|__development\/cohort-review/,
+    "Private cohort reader must not be included in the web build.");
 }
 
 process.stdout.write(

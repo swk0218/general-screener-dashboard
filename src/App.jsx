@@ -1585,7 +1585,7 @@ function FullDetailView({ payload, index, route, onBack }) {
   );
 }
 
-function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock }) {
+export function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock, reviewContext = null }) {
   const [route, navigate] = useHashRoute();
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectionQuery, setSelectionQuery] = useState("");
@@ -1724,7 +1724,7 @@ function Dashboard({ payload, radar, radarStatus, radarNews, seasonality, onLock
         onLock={onLock}
       />
       <SideNav activeView={route.view} onNavigate={navigateItem} onLock={onLock} />
-      <main className="workspace" id="main-content" ref={mainRef} tabIndex={-1}>{content}</main>
+      <main className="workspace" id="main-content" ref={mainRef} tabIndex={-1}>{reviewContext}{content}</main>
       <MobileNav activeView={route.view} onNavigate={navigateItem} />
     </div>
   );

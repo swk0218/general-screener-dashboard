@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { webPublicAssets } from "./scripts/build-public-assets.mjs";
+import { cohortPreviewServer } from "./scripts/cohort-preview-server.mjs";
 
 const buildId = process.env.GITHUB_SHA || process.env.VITE_BUILD_ID || "local";
 
@@ -37,5 +38,5 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react(), webPublicAssets()],
+  plugins: [react(), webPublicAssets(), cohortPreviewServer()],
 });

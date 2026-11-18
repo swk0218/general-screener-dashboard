@@ -65,6 +65,13 @@ test("artifact guard rejects journal inclusion and damaged or missing browser as
     await writeFile(privatePreview, "TEST_ONLY private review");
     await assert.rejects(verify(), error => error.stderr.includes("Private qualitative preview must not"));
     await rm(privatePreview);
+    const cohortPreview = join(output, "cohort-preview.html");
+    await writeFile(cohortPreview, "TEST_ONLY private cohort");
+    await assert.rejects(verify(), error => error.stderr.includes("Private cohort preview must not"));
+    await rm(cohortPreview);
+    await writeFile(join(output, "assets/app.js"), "// TEST_ONLY __development/cohort-review");
+    await assert.rejects(verify(), error => error.stderr.includes("Private cohort reader must not"));
+    await writeFile(join(output, "assets/app.js"), "// TEST_ONLY");
     const journal = join(output, "data/radar-journal");
     await mkdir(journal);
     await assert.rejects(verify(), error => error.stderr.includes("Recovery journals must not"));
