@@ -71,12 +71,34 @@ class PagesArtifactTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'IDENTITY_MISMATCH'):
                 self.run_guard([self.response(self.artifact(**change))])
 
-    def test_malformed_or_incomplete_list_is_terminal(self):
+    def test_malformed_or_over_cap_list_is_terminal(self):
         for response in [[], {}, dict(total_count=101, artifacts=[]),
-                         dict(total_count=1, artifacts=[]),
-                         dict(total_count=1, artifacts=[None])]:
+                         dict(total_count=-1, artifacts=[]), dict(total_count=True, artifacts=[]),
+                         dict(total_count=0, artifacts=[self.artifact()] * 101),
+                         dict(total_count=1, artifacts=[{}]), dict(total_count=1, artifacts=[None]),
+                         dict(total_count=2, artifacts=[{'name': 'another', 'id': True}])]:
             with self.subTest(response=response), self.assertRaises(ValueError):
                 self.run_guard([response])
+
+    def test_bounded_count_disagreement_resets_ready_observations(self):
+        ready = self.response(self.artifact())
+        for count, rows in [(2, [self.artifact()]), (0, [self.artifact()]), (1, [])]:
+            partial = dict(total_count=count, artifacts=rows)
+            with self.subTest(total=count, rows=len(rows)):
+                elapsed, calls = self.run_guard([ready, partial, ready, ready])
+                self.assertEqual((elapsed, len(calls)), (15, 4))
+                with self.assertRaisesRegex(TimeoutError, 'NOT_READY'):
+                    self.run_guard([partial], timeout=12)
+
+    def test_inconsistent_counts_do_not_hide_invalid_identity(self):
+        for rows, reason in [
+            ([self.artifact(), self.artifact(id=43)], 'NAME_AMBIGUOUS'),
+            ([self.artifact(id=43)], 'IDENTITY_MISMATCH'),
+            ([self.artifact(name='unexpected')], 'IDENTITY_MISMATCH'),
+            ([self.artifact(workflow_run={'id': 77, 'head_sha': 'b' * 40})], 'IDENTITY_MISMATCH'),
+        ]:
+            with self.subTest(reason=reason), self.assertRaisesRegex(ValueError, reason):
+                self.run_guard([dict(total_count=4, artifacts=rows), self.response(self.artifact())])
 
     def test_absence_has_a_finite_deadline(self):
         with self.assertRaisesRegex(TimeoutError, 'NOT_READY'):

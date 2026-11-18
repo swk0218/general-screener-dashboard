@@ -101,26 +101,35 @@ jobs:
                       raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
                   if not isinstance(response, dict) or not isinstance(response.get('artifacts'), list) or any(not isinstance(a, dict) for a in response['artifacts']):
                       raise ValueError('PAGES_ARTIFACT_RESPONSE_INVALID')
-                  if type(response.get('total_count')) is not int or response['total_count'] > 100 or response['total_count'] != len(response['artifacts']):
+                  rows = response['artifacts']
+                  total = response.get('total_count')
+                  if type(total) is not int or not 0 <= total <= 100 or len(rows) > 100:
                       raise ValueError('PAGES_ARTIFACT_LIST_INCOMPLETE')
-                  matches = [a for a in response['artifacts'] if a.get('name') == name]
+                  if any(not isinstance(a.get('name'), str) or not a['name'].strip() for a in rows):
+                      raise ValueError('PAGES_ARTIFACT_RESPONSE_INVALID')
+                  matches = [a for a in rows if a['name'] == name]
                   if len(matches) > 1:
                       raise ValueError('PAGES_ARTIFACT_NAME_AMBIGUOUS')
+                  if any(a['name'] != name and (type(a.get('id')) is not int or a['id'] <= 0) for a in rows):
+                      raise ValueError('PAGES_ARTIFACT_RESPONSE_INVALID')
+                  if any(a.get('id') == artifact_id and a['name'] != name for a in rows):
+                      raise ValueError('PAGES_ARTIFACT_IDENTITY_MISMATCH')
                   if matches:
                       artifact = matches[0]
                       identity = artifact.get('workflow_run') or {}
-                      if (type(artifact.get('id')) is not int or artifact['id'] != artifact_id
+                      if (not isinstance(identity, dict)
+                              or type(artifact.get('id')) is not int or artifact['id'] != artifact_id
                               or artifact.get('expired') is not False
                               or type(artifact.get('size_in_bytes')) is not int
                               or artifact['size_in_bytes'] <= 0
                               or type(identity.get('id')) is not int or identity['id'] != run_id
                               or identity.get('head_sha') != head):
                           raise ValueError('PAGES_ARTIFACT_IDENTITY_MISMATCH')
-                      stable += 1
-                      if stable == 2:
-                          return
-                  else:
-                      stable = 0
+                  # The count and list can become visible at different times after upload.
+                  # An incomplete page never counts toward the two exact observations.
+                  stable = stable + 1 if matches and total == len(rows) else 0
+                  if stable == 2:
+                      return
                   sleep(min(5, max(0, deadline - now())))
               raise TimeoutError('PAGES_ARTIFACT_NOT_READY')
 
