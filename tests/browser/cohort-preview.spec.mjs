@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-import {cohortPreviewFixture} from '../cohort-preview-fixture.mjs';
+import {cohortPreviewFixture,notRunCohortPreviewFixture} from '../cohort-preview-fixture.mjs';
 
 test('full cohort opens the real screener directly and keeps producer S Q T and evidence',async({page},testInfo)=>{
   const errors=[],unexpected=[];
@@ -63,4 +63,49 @@ test('failed or invalid cohort loading never falls back to production data or as
   await page.route('**/__development/cohort-review',route=>route.fulfill({json:{schema:'INVALID_TEST_ONLY'}}));
   await page.reload();await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.locator('.app-shell')).toHaveCount(0);expect(productionRequests).toEqual([]);
+});
+
+test('a billing-blocked execution stays not run while the real screener shows historical S and missing Q T',async({page},testInfo)=>{
+  const errors=[],unexpected=[],fixture=notRunCohortPreviewFixture(),original=JSON.stringify(fixture);
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('request',request=>{
+    if(/\/data\/.*\.enc\.json|api\.openai\.com|financialmodelingprep/i.test(request.url()))unexpected.push(request.url());
+  });
+  await page.route('**/__development/cohort-review',route=>route.fulfill({json:fixture}));
+  await page.goto('/cohort-preview.html#/detail/TENX/TEST_ONLY-tenx/TESTA');
+  await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(page.locator('input[type=password],input[type=file]')).toHaveCount(0);
+  const warning=page.getByLabel('정성 분석 미실행',{exact:true});
+  await expect(warning).toContainText('GitHub 결제·지출 한도로 작업이 시작되지 않았습니다.');
+  await expect(warning).toContainText('뉴스 수집과 GPT 평가는 수행되지 않았습니다.');
+  const cohort=page.getByRole('region',{name:'개발 코호트 검증'});
+  await expect(cohort).toContainText('수치 자료 기준');
+  await expect(cohort).toContainText('정성 실행 시도');await expect(cohort).toContainText('999001');
+  const panel=page.getByRole('region',{name:'TESTA 정성 분석'});
+  const scores=panel.locator('.briefing-scores');
+  await expect(scores).toContainText('원점수 S');await expect(scores).toContainText('70');
+  await expect(scores).toContainText('사건 보정 Q');await expect(scores).toContainText('미평가');
+  await expect(scores).toContainText('보정 점수 T');await expect(scores).toContainText('미산출');
+  await expect(panel).toContainText('정성 평가를 수행하지 않았습니다.');
+  await expect(panel.getByRole('link',{name:'원문',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'OVERVIEW',exact:true}).filter({visible:true}).first().click();
+  await page.getByRole('button',{name:'SCREENER',exact:true}).filter({visible:true}).first().click();
+  await expect(page).toHaveURL(/#\/selection\/MLG$/);
+  await expect(page.getByRole('heading',{name:'공식 실행이 아직 없습니다.',exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'TENX 스크리너 보기 →',exact:true}).click();
+  await expect(page).toHaveURL(/#\/selection\/TENX$/);
+  await expect(page.getByRole('heading',{name:'현재 선정 종목',exact:true})).toBeVisible();
+  await page.locator('button[aria-label^="TESTA,"][aria-label$="상세 보기"]:visible').first().click();
+  await expect(page).toHaveURL(/#\/detail\/TENX\/TEST_ONLY-tenx\/TESTA$/);
+  await expect(scores).toContainText('70');await expect(scores).toContainText('미평가');
+  await expect(scores).toContainText('미산출');await expect(warning).toBeVisible();
+  await cohort.getByText('전체 후보 검토 2개',{exact:true}).click();
+  const rows=cohort.getByRole('table').getByRole('row');
+  await expect(rows).toHaveCount(3);await expect(rows.nth(1)).toContainText('미평가');
+  await expect(rows.nth(2)).toContainText('미평가');
+  await cohort.getByText('전체 후보 검토 2개',{exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:testInfo.outputPath('cohort-not-run-TEST_ONLY.png'),fullPage:false});
+  expect(JSON.stringify(fixture)).toBe(original);expect(errors).toEqual([]);expect(unexpected).toEqual([]);
 });

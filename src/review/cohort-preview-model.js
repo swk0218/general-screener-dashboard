@@ -17,6 +17,13 @@ function containsPrivateFields(value){
 export function cohortReview(value) {
   if(!record(value)||value.schema!=='gpt_cohort_review_v1'||!record(value.cohort)||containsPrivateFields(value))fail();
   const c=value.cohort;
+  if(c.numeric_as_of!==undefined&&!stamp(c.numeric_as_of))fail();
+  if(c.execution_status!==undefined){
+    if(c.execution_status!=='not_run'||c.blocker!=='github_billing_limit'
+      ||typeof c.blocked_run_id!=='string'||!/^\d+$/.test(c.blocked_run_id)
+      ||!stamp(c.numeric_as_of)||c.status!=='partial'||c.evaluated_count!==0
+      ||c.unevaluated_count!==c.expected_count||c.ranking_basis!=='quantitative_score')fail();
+  }else if(c.blocker!==undefined||c.blocked_run_id!==undefined)fail();
   if(!['MLG','TENX'].includes(c.strategy)||!['complete','partial'].includes(c.status)
     ||!['quantitative_score','adjusted_score'].includes(c.ranking_basis)
     ||typeof c.run_id!=='string'||!c.run_id.trim()||c.run_id.length>100
@@ -53,9 +60,14 @@ export function cohortReview(value) {
       ||row.ranking_basis!==c.ranking_basis||!briefing||briefing.status==='invalid'
       ||row.qualitative.status!==candidate.status
       ||c.strategy==='TENX'&&((row.qualitative_adjustment??null)!==candidate.q
-        ||(row.qualitative.q??null)!==candidate.q))fail();
+        ||(row.qualitative.q??null)!==candidate.q
+        ||row.score!==row[c.ranking_basis]))fail();
+    if(c.execution_status==='not_run'&&(row.adjusted_score!=null
+      ||row.qualitative.data_as_of!=null||row.qualitative.analyzed_at!=null))fail();
   }
   return {payload,cohort:{strategy:c.strategy,status:c.status,expectedCount:c.expected_count,
     evaluatedCount:c.evaluated_count,unevaluatedCount:c.unevaluated_count,
-    rankingBasis:c.ranking_basis,runId:c.run_id,sourceSha:c.source_sha,cutoffAt:c.cutoff_at,candidates}};
+    rankingBasis:c.ranking_basis,runId:c.run_id,sourceSha:c.source_sha,cutoffAt:c.cutoff_at,candidates,
+    ...(c.numeric_as_of?{numericAsOf:c.numeric_as_of}:{}),
+    ...(c.execution_status?{executionStatus:c.execution_status,blocker:c.blocker,blockedRunId:c.blocked_run_id}:{})}};
 }

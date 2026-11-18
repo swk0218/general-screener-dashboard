@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {cohortReview} from '../src/review/cohort-preview-model.js';
 import {cohortPreviewServer} from '../scripts/cohort-preview-server.mjs';
-import {cohortPreviewFixture} from './cohort-preview-fixture.mjs';
+import {cohortPreviewFixture,notRunCohortPreviewFixture} from './cohort-preview-fixture.mjs';
 
 test('full cohort receipt reconciles every native rank and preserves the actual Dashboard payload',()=>{
   const input=cohortPreviewFixture(),before=structuredClone(input),result=cohortReview(input);
@@ -28,6 +28,20 @@ test('partial cohort keeps the whole run on S and never fills an unevaluated Q w
   delete row.qualitative_adjustment;delete row.adjusted_score;
   assert.equal(cohortReview(value).cohort.candidates[0].q,null);
   value.cohort.ranking_basis='adjusted_score';assert.throws(()=>cohortReview(value),/COHORT_REVIEW_INVALID/);
+});
+
+test('a job blocked before start stays NOT_RUN with a separate numeric source clock',()=>{
+  const input=notRunCohortPreviewFixture(),result=cohortReview(input);
+  assert.equal(result.cohort.executionStatus,'not_run');assert.equal(result.cohort.evaluatedCount,0);
+  assert.equal(result.cohort.numericAsOf,input.cohort.numeric_as_of);
+  assert.equal(result.cohort.blockedRunId,'999001');
+  for(const change of [v=>v.cohort.execution_status='completed',v=>v.cohort.evaluated_count=1,
+    v=>v.cohort.numeric_as_of='not-a-clock',v=>v.cohort.blocker='unknown',
+    v=>delete v.cohort.execution_status,v=>v.cohort.ranking_basis='adjusted_score',
+    v=>v.payload.recommendations[0].score=72,v=>v.payload.recommendations[0].adjusted_score=70,
+    v=>v.payload.recommendations[0].qualitative.analyzed_at=v.cohort.numeric_as_of]){
+    const invalid=notRunCohortPreviewFixture();change(invalid);assert.throws(()=>cohortReview(invalid),/COHORT_REVIEW_INVALID/);
+  }
 });
 
 test('private preview source is dev-only, loopback-only, outside the checkout and never logs its path',async()=>{

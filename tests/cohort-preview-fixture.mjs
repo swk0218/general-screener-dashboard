@@ -31,3 +31,17 @@ export function cohortPreviewFixture() {
       ranking_basis:'adjusted_score',run_id:'TEST_ONLY-tenx',source_sha:'a'.repeat(40),cutoff_at:cutoff,
       candidates:[{symbol:'TESTA',status:'evaluated',q:2,rank:1},{symbol:'TESTB',status:'evaluated',q:0,rank:2}]}};
 }
+
+export function notRunCohortPreviewFixture() {
+  const value=cohortPreviewFixture(),numericAsOf='2026-11-17T08:00:00Z';
+  value.payload.runs=value.payload.runs.filter(run=>run.strategy==='TENX')
+    .map(run=>({...run,report_created_at:numericAsOf}));
+  value.payload.recommendations=value.payload.recommendations.filter(row=>row.strategy==='TENX')
+    .map(row=>({...row,score:row.quantitative_score,qualitative_adjustment:null,adjusted_score:null,
+      ranking_basis:'quantitative_score',qualitative:{status:'unevaluated',q:null,reason:'not_evaluated'}}));
+  Object.assign(value.cohort,{execution_status:'not_run',blocker:'github_billing_limit',
+    numeric_as_of:numericAsOf,blocked_run_id:'999001',status:'partial',evaluated_count:0,
+    unevaluated_count:2,ranking_basis:'quantitative_score',
+    candidates:value.cohort.candidates.map(row=>({...row,status:'unevaluated',q:null}))});
+  return value;
+}

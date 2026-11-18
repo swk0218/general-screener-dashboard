@@ -17,11 +17,15 @@ function CohortContext({value}){
   const c=value.cohort;
   return <section className="cohort-review-context" aria-label="개발 코호트 검증">
     <div className="cohort-review-heading"><strong>개발 브랜치 · {c.strategy} 정성 검토</strong><span>{c.evaluatedCount}/{c.expectedCount} 완료{c.unevaluatedCount?` · ${c.unevaluatedCount} 미평가`:''} · 운영 미반영</span></div>
-    <p>자료 기준 <ReviewClock value={c.cutoffAt}/> · 순위는 {c.rankingBasis==='adjusted_score'?'보정 점수 T':'원점수 S'} 기준입니다.</p>
+    {c.executionStatus==='not_run'&&<p className="cohort-review-warning" role="note" aria-label="정성 분석 미실행"><strong>정성 분석 미실행</strong> · GitHub 결제·지출 한도로 작업이 시작되지 않았습니다. 뉴스 수집과 GPT 평가는 수행되지 않았습니다.</p>}
+    <p>{c.numericAsOf?'수치 자료 기준':'자료 기준'} <ReviewClock value={c.numericAsOf||c.cutoffAt}/> · 순위는 {c.rankingBasis==='adjusted_score'?'보정 점수 T':'원점수 S'} 기준입니다.</p>
+    {c.numericAsOf&&c.executionStatus!=='not_run'&&<p>뉴스 판단 기준 <ReviewClock value={c.cutoffAt}/></p>}
+    <a className="cohort-review-open" href={`#/selection/${c.strategy}`}>{c.strategy} 스크리너 보기 →</a>
     <details><summary>전체 후보 검토 {c.expectedCount}개</summary>
       <p>화면에는 실행에서 선정한 추천을 표시합니다. 아래 목록은 평가 대상 전체의 처리 상태입니다.</p>
       <div className="cohort-review-table"><table><thead><tr><th>순위</th><th>종목</th><th>정성 처리</th>{c.strategy==='TENX'&&<th>Q</th>}</tr></thead><tbody>{c.candidates.map(row=><tr key={row.symbol}><td>{row.rank}</td><td>{row.symbol}</td><td>{STATUS_COPY[row.status]}</td>{c.strategy==='TENX'&&<td>{row.q===null?'미평가':`${row.q>0?'+':''}${row.q}`}</td>}</tr>)}</tbody></table></div>
-      <p>실행 {c.runId} · 기준 커밋 <code>{c.sourceSha}</code></p>
+      <p>{c.executionStatus==='not_run'?'수치 실행':'실행'} {c.runId} · 기준 커밋 <code>{c.sourceSha}</code></p>
+      {c.blockedRunId&&<p>정성 실행 시도 {c.blockedRunId} · 작업 시작 전 중단</p>}
     </details>
   </section>;
 }
