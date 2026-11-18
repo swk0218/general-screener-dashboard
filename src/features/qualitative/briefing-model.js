@@ -59,13 +59,28 @@ function stockEvent(event, cutoff, symbol, strategy) {
     || !text(event.reason)) return null;
   return {id:event.id,summary:text(event.reason),assessment,...publication,sources:[{url:safeSourceUrl(event.source_url),label:'원문',quote:text(event.quote)}]};
 }
+const FAILURE_REASONS = Object.freeze({
+  insufficient_evidence: '확인된 근거가 부족해 이번 정성 평가를 보류했습니다.',
+  not_evaluated: '정성 평가를 수행하지 않았습니다.',
+  assessment_persistence_failed: '정성 결과 저장에 실패해 미평가로 유지합니다.',
+  incomplete_collection: '뉴스 수집 범위가 불완전해 정성 점수 반영을 보류했습니다.',
+  configuration_missing: '정성 분석 설정을 확인할 수 없습니다.',
+  readiness_or_evidence_blocked: '자금·근거 확인이 끝나지 않아 정성 점수 반영을 보류했습니다.',
+  provider_or_contract_failure: '정성 분석 결과를 확인하지 못했습니다.',
+  provider_timeout: '정성 분석 응답 시간이 초과되어 점수 반영을 보류했습니다.',
+  provider_http_error: '정성 분석 서비스의 응답을 받지 못해 점수 반영을 보류했습니다.',
+  stale_event: '사건의 유효 시점을 확인할 수 없어 점수 반영을 보류했습니다.',
+  unbound_evidence: '사건과 원문 근거의 연결을 확인할 수 없어 점수 반영을 보류했습니다.',
+  evaluation_unavailable: '정성 평가 결과를 확인하지 못했습니다.',
+  operating_window_closed: '이번 실행의 정성 분석 시간이 지나 평가를 보류했습니다.',
+});
+
 export function stockBriefing(recommendation) {
   const q = recommendation?.qualitative;
   if(q == null) return null;
   if(!q || typeof q !== 'object' || !Object.hasOwn(STATUS_COPY,q.status)) return unavailable();
-  const reasons={insufficient_evidence:'확인된 근거가 부족해 이번 정성 평가를 보류했습니다.',not_evaluated:'정성 평가를 수행하지 않았습니다.',assessment_persistence_failed:'정성 결과 저장에 실패해 미평가로 유지합니다.',incomplete_collection:'뉴스 수집 범위가 불완전해 정성 점수 반영을 보류했습니다.',configuration_missing:'정성 분석 설정을 확인할 수 없습니다.',readiness_or_evidence_blocked:'자금·근거 확인이 끝나지 않아 정성 점수 반영을 보류했습니다.',provider_or_contract_failure:'정성 분석 결과를 확인하지 못했습니다.',provider_timeout:'정성 분석 응답 시간이 초과되어 점수 반영을 보류했습니다.',provider_http_error:'정성 분석 서비스의 응답을 받지 못해 점수 반영을 보류했습니다.',stale_event:'사건의 유효 시점을 확인할 수 없어 점수 반영을 보류했습니다.',unbound_evidence:'사건과 원문 근거의 연결을 확인할 수 없어 점수 반영을 보류했습니다.',evaluation_unavailable:'정성 평가 결과를 확인하지 못했습니다.'};
   const failure=['fallback','unevaluated','unavailable','uncertain','stale','invalid'].includes(q.status);
-  const reason=Object.hasOwn(reasons,q.reason)?reasons[q.reason]:failure?reasons.evaluation_unavailable:text(q.reason);
+  const reason=Object.hasOwn(FAILURE_REASONS,q.reason)?FAILURE_REASONS[q.reason]:failure?FAILURE_REASONS.evaluation_unavailable:text(q.reason);
   const base={status:q.status,label:STATUS_COPY[q.status],reason,events:[],scores:[],dataAsOf:timestamp(q.data_as_of)?q.data_as_of:null,analyzedAt:timestamp(q.analyzed_at)?q.analyzed_at:null};
   if(q.claim_evidence_complete===false)base.claimCopy='일부 주장의 근거를 확인하지 못해 해당 주장을 점수에 반영하지 않았습니다.';
   if(recommendation.strategy==='MLG'&&q.status==='unevaluated'

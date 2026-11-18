@@ -11,7 +11,7 @@ test('absent enrichment preserves current UI; disabled and failure are not norma
  assert.deepEqual(stockBriefing({qualitative:{status:'unevaluated'}}).scores,[]);
 });
 test('provider failures have Korean recovery copy and preserve unevaluated Q',()=>{
- for(const [reason,copy] of [['provider_timeout',/응답 시간이 초과/],['provider_http_error',/응답을 받지 못해/],['unexpected_private_trace',/평가 결과를 확인하지 못했습니다/]]){
+ for(const [reason,copy] of [['provider_timeout',/응답 시간이 초과/],['provider_http_error',/응답을 받지 못해/],['operating_window_closed',/이번 실행의 정성 분석 시간이 지나/],['unexpected_private_trace',/평가 결과를 확인하지 못했습니다/]]){
   const row={symbol:'TEST',strategy:'TENX',quantitative_score:70,ranking_basis:'quantitative_score',qualitative:{status:'unevaluated',q:null,reason}};
   const before=structuredClone(row),view=stockBriefing(row);
   assert.match(view.reason,copy);assert.doesNotMatch(view.reason,/provider_|private_trace/);
